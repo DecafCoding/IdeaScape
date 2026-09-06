@@ -230,6 +230,7 @@
       onPointerDown={(event) => beginMove(event, placement)}
       onContextMenu={(event) => onOpenElementMenu(event, placement.id)}
       onResizeStart={(handle, event) => beginResize(handle, event, placement)}
+      onDoubleClick={item?.kind === 'note' ? () => startEditing(placement.id) : undefined}
     >
       {#if item && item.kind === 'note'}
         {#if editing && draft}
@@ -241,7 +242,10 @@
           />
         {:else}
           {@const payload = parseNotePayload(item.payload)}
-          <div class="note-hit" role="presentation" ondblclick={() => startEditing(placement.id)}>
+          <!-- Fills the shell so the rendered note keeps its height. The double-click that
+               opens the editor is on the shell itself, not here — see CardShell's
+               `onDoubleClick`. -->
+          <div class="note-hit">
             <NoteCard
               title={payload.title}
               text={payload.text}

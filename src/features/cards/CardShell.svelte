@@ -21,6 +21,13 @@
     onPointerDown: (event: PointerEvent) => void;
     onContextMenu: (event: MouseEvent) => void;
     onResizeStart: (handle: ResizeHandle, event: PointerEvent) => void;
+    /**
+     * Opens the card's own editor, where it has one. It must live on this element rather
+     * than on the card's content: `onPointerDown` takes pointer capture to drag, and a
+     * captured pointer retargets the click and dblclick that follow to the capture
+     * element. A handler on a descendant is therefore never reached.
+     */
+    onDoubleClick?: (event: MouseEvent) => void;
     children: Snippet;
   }
 
@@ -32,6 +39,7 @@
     onPointerDown,
     onContextMenu,
     onResizeStart,
+    onDoubleClick,
     children,
   }: Props = $props();
 </script>
@@ -56,6 +64,7 @@
   "
   onpointerdown={onPointerDown}
   oncontextmenu={onContextMenu}
+  ondblclick={onDoubleClick}
 >
   {@render children()}
 

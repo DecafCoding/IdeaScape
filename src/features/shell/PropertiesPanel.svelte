@@ -20,6 +20,7 @@
     DIRECTED_NONE,
     parseImagePayload,
     parseLinkPayload,
+    parseNotePayload,
     parseVideoPayload,
     type Placement,
   } from '../../lib/types';
@@ -37,6 +38,8 @@
     onDeleteConnection?: () => void;
     /** The image card's Alt text group, committed on blur. */
     onAltTextChange?: (alt: string) => void;
+    /** The note card's Title group, committed on blur. */
+    onNoteTitleChange?: (title: string) => void;
     /** Replace the selected image card's picture, keeping its alt text. */
     onReplaceImage?: () => void;
     /** Reveal the project's `assets/` folder in the system shell. */
@@ -56,6 +59,7 @@
     onConnectionChange,
     onDeleteConnection,
     onAltTextChange,
+    onNoteTitleChange,
     onReplaceImage,
     onShowInFolder,
     onRefetch,
@@ -118,6 +122,9 @@
     }
     return soleItem ? cardTitle(soleItem) : '';
   });
+
+  /** The one selected note's payload, or null — the Title group reads it. */
+  const note = $derived(soleItem?.kind === 'note' ? parseNotePayload(soleItem.payload) : null);
 
   // --- the image card's File and Alt text groups (§9.4) -------------------
 
@@ -218,6 +225,23 @@
         <span class="kind">{headerKind}</span>
         <span class="item-id">{headerId}</span>
       </header>
+
+      {#if note}
+        <!-- Always editable, whether or not the card's own editor is open. The card's
+             heading is not a text field the pointer can reach while it is only selected,
+             so this is the one place a title can be renamed without entering the card. -->
+        <section class="group" data-testid="panel-title-group">
+          <p class="group-label">Title</p>
+          <input
+            class="input"
+            type="text"
+            aria-label="Note Title"
+            placeholder="untitled"
+            value={note.title}
+            onblur={(e) => onNoteTitleChange?.(e.currentTarget.value)}
+          />
+        </section>
+      {/if}
 
       {#each ['position', 'size'] as const as group}
         <section class="group">
@@ -407,6 +431,13 @@
     gap: 4px;
     font-size: var(--text-11);
     opacity: 0.75;
+  }
+
+  /* The four geometry boxes hold one short signed number, so they are sized to that rather
+     than stretched across the column. 42px is the floor that still shows `-1024` whole. */
+  .field .input {
+    flex: none;
+    width: 42px;
   }
 
   .input {
