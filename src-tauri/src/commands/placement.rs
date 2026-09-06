@@ -248,20 +248,20 @@ pub fn update_placements_for(state: &AppState, updates: Vec<PlacementUpdate>) ->
     })
 }
 
-/// Delete placements, and any item left with no placement at all. The returned effect names
-/// every row removed, so one undo command can put all of it back together.
-pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<DeleteEffect> {
-    // Clone the folder out of its mutex before taking the db lock — never the other way
-    // round, or two commands can deadlock.
-    let folder = state.project_folder();
-
-    let effect = state.with_db(|conn| {
-        let tx = conn.transaction()?;
+/// The whole delete, inside a transaction the caller owns. `delete_canvas` calls this so a
+/// canvas and its cascade are one transaction rather than two, and so the orphan-item and
+/// reference-count rules are written once rather than twice. The returned `assets` are named
+/// but not yet moved: trashing happens after the caller commits.
+pub(crate) fn delete_placements_tx(
+    tx: &rusqlite::Transaction<'_>,
+    ids: &[i64],
+) -> AppResult<DeleteEffect> {
+    {
         let mut effect = DeleteEffect::default();
         let mut seen_connections: HashSet<i64> = HashSet::new();
         let mut orphaned: Vec<String> = Vec::new();
 
-        for id in &ids {
+        for id in ids {
             let placement = tx
                 .query_row(
                     "SELECT * FROM placement WHERE id = ?1",
@@ -274,7 +274,7 @@ pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<Delet
             // Capture the attached connections *before* the delete: the foreign-key cascade
             // removes them, and after it the select returns nothing. Deduplicated by id,
             // because a line whose two endpoints are both in `ids` is found twice.
-            for row in connections_touching(&tx, placement.id)? {
+            for row in connections_touching(tx, placement.id)? {
                 if seen_connections.insert(row.id) {
                     effect.connections.push(row);
                 }
@@ -297,7 +297,7 @@ pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<Delet
                 // inside the transaction: after the item row goes the payload is unreadable
                 // and the reference count would come out one short.
                 for name in asset_names(&item.kind, &item.payload) {
-                    if reference_count(&tx, &name, item.id)? == 0 && !orphaned.contains(&name) {
+                    if reference_count(tx, &name, item.id)? == 0 && !orphaned.contains(&name) {
                         orphaned.push(name);
                     }
                 }
@@ -307,8 +307,22 @@ pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<Delet
             effect.placements.push(placement);
         }
 
-        tx.commit()?;
         effect.assets = orphaned;
+        Ok(effect)
+    }
+}
+
+/// Delete placements, and any item left with no placement at all. The returned effect names
+/// every row removed, so one undo command can put all of it back together.
+pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<DeleteEffect> {
+    // Clone the folder out of its mutex before taking the db lock — never the other way
+    // round, or two commands can deadlock.
+    let folder = state.project_folder();
+
+    let effect = state.with_db(|conn| {
+        let tx = conn.transaction()?;
+        let effect = delete_placements_tx(&tx, &ids)?;
+        tx.commit()?;
         Ok(effect)
     })?;
 

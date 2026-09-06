@@ -98,9 +98,15 @@
   --shadow-toggle-knob: 0 1px 3px rgba(45, 43, 43, 0.3);
   /* Project additions, flagged for the owner: a card under the pointer, and the note
      card's floating text bar. Card hover is NOT a new elevation — §11.2 lifts it to the
-     selected shadow. The dialog shadow belongs to Phase 4. */
+     selected shadow. The dialog shadow arrived in Phase 4, below, with the first three
+     modal surfaces in the product. */
   --shadow-card-drag: 0 8px 22px rgba(45, 43, 43, 0.22);
   --shadow-textbar: 0 6px 18px rgba(45, 43, 43, 0.24);
+  /* Phase 4 additions, flagged for the owner: one elevation and one scrim for the New
+     project dialog and the canvas delete confirm. §5.3's closed set has no scrim because
+     no modal surface existed before this phase. */
+  --shadow-dialog: 0 18px 44px rgba(45, 43, 43, 0.34);
+  --scrim: color-mix(in srgb, var(--color-text) 26%, transparent);
 
   /* Interaction tints (§11.1) */
   --tint-accent-hover: color-mix(in srgb, var(--color-accent) 8%, transparent);

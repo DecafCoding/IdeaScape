@@ -21,6 +21,20 @@
     pickImages,
     IMAGE_EXTENSIONS,
   } from './features/cards/ingest.svelte';
+  import CanvasList from './features/canvases/CanvasList.svelte';
+  import DeleteCanvasDialog from './features/canvases/DeleteCanvasDialog.svelte';
+  import {
+    createCanvas,
+    deleteCanvas as deleteCanvasRow,
+    refreshCanvases,
+    renameCanvas,
+  } from './features/canvases/canvases.svelte';
+  import SearchBox from './features/search/SearchBox.svelte';
+  import SearchResults from './features/search/SearchResults.svelte';
+  import { searchState } from './features/search/search.svelte';
+  import ProjectPicker from './features/projects/ProjectPicker.svelte';
+  import NewProjectDialog from './features/projects/NewProjectDialog.svelte';
+  import { projectsState } from './features/projects/projects.svelte';
   import ConnectionLayer from './features/connections/ConnectionLayer.svelte';
   import ConnectionLabels from './features/connections/ConnectionLabels.svelte';
   import {
@@ -36,13 +50,16 @@
   import { bringForward, sendBack } from './features/cards/zorder';
   import { undoStack } from './features/undo/undoStack.svelte';
   import {
+    createCanvasCommand,
     createCardCommand,
     createConnectionCommand,
+    deleteCanvasCommand,
     deleteCardsCommand,
     deleteConnectionsCommand,
     duplicateCommand,
     editConnectionCommand,
     editItemCommand,
+    renameCanvasCommand,
     updatePlacementsCommand,
   } from './features/undo/commands';
   import { canvasStore } from './stores/canvasStore.svelte';
@@ -56,6 +73,7 @@
   import { logError, logInfo } from './lib/logger';
   import {
     BACKGROUND_MENU_WIDTH,
+    CANVAS_MENU_WIDTH,
     ELEMENT_MENU_WIDTH,
     type MenuEntry,
     type OpenMenu,
@@ -70,6 +88,8 @@
     type DeleteEffect,
     type Item,
     type LinkPreviewResult,
+    type CanvasHit,
+    type CardHit,
     type Placement,
     type PlacementWithItem,
     type VideoPreviewResult,
@@ -102,6 +122,22 @@
   let dragOver = $state(false);
   /** The item just pasted, which carries the §9.7 "Pasted here · Ctrl+V" caption. */
   let pastePendingItemId = $state<number | null>(null);
+
+  /** Which canvas row is a text box, and which canvas the delete confirm is about. */
+  let renamingCanvasId = $state<number | null>(null);
+  let deletingCanvasId = $state<number | null>(null);
+  /**
+   * Which row the canvas menu is about, held apart from `openMenu`. The root closes every menu
+   * on a capturing click, which runs *before* the chosen row's own handler — so a `run` that
+   * read `openMenu.canvasId` would always find it null.
+   */
+  let menuCanvasId = $state<number | null>(null);
+
+  /** The New project dialog: whether it is open, where it will write, and its own failure. */
+  let newProjectOpen = $state(false);
+  let newProjectParent = $state('');
+  let newProjectFailure = $state<string | null>(null);
+  let newProjectBusy = $state(false);
 
   let canvas = $state<CanvasSurface | null>(null);
   let cards = $state<CardLayer | null>(null);
@@ -138,15 +174,91 @@
 
   // --- start up ---------------------------------------------------------
 
+  /**
+   * Boot loads the recents list and nothing else. There is no developer path any more and
+   * the application does not auto-open the last project: design-system §9.1 makes the picker
+   * the launch screen, and the Recent grid would be pointless if a project opened itself.
+   */
   $effect(() => {
     void guard(async () => {
-      folderPath = await invokeSafe<string>('dev_project_path');
-      await canvasStore.openProject(folderPath);
-      // The asset URL helper cannot build an <img src> until it knows the folder.
-      setAssetsFolder(await invokeSafe<string>('assets_folder'));
+      await projectsState.loadRecents();
       await maybeRunPerfGate();
     });
   });
+
+  /**
+   * Open a project and move every piece of session state onto it. The order matters: the
+   * assets folder is per project, so it is re-read on every open — read once at boot, the
+   * second project of a session would draw the first project's pictures, or none.
+   */
+  async function openProject(path: string) {
+    try {
+      await canvasStore.openProject(path);
+      setAssetsFolder(await invokeSafe<string>('assets_folder'));
+      folderPath = path;
+      // The stack holds ids from the project that is closing. `undo-model`: session only.
+      undoStack.clear();
+      clipboard = [];
+      projectsState.failure = null;
+      errorMessage = null;
+      newProjectOpen = false;
+      await projectsState.loadRecents();
+    } catch (error) {
+      const message = error instanceof IpcError ? error.message : 'Something went wrong.';
+      // Drawn where the user is looking: they are on the picker, so the strip goes there.
+      projectsState.failure = message;
+      errorMessage = message;
+      logError('a project could not be opened', error);
+    }
+  }
+
+  /** Let go of the project and return to the picker, losing nothing that was in flight. */
+  async function closeProject() {
+    await flushPlacements(saveHooks);
+    persistView.flush();
+    await guard(async () => {
+      await invokeSafe('close_project');
+      canvasStore.closeProject();
+      undoStack.clear();
+      setAssetsFolder(null);
+      clipboard = [];
+      folderPath = null;
+      openMenu = null;
+      // The just-closed project is now the first recent card.
+      await projectsState.loadRecents();
+    });
+  }
+
+  /** The New project dialog's Create. A rejected name draws inside the dialog. */
+  async function createProject(name: string) {
+    newProjectBusy = true;
+    try {
+      // Rust returns the folder it created, so the front end never builds a path.
+      const created = await invokeSafe<string>('create_project', {
+        parentPath: newProjectParent,
+        name,
+      });
+      logInfo(`created the project at ${created}`);
+      newProjectFailure = null;
+      await openProject(created);
+    } catch (error) {
+      newProjectFailure = error instanceof IpcError ? error.message : 'Something went wrong.';
+      logError('a project could not be created', error);
+    } finally {
+      newProjectBusy = false;
+    }
+  }
+
+  async function openNewProjectDialog() {
+    newProjectFailure = null;
+    newProjectParent = await projectsState.loadDefaultParent();
+    newProjectOpen = true;
+  }
+
+  async function chooseProjectFolder() {
+    const path = await projectsState.chooseFolder();
+    if (path) await openProject(path);
+  }
 
   /**
    * File drop. Tauri's `dragDropEnabled` is on by default and suppresses the webview's own
@@ -241,6 +353,11 @@
     isDevelopment = true;
     if (!wanted) return;
 
+    // The harness opens its own project from the debug-only `--project <path>` argument: the
+    // boot effect no longer opens one, because a release build's only route in is the picker.
+    const gatePath = await invokeSafe<string>('perf_gate_project_path');
+    await openProject(gatePath);
+
     const canvasId = canvasStore.activeCanvasId;
     if (canvasId === null) return;
 
@@ -249,11 +366,18 @@
       await canvasStore.loadCanvas(canvasId);
     }
 
-    // The two-second project-open budget, re-measured on the mixed canvas: reading 250 cards
-    // and checking every asset name they hold in one pass is what opening a project costs.
-    const openStarted = performance.now();
+    // The two-second project-open budget, re-measured on the mixed canvas. Two figures, because
+    // §10.2's clock starts when the recent card is clicked, not when `list_placements` is
+    // called: `openMs` is the canvas read alone, and `pickerOpenMs` is the whole route the
+    // picker takes — `open_project`, `list_canvases`, the canvas read, `assets_folder` and the
+    // recents list — by calling the very function a Recent card's click calls.
+    const canvasStarted = performance.now();
     await canvasStore.loadCanvas(canvasId);
-    const openMs = Math.round(performance.now() - openStarted);
+    const openMs = Math.round(performance.now() - canvasStarted);
+
+    const pickerStarted = performance.now();
+    await openProject(gatePath);
+    const pickerOpenMs = Math.round(performance.now() - pickerStarted);
 
     const passes = [];
     for (const [label, zoom] of [
@@ -264,7 +388,11 @@
     }
 
     const path = await invokeSafe<string>('record_perf_result', {
-      json: JSON.stringify({ startedAt: new Date().toISOString(), openMs, passes }, null, 2),
+      json: JSON.stringify(
+        { startedAt: new Date().toISOString(), openMs, pickerOpenMs, passes },
+        null,
+        2,
+      ),
     });
     logInfo(`the performance gate result was written to ${path}`);
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -275,6 +403,8 @@
   const persistView = debounce(() => {
     const canvasId = canvasStore.activeCanvasId;
     if (canvasId === null) return;
+    // The store's canvas row carries the view `loadCanvas` restores, so it has to move too.
+    canvasStore.recordCanvasView(canvasId, canvasStore.view);
     void invokeSafe('update_canvas_view', {
       canvasId,
       viewX: canvasStore.view.x,
@@ -282,6 +412,101 @@
       viewZoom: canvasStore.view.zoom,
     }).catch((error) => logError('the canvas view could not be saved', error));
   }, 400);
+
+  // --- canvases ---------------------------------------------------------
+
+  /**
+   * Make a canvas active. A switch owes the outgoing canvas two things — any geometry still
+   * queued, and its pan position, which `persistView` holds behind a 400 ms trailing debounce —
+   * and it owes the incoming one an empty undo stack, because the stack's ids belong to the
+   * canvas that is leaving (`undo-model`).
+   *
+   * `loadCanvas` already clears the selection, the pending link, the edit target and the fetch
+   * statuses and restores the canvas's saved view, so none of that is repeated here.
+   */
+  async function switchCanvas(canvasId: number) {
+    if (canvasId === canvasStore.activeCanvasId) return;
+    await flushPlacements(saveHooks);
+    persistView.flush();
+    undoStack.clear();
+    await guard(() => canvasStore.loadCanvas(canvasId));
+  }
+
+  /** The hooks the canvas undo commands need, so `features/undo/` imports no feature. */
+  const canvasHooks = { refresh: refreshCanvases, activate: switchCanvas };
+
+  async function newCanvas() {
+    await guard(async () => {
+      const canvas = await createCanvas();
+      if (!canvas) return;
+      // Switch first: `switchCanvas` clears the stack, so pushing before it would lose the
+      // command it just recorded.
+      await switchCanvas(canvas.id);
+      undoStack.push(createCanvasCommand(canvas, canvasHooks));
+    });
+  }
+
+  async function commitCanvasRename(canvasId: number, name: string) {
+    renamingCanvasId = null;
+    await guard(async () => {
+      const result = await renameCanvas(canvasId, name);
+      if (result) undoStack.push(renameCanvasCommand(canvasId, result.before, result.canvas.name));
+    });
+  }
+
+  /**
+   * Open the delete confirm, switching to the canvas first when it is not already active. The
+   * confirm names the canvas's card count (design-system §15.1), and the store only holds the
+   * cards of the active canvas — making it active is cheaper and more honest than a second
+   * count query, and the user sees what they are about to remove.
+   */
+  async function openDeleteCanvasConfirm(canvasId: number) {
+    if (canvasId !== canvasStore.activeCanvasId) await switchCanvas(canvasId);
+    deletingCanvasId = canvasId;
+  }
+
+  /**
+   * Delete a canvas, having switched away from it first when it is the active one — the shell
+   * must never be showing rows that no longer exist. Rust refuses the last canvas in a project
+   * and that message reaches the shell's strip through `guard`.
+   */
+  async function confirmDeleteCanvas(canvasId: number) {
+    deletingCanvasId = null;
+    await guard(async () => {
+      if (canvasId === canvasStore.activeCanvasId) {
+        const next = canvasStore.canvases.find((c) => c.id !== canvasId);
+        if (next) await switchCanvas(next.id);
+      }
+      const effect = await deleteCanvasRow(canvasId);
+      undoStack.push(deleteCanvasCommand(effect, canvasHooks));
+    });
+  }
+
+  // --- search -----------------------------------------------------------
+
+  /**
+   * Open a result. A canvas hit switches canvas; a card hit switches when the canvas differs,
+   * then selects the placement and centres the view on it. The placement is only in the store
+   * once its canvas has loaded, so the rectangle is read after the switch resolves.
+   */
+  async function openResult(result: { kind: 'canvas' | 'card'; hit: CanvasHit | CardHit }) {
+    searchState.close();
+    if (result.kind === 'canvas') {
+      await switchCanvas((result.hit as CanvasHit).canvas_id);
+      return;
+    }
+    const hit = result.hit as CardHit;
+    if (hit.canvas_id !== canvasStore.activeCanvasId) await switchCanvas(hit.canvas_id);
+    const placement = canvasStore.placements.get(hit.placement_id);
+    if (!placement) return;
+    canvasStore.setSelection([hit.placement_id]);
+    canvas?.centreOn({
+      x: placement.x,
+      y: placement.y,
+      width: placement.width,
+      height: placement.height,
+    });
+  }
 
   // --- card actions -----------------------------------------------------
 
@@ -815,47 +1040,84 @@
 
   // --- keyboard ---------------------------------------------------------
 
-  $effect(() =>
-    registerShortcuts({
-      'new-note': () => void createNote(pointerWorld),
-      'new-image': () => void addFromPicker(),
-      edit: () => cards?.editSelected(),
-      connect: startLinkFromSelection,
-      cancel: () => {
-        // Esc is overloaded: cancel a link, close a menu, finish an edit, then clear.
-        if (canvasStore.pendingLink) {
-          cancelLink();
-          return;
-        }
-        if (openMenu) {
-          openMenu = null;
-          return;
-        }
-        if (cards?.cancelEdit()) return;
-        if (canvasStore.selectedConnectionId !== null) {
-          canvasStore.selectConnection(null);
-          return;
-        }
-        canvasStore.clearSelection();
-      },
-      delete: () => {
-        if (canvasStore.selection.size === 0 && canvasStore.selectedConnectionId !== null) {
-          void deleteSelectedConnection();
-          return;
-        }
-        void deleteSelection();
-      },
-      duplicate: () => void duplicateSelection(),
-      copy: () => void copySelection(),
-      paste: () => void paste(),
-      'select-all': () => canvasStore.selectAll(),
-      'zoom-to-fit': () => canvas?.zoomToFit(),
-      'bring-forward': () => void reorder('front'),
-      'send-back': () => void reorder('back'),
-      undo: () => void undoStack.undo(),
-      redo: () => void undoStack.redo(),
-    }),
-  );
+  /**
+   * The picker's own small map. A canvas shortcut must not fire when there is no canvas, so
+   * with no project open only the Recent grid's four keys are registered. The grid is not a
+   * text box, so the dispatcher's `result-up` / `result-down` serve it.
+   */
+  const pickerShortcuts = {
+    'result-up': () => projectsState.move(-1),
+    'result-down': () => projectsState.move(1),
+    edit: () => {
+      const path = projectsState.current();
+      if (path) void openProject(path);
+    },
+    cancel: () => {
+      if (newProjectOpen) {
+        newProjectOpen = false;
+        return;
+      }
+      projectsState.selectedIndex = -1;
+    },
+  };
+
+  $effect(() => {
+    if (canvasStore.project === null) return registerShortcuts(pickerShortcuts);
+    return registerShortcuts(shellShortcuts);
+  });
+
+  const shellShortcuts = $derived({
+    'new-note': () => void createNote(pointerWorld),
+    'new-image': () => void addFromPicker(),
+    edit: () => cards?.editSelected(),
+    connect: startLinkFromSelection,
+    cancel: () => {
+      // Esc is overloaded: close the search popover, cancel a link, close a menu, finish an
+      // edit, then clear. The popover goes first because it is the frontmost thing on screen.
+      if (searchState.open) {
+        searchState.close();
+        return;
+      }
+      if (renamingCanvasId !== null) {
+        renamingCanvasId = null;
+        return;
+      }
+      if (deletingCanvasId !== null) {
+        deletingCanvasId = null;
+        return;
+      }
+      if (canvasStore.pendingLink) {
+        cancelLink();
+        return;
+      }
+      if (openMenu) {
+        openMenu = null;
+        return;
+      }
+      if (cards?.cancelEdit()) return;
+      if (canvasStore.selectedConnectionId !== null) {
+        canvasStore.selectConnection(null);
+        return;
+      }
+      canvasStore.clearSelection();
+    },
+    delete: () => {
+      if (canvasStore.selection.size === 0 && canvasStore.selectedConnectionId !== null) {
+        void deleteSelectedConnection();
+        return;
+      }
+      void deleteSelection();
+    },
+    duplicate: () => void duplicateSelection(),
+    copy: () => void copySelection(),
+    paste: () => void paste(),
+    'select-all': () => canvasStore.selectAll(),
+    'zoom-to-fit': () => canvas?.zoomToFit(),
+    'bring-forward': () => void reorder('front'),
+    'send-back': () => void reorder('back'),
+    undo: () => void undoStack.undo(),
+    redo: () => void undoStack.redo(),
+  } satisfies Parameters<typeof registerShortcuts>[0]);
 
   // --- context menus ----------------------------------------------------
 
@@ -966,6 +1228,39 @@
     },
   ]);
 
+  const canvasMenu = $derived<MenuEntry[]>([
+    {
+      kind: 'item',
+      label: 'Rename',
+      glyph: 'note',
+      action: 'edit',
+      // The row becomes a text box; there is no key for it, so no key is printed.
+      shortcutLabel: '',
+      run: () => {
+        if (menuCanvasId !== null) renamingCanvasId = menuCanvasId;
+      },
+    },
+    {
+      kind: 'item',
+      label: 'Delete Canvas',
+      glyph: 'trash',
+      action: 'delete',
+      destructive: true,
+      // A project with no canvas has no drawn state, so the last one cannot go.
+      available: canvasStore.canvases.length > 1,
+      run: () => {
+        if (menuCanvasId !== null) void openDeleteCanvasConfirm(menuCanvasId);
+      },
+    },
+  ]);
+
+  function openCanvasMenu(event: MouseEvent, canvasId: number) {
+    event.preventDefault();
+    event.stopPropagation();
+    menuCanvasId = canvasId;
+    openMenu = { kind: 'canvas', x: event.clientX, y: event.clientY, canvasId };
+  }
+
   function openElementMenu(event: MouseEvent, placementId: number) {
     event.preventDefault();
     event.stopPropagation();
@@ -1005,80 +1300,154 @@
 <div class="app" onclickcapture={() => (openMenu = null)} role="presentation">
   <TitleBar
     {folderPath}
+    pickerMode={canvasStore.project === null}
     onMinimize={() => void windowAction('minimize')}
     onMaximize={() => void windowAction('toggleMaximize')}
     onClose={() => void windowAction('close')}
   />
 
-  <div class="body">
-    <LeftColumn
-      undoDepth={undoStack.undoDepth}
-      redoDepth={undoStack.redoDepth}
-      onNewNote={() => void createNote(pointerWorld)}
-      onUndo={() => void undoStack.undo()}
-      onRedo={() => void undoStack.redo()}
-      onSelectCanvas={(id) => void guard(() => canvasStore.loadCanvas(id))}
+  {#if canvasStore.project === null}
+    <ProjectPicker
+      recents={projectsState.recents}
+      selectedIndex={projectsState.selectedIndex}
+      failure={projectsState.failure}
+      onOpenPath={(path) => void openProject(path)}
+      onChooseFolder={() => void chooseProjectFolder()}
+      onNewProject={() => void openNewProjectDialog()}
+      onSelect={(index) => (projectsState.selectedIndex = index)}
     />
+  {:else}
+    <div class="body">
+      <!-- The two snippets are how the left column renders a feature it may not import. -->
+      <LeftColumn
+        undoDepth={undoStack.undoDepth}
+        redoDepth={undoStack.redoDepth}
+        onNewNote={() => void createNote(pointerWorld)}
+        onNewImage={() => void addFromPicker()}
+        onUndo={() => void undoStack.undo()}
+        onRedo={() => void undoStack.redo()}
+        onCloseProject={() => void closeProject()}
+      >
+        {#snippet search()}
+          <SearchBox
+            query={searchState.query}
+            onType={(next) => searchState.type(next)}
+            onMove={(delta) => searchState.move(delta)}
+            onOpen={() => {
+              const result = searchState.current();
+              if (result) void openResult(result);
+            }}
+            onClose={() => searchState.close()}
+            onClear={() => searchState.clear()}
+          />
+        {/snippet}
+        {#snippet canvases()}
+          <CanvasList
+            renamingId={renamingCanvasId}
+            onSelectCanvas={(id) => void switchCanvas(id)}
+            onCreateCanvas={() => void newCanvas()}
+            onBeginRename={(id) => (renamingCanvasId = id)}
+            onCommitRename={(id, name) => void commitCanvasRename(id, name)}
+            onCancelRename={() => (renamingCanvasId = null)}
+            onOpenMenu={openCanvasMenu}
+          />
+        {/snippet}
+      </LeftColumn>
 
-    <CanvasSurface
-      bind:this={canvas}
-      onViewSettled={persistView}
-      onMarqueeEnd={applyMarquee}
-      onBackgroundClick={() => {
-        canvasStore.selectConnection(null);
-        canvasStore.clearSelection();
-      }}
-      onOpenBackgroundMenu={openBackgroundMenu}
-      onPointerWorld={(point) => {
-        pointerWorld = point;
-        trackLink(point);
-      }}
-    >
-      <!-- Before the card layer in DOM order, so cards always paint over lines. -->
-      <ConnectionLayer onSelect={(id) => canvasStore.selectConnection(id)} />
-      <ConnectionLabels />
+      <CanvasSurface
+        bind:this={canvas}
+        onViewSettled={persistView}
+        onMarqueeEnd={applyMarquee}
+        onBackgroundClick={() => {
+          canvasStore.selectConnection(null);
+          canvasStore.clearSelection();
+        }}
+        onOpenBackgroundMenu={openBackgroundMenu}
+        onPointerWorld={(point) => {
+          pointerWorld = point;
+          trackLink(point);
+        }}
+      >
+        <!-- Before the card layer in DOM order, so cards always paint over lines. -->
+        <ConnectionLayer onSelect={(id) => canvasStore.selectConnection(id)} />
+        <ConnectionLabels />
 
-      <CardLayer
-        bind:this={cards}
-        onGeometryCommitted={(before, after, label) => void commitGeometry(before, after, label)}
-        onOpenElementMenu={openElementMenu}
-        onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
-        onSelect={selectCard}
-        onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
-        onImageDecoded={(itemId, width, height) => void recordImageSize(itemId, width, height)}
-        onRefetch={(itemId) => void fetchPreview(itemId, true)}
-        onOpenVideo={(itemId) => void openVideo(itemId)}
-        {pastePendingItemId}
+        <CardLayer
+          bind:this={cards}
+          onGeometryCommitted={(before, after, label) => void commitGeometry(before, after, label)}
+          onOpenElementMenu={openElementMenu}
+          onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
+          onSelect={selectCard}
+          onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
+          onImageDecoded={(itemId, width, height) => void recordImageSize(itemId, width, height)}
+          onRefetch={(itemId) => void fetchPreview(itemId, true)}
+          onOpenVideo={(itemId) => void openVideo(itemId)}
+          {pastePendingItemId}
+        />
+      </CanvasSurface>
+
+      {#if canvasStore.cardCount === 0 && !dragOver}
+        <EmptyCanvas onNewNote={() => void createNote(pointerWorld)} />
+      {/if}
+
+      {#if dragOver}
+        <DropTarget />
+      {/if}
+
+      <PropertiesPanel
+        expanded={panelExpanded}
+        onToggle={() => (panelOpen = !panelOpen)}
+        onGeometryChange={changeGeometry}
+        onBringForward={() => void reorder('front')}
+        onSendBack={() => void reorder('back')}
+        onDuplicate={() => void duplicateSelection()}
+        onDelete={() => void deleteSelection()}
+        onConnectionChange={(label, directed) => void changeConnection(label, directed)}
+        onDeleteConnection={() => void deleteSelectedConnection()}
+        onAltTextChange={(alt) => void commitAltText(alt)}
+        onReplaceImage={() => void replaceImage()}
+        onShowInFolder={() => void showAssetsFolder()}
+        onRefetch={() => {
+          const item = selectedItem();
+          if (item) void fetchPreview(item.id, true);
+        }}
       />
-    </CanvasSurface>
+    </div>
+  {/if}
 
-    {#if canvasStore.cardCount === 0 && !dragOver}
-      <EmptyCanvas onNewNote={() => void createNote(pointerWorld)} />
-    {/if}
-
-    {#if dragOver}
-      <DropTarget />
-    {/if}
-
-    <PropertiesPanel
-      expanded={panelExpanded}
-      onToggle={() => (panelOpen = !panelOpen)}
-      onGeometryChange={changeGeometry}
-      onBringForward={() => void reorder('front')}
-      onSendBack={() => void reorder('back')}
-      onDuplicate={() => void duplicateSelection()}
-      onDelete={() => void deleteSelection()}
-      onConnectionChange={(label, directed) => void changeConnection(label, directed)}
-      onDeleteConnection={() => void deleteSelectedConnection()}
-      onAltTextChange={(alt) => void commitAltText(alt)}
-      onReplaceImage={() => void replaceImage()}
-      onShowInFolder={() => void showAssetsFolder()}
-      onRefetch={() => {
-        const item = selectedItem();
-        if (item) void fetchPreview(item.id, true);
-      }}
+  {#if searchState.open && canvasStore.project !== null}
+    <!-- Over the canvas, and selecting nothing, so the properties panel stays collapsed. -->
+    <SearchResults
+      results={searchState.results}
+      query={searchState.query}
+      highlighted={searchState.highlighted}
+      onOpenCanvas={(hit) => void openResult({ kind: 'canvas', hit })}
+      onOpenCard={(hit) => void openResult({ kind: 'card', hit })}
     />
-  </div>
+  {/if}
+
+  {#if deletingCanvasId !== null}
+    <DeleteCanvasDialog
+      name={canvasStore.canvases.find((c) => c.id === deletingCanvasId)?.name ?? ''}
+      cardCount={canvasStore.cardCount}
+      onConfirm={() => void confirmDeleteCanvas(deletingCanvasId!)}
+      onCancel={() => (deletingCanvasId = null)}
+    />
+  {/if}
+
+  {#if newProjectOpen}
+    <NewProjectDialog
+      parentPath={newProjectParent}
+      failure={newProjectFailure}
+      busy={newProjectBusy}
+      onCreate={(name) => void createProject(name)}
+      onChooseParent={async () => {
+        const picked = await projectsState.chooseFolder(newProjectParent);
+        if (picked) newProjectParent = picked;
+      }}
+      onCancel={() => (newProjectOpen = false)}
+    />
+  {/if}
 
   {#if errorMessage}
     <p class="error" role="status">{errorMessage}</p>
@@ -1092,8 +1461,16 @@
     <ContextMenu
       x={openMenu.x}
       y={openMenu.y}
-      width={openMenu.kind === 'element' ? ELEMENT_MENU_WIDTH : BACKGROUND_MENU_WIDTH}
-      entries={openMenu.kind === 'element' ? elementMenu : backgroundMenu}
+      width={openMenu.kind === 'element'
+        ? ELEMENT_MENU_WIDTH
+        : openMenu.kind === 'canvas'
+          ? CANVAS_MENU_WIDTH
+          : BACKGROUND_MENU_WIDTH}
+      entries={openMenu.kind === 'element'
+        ? elementMenu
+        : openMenu.kind === 'canvas'
+          ? canvasMenu
+          : backgroundMenu}
       onClose={() => (openMenu = null)}
     />
   {/if}

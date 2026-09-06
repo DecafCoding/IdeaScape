@@ -1,6 +1,9 @@
 <!--
   The 34 px title bar (design-system §8.2): brand, breadcrumb, save state, counts and the
   three window controls. Every measurement here is a token, never a literal.
+
+  In `pickerMode` — no project open — only the brand and the three window controls are
+  shown (design-system §9.1). The bar keeps its height and its drag region either way.
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
@@ -9,12 +12,20 @@
   interface Props {
     /** Where the project folder lives — shown instead of the breadcrumb on an empty project. */
     folderPath?: string | null;
+    /** True while the project picker is the screen: brand and window controls only. */
+    pickerMode?: boolean;
     onMinimize?: () => void;
     onMaximize?: () => void;
     onClose?: () => void;
   }
 
-  const { folderPath = null, onMinimize, onMaximize, onClose }: Props = $props();
+  const {
+    folderPath = null,
+    pickerMode = false,
+    onMinimize,
+    onMaximize,
+    onClose,
+  }: Props = $props();
 
   const cardCount = $derived(canvasStore.cardCount);
   const selectedCount = $derived(canvasStore.selection.size);
@@ -43,7 +54,9 @@
 <header class="title-bar" data-testid="title-bar">
   <span class="brand">IdeaScape</span>
 
-  {#if isEmptyProject && folderPath}
+  {#if pickerMode}
+    <!-- Nothing between the brand and the window controls: there is no project to name. -->
+  {:else if isEmptyProject && folderPath}
     <span class="breadcrumb">
       <Icon glyph="folder-open" size={13} />
       {folderPath}
@@ -54,17 +67,19 @@
     </span>
   {/if}
 
-  <span class="save-state">
-    {#if canvasStore.saveState === 'saving'}
-      <Icon glyph="circle-dashed" size={14} />
-      Saving…
-    {:else if savedAgo}
-      <Icon glyph="check-circle" size={14} />
-      {savedAgo}
-    {/if}
-  </span>
+  {#if !pickerMode}
+    <span class="save-state">
+      {#if canvasStore.saveState === 'saving'}
+        <Icon glyph="circle-dashed" size={14} />
+        Saving…
+      {:else if savedAgo}
+        <Icon glyph="check-circle" size={14} />
+        {savedAgo}
+      {/if}
+    </span>
 
-  <span class="counts">{countsLabel}</span>
+    <span class="counts">{countsLabel}</span>
+  {/if}
 
   <div class="window-controls">
     <button type="button" class="control" onclick={onMinimize}>

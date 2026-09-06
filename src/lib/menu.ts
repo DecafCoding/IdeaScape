@@ -25,13 +25,22 @@ export interface MenuSeparator {
 
 export type MenuEntry = MenuItem | MenuSeparator;
 
-/** Which menu is open, and where the pointer was when it opened. */
+/**
+ * Which menu is open, and where the pointer was when it opened. The canvas-row menu is a third
+ * `kind` rather than a new component: the left column raises it to the root, which builds the
+ * entries and renders the one `ContextMenu` — the import-direction rule forbids the canvases
+ * feature importing the shell feature's menu component.
+ */
 export interface OpenMenu {
-  kind: 'element' | 'background';
+  kind: 'element' | 'background' | 'canvas';
   x: number;
   y: number;
+  /** Set only for the `canvas` kind: which row was right-clicked. */
+  canvasId?: number;
 }
 
 /** The drawn widths: 256 px for the element menu, 236 px for the background menu. */
 export const ELEMENT_MENU_WIDTH = 256;
 export const BACKGROUND_MENU_WIDTH = 236;
+/** The canvas-row menu holds two short rows, so it is narrower than either of the others. */
+export const CANVAS_MENU_WIDTH = 196;

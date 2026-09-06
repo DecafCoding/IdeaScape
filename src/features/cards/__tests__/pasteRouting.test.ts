@@ -67,8 +67,20 @@ function backend() {
   invokeSafe.mockImplementation((command: string, args?: Record<string, unknown>) => {
     order.push(command);
     switch (command) {
-      case 'dev_project_path':
-        return Promise.resolve('C:/Project');
+      // Phase 4 retired the developer path: boot loads the recents list, and the picker's
+      // Recent card is the route into a project.
+      case 'list_recent_projects':
+        return Promise.resolve([
+          {
+            path: 'C:/Project',
+            name: 'Project',
+            canvas_count: 1,
+            card_count: 0,
+            opened_at: new Date().toISOString(),
+          },
+        ]);
+      case 'close_project':
+        return Promise.resolve(null);
       case 'open_project':
         return Promise.resolve({
           id: 1,
@@ -152,6 +164,13 @@ function backend() {
 
 async function mountAndPaste() {
   const view = render(App);
+  // No project auto-opens: click the one Recent card, exactly as the user would.
+  const card = await waitFor(() => {
+    const found = view.getByTestId('recent-grid').querySelector('button.card');
+    if (!found) throw new Error('the recent grid has not rendered yet');
+    return found;
+  });
+  await fireEvent.click(card);
   await waitFor(() => expect(canvasStore.activeCanvasId).toBe(CANVAS_ID));
 
   Object.defineProperty(navigator, 'clipboard', {

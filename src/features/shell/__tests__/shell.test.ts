@@ -33,10 +33,74 @@ describe('the shell measurements', () => {
     expect(getByTestId('title-bar')).toBeInTheDocument();
   });
 
+  it('titleBar_pickerMode_showsTheBrandWithNoBreadcrumbSaveStateOrCounts', () => {
+    canvasStore.closeProject();
+    const { getByTestId, getByText, queryByText, getByLabelText } = render(TitleBar, {
+      props: { pickerMode: true },
+    });
+
+    const bar = getByTestId('title-bar');
+    expect(getByText('IdeaScape')).toBeInTheDocument();
+    expect(getByLabelText('Close')).toBeInTheDocument();
+    expect(bar.querySelector('.breadcrumb')).toBeNull();
+    expect(bar.querySelector('.save-state')).toBeNull();
+    expect(bar.querySelector('.counts')).toBeNull();
+    expect(queryByText(/cards ·/)).toBeNull();
+  });
+
   it('leftColumn_isOneHundredAndSixtyEightPixelsWide', () => {
     expect(token('--size-left-column')).toBe('168px');
     const { getByTestId } = render(LeftColumn, { props: {} });
     expect(getByTestId('left-column')).toBeInTheDocument();
+  });
+
+  it('leftColumn_withoutSnippets_ownsNoSearchBoxAndNoCanvasRows', () => {
+    // The markup moved to `features/search/` and `features/canvases/`: `features/shell/` may
+    // not import either, so the root fills two snippet props instead. Given none, the column
+    // renders neither — which is what proves the markup is no longer here.
+    canvasStore.closeProject();
+    canvasStore.canvases = [
+      {
+        id: 1,
+        project_id: 1,
+        name: 'Canvas 1',
+        sort_order: 0,
+        view_x: 0,
+        view_y: 0,
+        view_zoom: 1,
+        created_at: '',
+        updated_at: '',
+      },
+    ];
+    const { getByTestId, queryByTestId } = render(LeftColumn, { props: {} });
+
+    expect(queryByTestId('search-box')).toBeNull();
+    expect(queryByTestId('canvas-list')).toBeNull();
+    expect(getByTestId('left-column').querySelector('.canvas-row')).toBeNull();
+    // And it no longer draws the inert word "Search" it carried since Phase 1.
+    expect(getByTestId('left-column').textContent).not.toContain('Search');
+  });
+
+  it('leftColumn_imageRow_isAvailable', () => {
+    // Drawn disabled since Phase 1 even though `pickImages` shipped in Phase 3; enabling it
+    // here is one line of wiring to behaviour that already exists.
+    let picked = 0;
+    const { getByText } = render(LeftColumn, { props: { onNewImage: () => (picked += 1) } });
+    const row = getByText('Image').closest('button') as HTMLButtonElement;
+    expect(row.disabled).toBe(false);
+    expect(row.className).not.toContain('is-unavailable');
+    row.click();
+    expect(picked).toBe(1);
+  });
+
+  it('leftColumn_closeProjectRow_isPinnedAboveSettings', () => {
+    let closed = 0;
+    const { getByText } = render(LeftColumn, { props: { onCloseProject: () => (closed += 1) } });
+    const pinned = getByText('Close Project').closest('.pinned');
+    expect(pinned).not.toBeNull();
+    expect(pinned?.textContent).toContain('Settings');
+    (getByText('Close Project').closest('button') as HTMLButtonElement).click();
+    expect(closed).toBe(1);
   });
 
   it('propertiesPanel_isOneHundredAndSeventySevenPixelsExpanded', () => {

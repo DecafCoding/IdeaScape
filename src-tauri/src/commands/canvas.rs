@@ -1,10 +1,14 @@
 //! Listing and creating the canvases in the open project, and saving a canvas's pan and
 //! zoom so it is restored the next time the canvas opens.
 
+use crate::assets;
+use crate::commands::item::{asset_names, insert_item};
+use crate::commands::placement::delete_placements_tx;
 use crate::commands::project::AppState;
 use crate::db::connection::now_iso8601;
-use crate::db::models::{row_to_canvas, Canvas};
-use crate::error::AppResult;
+use crate::db::models::{row_to_canvas, row_to_placement, Canvas, CanvasDeleteEffect, Placement};
+use crate::error::{AppError, AppResult};
+use std::collections::HashMap;
 
 /// Every canvas in the project, in the order the left column shows them.
 pub fn list_canvases_for(state: &AppState, project_id: i64) -> AppResult<Vec<Canvas>> {
@@ -50,6 +54,225 @@ pub fn create_canvas(
     create_canvas_for(&state, project_id, name)
 }
 
+/// Rename a canvas. Names are not required to be unique — nothing states a uniqueness rule,
+/// and enforcing one would make rename fail in a way no state is drawn for.
+pub fn rename_canvas_for(state: &AppState, canvas_id: i64, name: String) -> AppResult<Canvas> {
+    state.with_db(|conn| {
+        let changed = conn.execute(
+            "UPDATE canvas SET name = ?2, updated_at = ?3 WHERE id = ?1",
+            rusqlite::params![canvas_id, name, now_iso8601()],
+        )?;
+        if changed == 0 {
+            return Err(AppError::NotFound(format!("canvas {canvas_id}")));
+        }
+        Ok(conn.query_row(
+            "SELECT * FROM canvas WHERE id = ?1",
+            [canvas_id],
+            row_to_canvas,
+        )?)
+    })
+}
+
+/// Delete a canvas, and with it every placement on it, the items that lose their last
+/// placement, the connections the cascade takes, and the asset files no remaining payload
+/// still names — all in one transaction (`persistence-strategy`).
+///
+/// Every row the effect reports is read *before* the canvas row goes, because `placement`
+/// and `connection` are both children of `canvas(id)` with `ON DELETE CASCADE` and foreign
+/// keys are on: after the delete those selects return nothing and the undo would be a no-op.
+pub fn delete_canvas_for(state: &AppState, canvas_id: i64) -> AppResult<CanvasDeleteEffect> {
+    // Folder guard before db guard, always.
+    let folder = state.project_folder();
+
+    let effect = state.with_db(|conn| {
+        let tx = conn.transaction()?;
+
+        let canvas = tx
+            .query_row(
+                "SELECT * FROM canvas WHERE id = ?1",
+                [canvas_id],
+                row_to_canvas,
+            )
+            .map_err(|_| AppError::NotFound(format!("canvas {canvas_id}")))?;
+
+        let siblings: i64 = tx.query_row(
+            "SELECT count(*) FROM canvas WHERE project_id = ?1",
+            [canvas.project_id],
+            |r| r.get(0),
+        )?;
+        if siblings <= 1 {
+            // A project with no canvas has no drawn state, and the left column would have
+            // nothing to make active.
+            return Err(AppError::Invalid(String::from(
+                "the last canvas in a project cannot be deleted",
+            )));
+        }
+
+        let placement_ids: Vec<i64> = {
+            let mut stmt =
+                tx.prepare("SELECT id FROM placement WHERE canvas_id = ?1 ORDER BY z_order, id")?;
+            let ids = stmt
+                .query_map([canvas_id], |r| r.get(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            ids
+        };
+        let inner = delete_placements_tx(&tx, &placement_ids)?;
+
+        tx.execute("DELETE FROM canvas WHERE id = ?1", [canvas_id])?;
+        tx.commit()?;
+
+        Ok(CanvasDeleteEffect {
+            canvas,
+            placements: inner.placements,
+            items: inner.items,
+            connections: inner.connections,
+            assets: inner.assets,
+        })
+    })?;
+
+    // Trashing happens after the commit: a rolled-back delete must not have moved a file.
+    if let Some(folder) = folder.as_deref() {
+        for name in &effect.assets {
+            assets::trash(folder, name)?;
+        }
+    }
+    Ok(effect)
+}
+
+/// Put a deleted canvas back — the row, its cards, its lines and its asset files together.
+///
+/// Nothing keeps its old primary key. The connections are re-pointed by building an
+/// old-placement-id → new-placement-id map as the placements go in, in the order they
+/// arrive. A line whose endpoint is not in the map is skipped rather than failing the whole
+/// restore: a partly restored canvas is better than none.
+pub fn restore_canvas_for(state: &AppState, effect: CanvasDeleteEffect) -> AppResult<Canvas> {
+    // Untrash before the rows go in, so a card is never on a canvas pointing at a file that
+    // is still in the trash. Folder guard taken and dropped before `with_db`.
+    if let Some(folder) = state.project_folder().as_deref() {
+        for item in &effect.items {
+            for name in asset_names(&item.kind, &item.payload) {
+                assets::untrash(folder, &name)?;
+            }
+        }
+    }
+
+    state.with_db(|conn| {
+        let tx = conn.transaction()?;
+
+        tx.execute(
+            "INSERT INTO canvas (project_id, name, sort_order, view_x, view_y, view_zoom,
+                                 created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![
+                effect.canvas.project_id,
+                effect.canvas.name,
+                effect.canvas.sort_order,
+                effect.canvas.view_x,
+                effect.canvas.view_y,
+                effect.canvas.view_zoom,
+                effect.canvas.created_at,
+                now_iso8601(),
+            ],
+        )?;
+        let canvas_id = tx.last_insert_rowid();
+
+        // An item that kept another placement elsewhere was never deleted, so it is not in
+        // the effect: its old id is still live and is reused as-is.
+        let mut item_ids: HashMap<i64, i64> = HashMap::new();
+        for item in &effect.items {
+            let fresh = insert_item(&tx, item.project_id, &item.kind, &item.payload)?;
+            item_ids.insert(item.id, fresh.id);
+        }
+
+        let mut placement_ids: HashMap<i64, i64> = HashMap::new();
+        for placement in &effect.placements {
+            let item_id = item_ids
+                .get(&placement.item_id)
+                .copied()
+                .unwrap_or(placement.item_id);
+            tx.execute(
+                "INSERT INTO placement (canvas_id, item_id, x, y, width, height, z_order)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
+                    canvas_id,
+                    item_id,
+                    placement.x,
+                    placement.y,
+                    placement.width,
+                    placement.height,
+                    placement.z_order,
+                ],
+            )?;
+            placement_ids.insert(placement.id, tx.last_insert_rowid());
+        }
+
+        for connection in &effect.connections {
+            let (Some(from), Some(to)) = (
+                placement_ids.get(&connection.from_placement_id).copied(),
+                placement_ids.get(&connection.to_placement_id).copied(),
+            ) else {
+                log::warn!(
+                    "a restored line was skipped: one of its cards is not in the effect ({} → {})",
+                    connection.from_placement_id,
+                    connection.to_placement_id
+                );
+                continue;
+            };
+            tx.execute(
+                "INSERT INTO connection (canvas_id, from_placement_id, to_placement_id, label,
+                                         directed)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![canvas_id, from, to, connection.label, connection.directed],
+            )?;
+        }
+
+        let restored = tx.query_row(
+            "SELECT * FROM canvas WHERE id = ?1",
+            [canvas_id],
+            row_to_canvas,
+        )?;
+        tx.commit()?;
+        Ok(restored)
+    })
+}
+
+/// Every placement on a canvas, used by the tests and by `delete_canvas_for`'s read pass.
+pub fn placements_on(state: &AppState, canvas_id: i64) -> AppResult<Vec<Placement>> {
+    state.with_db(|conn| {
+        let mut stmt =
+            conn.prepare("SELECT * FROM placement WHERE canvas_id = ?1 ORDER BY z_order, id")?;
+        let rows = stmt
+            .query_map([canvas_id], row_to_placement)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    })
+}
+
+#[tauri::command]
+pub fn rename_canvas(
+    state: tauri::State<'_, AppState>,
+    canvas_id: i64,
+    name: String,
+) -> AppResult<Canvas> {
+    rename_canvas_for(&state, canvas_id, name)
+}
+
+#[tauri::command]
+pub fn delete_canvas(
+    state: tauri::State<'_, AppState>,
+    canvas_id: i64,
+) -> AppResult<CanvasDeleteEffect> {
+    delete_canvas_for(&state, canvas_id)
+}
+
+#[tauri::command]
+pub fn restore_canvas(
+    state: tauri::State<'_, AppState>,
+    effect: CanvasDeleteEffect,
+) -> AppResult<Canvas> {
+    restore_canvas_for(&state, effect)
+}
+
 pub fn update_canvas_view_for(
     state: &AppState,
     canvas_id: i64,
@@ -82,6 +305,185 @@ pub fn update_canvas_view(
 mod tests {
     use super::*;
     use crate::commands::project::open_project_at;
+    use crate::commands::{asset, connection, placement};
+    use std::path::Path;
+
+    /// A project with two canvases, a note card on each, an image card on the second, and a
+    /// line joining the second canvas's two cards. Returns the two canvas ids.
+    fn project_with_two_canvases(state: &AppState, folder: &Path) -> (i64, i64) {
+        let project = open_project_at(state, folder).unwrap();
+        let first = list_canvases_for(state, project.id).unwrap()[0].id;
+        let second = create_canvas_for(state, project.id, "Second".into())
+            .unwrap()
+            .id;
+
+        placement::create_note_card_for(
+            state,
+            first,
+            0.0,
+            0.0,
+            240.0,
+            140.0,
+            "On first".into(),
+            "body".into(),
+        )
+        .unwrap();
+
+        let note = placement::create_note_card_for(
+            state,
+            second,
+            10.0,
+            10.0,
+            240.0,
+            140.0,
+            "On second".into(),
+            "body".into(),
+        )
+        .unwrap();
+
+        std::fs::write(folder.join("assets").join("abc123.png"), b"png bytes").unwrap();
+        let image = asset::create_image_card_for(
+            state,
+            second,
+            300.0,
+            10.0,
+            200.0,
+            150.0,
+            "abc123.png".into(),
+            200,
+            150,
+            "a picture".into(),
+            "source.png".into(),
+        )
+        .unwrap();
+
+        connection::create_connection_for(
+            state,
+            second,
+            note.placement.id,
+            image.placement.id,
+            Some("joins".into()),
+            1,
+        )
+        .unwrap();
+
+        (first, second)
+    }
+
+    #[test]
+    fn rename_canvas_new_name_is_read_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let project = open_project_at(&state, dir.path()).unwrap();
+        let id = list_canvases_for(&state, project.id).unwrap()[0].id;
+
+        let renamed = rename_canvas_for(&state, id, "Hull studies".into()).unwrap();
+        assert_eq!(renamed.name, "Hull studies");
+        assert_eq!(
+            list_canvases_for(&state, project.id).unwrap()[0].name,
+            "Hull studies"
+        );
+    }
+
+    #[test]
+    fn delete_canvas_only_canvas_in_project_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let project = open_project_at(&state, dir.path()).unwrap();
+        let id = list_canvases_for(&state, project.id).unwrap()[0].id;
+
+        let error = delete_canvas_for(&state, id).expect_err("the last canvas must survive");
+        assert!(error.to_string().contains("last canvas"), "{error}");
+        assert_eq!(list_canvases_for(&state, project.id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn delete_canvas_with_cards_and_lines_reports_every_row_it_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let (first, second) = project_with_two_canvases(&state, dir.path());
+
+        let effect = delete_canvas_for(&state, second).expect("delete");
+
+        assert_eq!(effect.canvas.id, second);
+        assert_eq!(effect.canvas.name, "Second");
+        assert_eq!(effect.placements.len(), 2);
+        assert_eq!(effect.items.len(), 2);
+        assert_eq!(
+            effect.connections.len(),
+            1,
+            "the cascade's line must be reported"
+        );
+        assert_eq!(effect.connections[0].label.as_deref(), Some("joins"));
+
+        // The other canvas is untouched.
+        assert_eq!(placements_on(&state, first).unwrap().len(), 1);
+        assert!(connection::list_connections_for(&state, second)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn delete_canvas_item_used_only_there_is_deleted_and_its_asset_trashed() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let (_first, second) = project_with_two_canvases(&state, dir.path());
+
+        let effect = delete_canvas_for(&state, second).expect("delete");
+
+        assert_eq!(effect.assets, vec![String::from("abc123.png")]);
+        assert!(!dir.path().join("assets").join("abc123.png").exists());
+        assert!(dir.path().join(".trash").join("abc123.png").exists());
+    }
+
+    #[test]
+    fn restore_canvas_from_its_effect_puts_back_rows_lines_and_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let (_first, second) = project_with_two_canvases(&state, dir.path());
+        let effect = delete_canvas_for(&state, second).unwrap();
+
+        let restored = restore_canvas_for(&state, effect.clone()).expect("restore");
+
+        assert_eq!(restored.name, "Second");
+        assert_eq!(restored.sort_order, effect.canvas.sort_order);
+        assert_ne!(restored.id, second, "a restored canvas takes a new id");
+
+        let placements = placements_on(&state, restored.id).unwrap();
+        assert_eq!(placements.len(), 2);
+        assert_eq!(
+            connection::list_connections_for(&state, restored.id)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(dir.path().join("assets").join("abc123.png").exists());
+    }
+
+    #[test]
+    fn restore_canvas_remaps_connection_endpoints_to_the_new_placement_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let (_first, second) = project_with_two_canvases(&state, dir.path());
+        let effect = delete_canvas_for(&state, second).unwrap();
+        let old_from = effect.connections[0].from_placement_id;
+        let old_to = effect.connections[0].to_placement_id;
+
+        let restored = restore_canvas_for(&state, effect).unwrap();
+
+        let placements = placements_on(&state, restored.id).unwrap();
+        let ids: Vec<i64> = placements.iter().map(|p| p.id).collect();
+        let line = &connection::list_connections_for(&state, restored.id).unwrap()[0];
+
+        assert!(
+            ids.contains(&line.from_placement_id),
+            "endpoint must be a new placement"
+        );
+        assert!(ids.contains(&line.to_placement_id));
+        assert_ne!(line.from_placement_id, old_from);
+        assert_ne!(line.to_placement_id, old_to);
+        assert_eq!(line.canvas_id, restored.id);
+    }
 
     #[test]
     fn create_canvas_for_assigns_the_next_sort_order() {

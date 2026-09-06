@@ -208,6 +208,20 @@ class CanvasStore {
 
   // --- loading ----------------------------------------------------------
 
+  /**
+   * Keep a canvas row's saved view in step with what was just written to it.
+   *
+   * `loadCanvas` restores a canvas's view from this list, and the list is otherwise only read
+   * when the project opens — so without this, panning canvas A, switching to B and switching
+   * back would put A at the position it had when the project was opened. "Everything is
+   * exactly as it was left, including the view position" is a PRD §10.2 acceptance line.
+   */
+  recordCanvasView(canvasId: number, view: { x: number; y: number; zoom: number }): void {
+    this.canvases = this.canvases.map((c) =>
+      c.id === canvasId ? { ...c, view_x: view.x, view_y: view.y, view_zoom: view.zoom } : c,
+    );
+  }
+
   /** Read a canvas and every card on it, and restore the view the canvas was left at. */
   async loadCanvas(canvasId: number): Promise<void> {
     const cards = await invokeSafe<PlacementWithItem[]>('list_placements', {

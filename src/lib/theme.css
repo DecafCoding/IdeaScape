@@ -36,6 +36,8 @@
   --shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.62);
   --shadow-card-drag: 0 8px 22px rgba(0, 0, 0, 0.58);
   --shadow-textbar: 0 6px 18px rgba(0, 0, 0, 0.6);
+  --shadow-dialog: 0 18px 44px rgba(0, 0, 0, 0.7);
+  --scrim: color-mix(in srgb, #000 46%, transparent);
 
   /* The dark steps are larger because a tint over a dark ground reads weaker (§11.1). */
   --tint-accent-hover: color-mix(in srgb, var(--color-accent-400) 12%, transparent);
@@ -79,6 +81,8 @@
     --shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.62);
     --shadow-card-drag: 0 8px 22px rgba(0, 0, 0, 0.58);
     --shadow-textbar: 0 6px 18px rgba(0, 0, 0, 0.6);
+    --shadow-dialog: 0 18px 44px rgba(0, 0, 0, 0.7);
+    --scrim: color-mix(in srgb, #000 46%, transparent);
 
     --tint-accent-hover: color-mix(in srgb, var(--color-accent-400) 12%, transparent);
     --tint-accent-press: color-mix(in srgb, var(--color-accent-400) 20%, transparent);

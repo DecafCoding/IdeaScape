@@ -228,6 +228,24 @@
     onViewSettled();
   }
 
+  /**
+   * Put `rect`'s centre at the viewport centre at the current zoom, easing there like any other
+   * programmatic view change and persisting the result — a search result opened on another
+   * canvas has to leave the view where the user can see it, and saved.
+   */
+  export function centreOn(rect: Rect) {
+    const { width, height } = canvasStore.viewportSize;
+    if (width === 0 || height === 0) return;
+    eased = true;
+    const zoom = canvasStore.view.zoom;
+    canvasStore.setView({
+      zoom,
+      x: width / 2 - (rect.x + rect.width / 2) * zoom,
+      y: height / 2 - (rect.y + rect.height / 2) * zoom,
+    });
+    onViewSettled();
+  }
+
   export function resetZoom() {
     eased = true;
     zoomAbout(1, centre());
