@@ -113,7 +113,7 @@ class FakeProject {
     }
 
     if (name === 'delete_placements') {
-      const effect: DeleteEffect = { placements: [], items: [], connections: [] };
+      const effect: DeleteEffect = { placements: [], items: [], connections: [], assets: [] };
       const seen = new Set<number>();
       for (const id of args.ids as number[]) {
         const card = this.cards.get(id);

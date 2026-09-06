@@ -14,8 +14,18 @@
  */
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import { invokeSafe } from '../lib/ipc';
+import { clearAssetStatuses, refreshAssetStatuses } from '../lib/assets';
 import { clampZoom, type Point, type Size, type View } from '../lib/geometry';
-import type { Canvas, Connection, Item, Placement, PlacementWithItem, Project } from '../lib/types';
+import {
+  payloadAssetNames,
+  type Canvas,
+  type Connection,
+  type FetchStatus,
+  type Item,
+  type Placement,
+  type PlacementWithItem,
+  type Project,
+} from '../lib/types';
 
 export type Tool = 'select' | 'pan' | 'connect';
 export type SaveState = 'idle' | 'saving' | 'saved';
@@ -28,6 +38,13 @@ class CanvasStore {
   placements = new SvelteMap<number, Placement>();
   items = new SvelteMap<number, Item>();
   connections = new SvelteMap<number, Connection>();
+
+  /**
+   * How a link or video card's preview fetch is going, keyed by item id. Presentation
+   * state only (design-system §13.1): the durable truth is the payload's `fetched_at`, and
+   * this map distinguishes only *in flight* from *failed*.
+   */
+  fetchStatus = new SvelteMap<number, FetchStatus>();
 
   selection = new SvelteSet<number>();
   /** Exclusive with `selection` — the panel shows one selected thing at a time. */
@@ -179,6 +196,16 @@ class CanvasStore {
     this.savedAt = at;
   }
 
+  // --- fetch status -----------------------------------------------------
+
+  setFetchStatus(itemId: number, status: FetchStatus): void {
+    this.fetchStatus.set(itemId, status);
+  }
+
+  fetchStatusFor(itemId: number): FetchStatus {
+    return this.fetchStatus.get(itemId) ?? 'idle';
+  }
+
   // --- loading ----------------------------------------------------------
 
   /** Read a canvas and every card on it, and restore the view the canvas was left at. */
@@ -201,6 +228,14 @@ class CanvasStore {
     this.selectedConnectionId = null;
     this.pendingLink = null;
     this.editingPlacementId = null;
+    this.fetchStatus.clear();
+
+    // One call for the whole canvas: 250 round trips would sit on the two-second open
+    // budget. A card whose asset is absent draws the missing-file marker; nothing throws.
+    const assetNames = cards.flatMap((card) =>
+      payloadAssetNames(card.item.kind, card.item.payload),
+    );
+    await refreshAssetStatuses(assetNames);
 
     const canvas = this.canvases.find((c) => c.id === canvasId);
     if (canvas) {
@@ -229,6 +264,8 @@ class CanvasStore {
     this.selectedConnectionId = null;
     this.pendingLink = null;
     this.editingPlacementId = null;
+    this.fetchStatus.clear();
+    clearAssetStatuses();
     this.view = { x: 0, y: 0, zoom: 1 };
     this.saveState = 'idle';
     this.savedAt = null;

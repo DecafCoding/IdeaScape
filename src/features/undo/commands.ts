@@ -3,13 +3,18 @@
  * cards of state per action is too much memory (architecture §7, undo-model).
  *
  * One command may carry several effects: undoing a delete restores the placements, the
- * items they orphaned and (from Phase 3) their asset files, together, as one step. The
- * command shape already allows the asset half even though this phase has none.
+ * items they orphaned and their asset files, together, as one step. The asset half is real
+ * from Phase 3: `restore_card` untrashes every asset a payload names before the item row
+ * goes back, so a restored card is never on the canvas pointing at a file still in the
+ * trash, and `DeleteEffect.assets` names what the delete actually moved out.
  *
  * Every command writes through the same commands the forward action used, so an undone
  * delete is genuinely back on disk and not only back in memory.
  */
 import { invokeSafe } from '../../lib/ipc';
+import { assetStatus, refreshAssetStatuses } from '../../lib/assets';
+import { logWarn } from '../../lib/logger';
+import { payloadAssetNames } from '../../lib/types';
 import { canvasStore } from '../../stores/canvasStore.svelte';
 import type {
   Connection,
@@ -57,7 +62,8 @@ async function restoreCards(
 ): Promise<DeleteEffect> {
   const itemById = new Map(items.map((i) => [i.id, i]));
   const idMap = new Map<number, number>();
-  const restoredEffect: DeleteEffect = { placements: [], items: [], connections: [] };
+  const restoredEffect: DeleteEffect = { placements: [], items: [], connections: [], assets: [] };
+  const restoredAssetNames: string[] = [];
 
   for (const placement of placements) {
     const item = itemById.get(placement.item_id) ?? canvasStore.items.get(placement.item_id);
@@ -76,6 +82,19 @@ async function restoreCards(
     idMap.set(placement.id, restored.placement.id);
     restoredEffect.placements.push(restored.placement);
     restoredEffect.items.push(restored.item);
+    restoredAssetNames.push(...payloadAssetNames(restored.item.kind, restored.item.payload));
+  }
+
+  // Re-check the restored assets and report an untrash that did not bring a file back. A
+  // missing picture is a drawn card state, so it must never fail the undo.
+  if (restoredAssetNames.length > 0) {
+    await refreshAssetStatuses(restoredAssetNames);
+    for (const name of restoredAssetNames) {
+      if (!assetStatus(name).exists) {
+        logWarn(`the restored card's picture ${name} did not come back into assets/`);
+      }
+    }
+    restoredEffect.assets = restoredAssetNames;
   }
 
   for (const connection of connections) {
@@ -131,8 +150,11 @@ export function createCardCommand(card: PlacementWithItem): UndoableCommand {
 }
 
 /**
- * Deleting a selection. `effect` names every row the backend actually removed, so the
- * item and the placement come back together as one step.
+ * Deleting a selection. `effect` names every row the backend actually removed — the
+ * placements, the items the delete orphaned, the connections the cascade took, and the
+ * asset files no remaining payload still named — so all of it comes back as one step. The
+ * files come back because `restore_card` untrashes them in Rust, not because anything here
+ * carries bytes.
  */
 export function deleteCardsCommand(effect: DeleteEffect): UndoableCommand {
   let current = effect;

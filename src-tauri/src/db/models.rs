@@ -79,12 +79,17 @@ pub struct Connection {
 }
 
 /// Everything `delete_placements` actually removed, so one undo command can restore the
-/// placements, any orphaned items and the connections the cascade took with them together.
+/// placements, any orphaned items, the connections the cascade took with them and the asset
+/// files no remaining payload still names, together.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct DeleteEffect {
     pub placements: Vec<Placement>,
     pub items: Vec<Item>,
     pub connections: Vec<Connection>,
+    /// The asset file names moved out of `assets/` and into `.trash/`. The Rust side is the
+    /// only thing that knows what a cascade and a reference count actually did.
+    #[serde(default)]
+    pub assets: Vec<String>,
 }
 
 pub fn row_to_project(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {

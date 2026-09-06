@@ -65,6 +65,12 @@ export interface DeleteEffect {
   placements: Placement[];
   items: Item[];
   connections: Connection[];
+  /**
+   * The asset file names the delete moved out of `assets/` because no remaining item
+   * payload named them. The Rust side is the only thing that knows what the cascade and
+   * the reference count actually did, so it reports rather than the front end inferring.
+   */
+  assets: string[];
 }
 
 /**
@@ -86,8 +92,9 @@ export const DIRECTED_FORWARD = 1;
 export const DIRECTED_BACK = 2;
 export const DIRECTED_BOTH = 3;
 
-// The four typed payloads. Only NotePayload is used in Phase 1; the other three land with
-// their cards in Phase 3.
+// The four typed payloads, exactly as PRD §6.9 lists them. Every asset field holds a bare
+// file name inside the project's `assets/` folder and never a path — `asset-storage` is
+// explicit about that, and `validate_payload` in Rust refuses a name carrying a separator.
 
 /** The note payload is `{ title, text }` — the amended shape PRD §6.9 settles on. */
 export interface NotePayload {
@@ -95,26 +102,35 @@ export interface NotePayload {
   text: string;
 }
 
+/**
+ * `source_name` is the original file name the picture arrived under. Content-hash naming
+ * destroys it, and design-system §9.4 draws it on the card and in the panel's File group,
+ * so it is kept beside the hash. It is display-only; nothing keys off it.
+ */
 export interface ImagePayload {
-  asset: string;
-  caption: string;
+  asset: string | null;
+  natural_width: number;
+  natural_height: number;
   alt: string;
+  source_name: string;
 }
 
+/** `fetched_at` is ISO-8601, or null when the address has not been read yet. */
 export interface LinkPayload {
   url: string;
   title: string;
   description: string;
-  asset: string | null;
-  fetched: boolean;
+  favicon_asset: string | null;
+  thumbnail_asset: string | null;
+  fetched_at: string | null;
 }
 
 export interface VideoPayload {
   url: string;
+  provider: string;
   title: string;
-  author: string;
-  asset: string | null;
-  fetched: boolean;
+  thumbnail_asset: string | null;
+  fetched_at: string | null;
 }
 
 export type ItemPayload = NotePayload | ImagePayload | LinkPayload | VideoPayload;
@@ -130,4 +146,152 @@ export function parseNotePayload(payload: string): NotePayload {
   } catch {
     return { title: '', text: '' };
   }
+}
+
+function asObject(payload: string): Record<string, unknown> {
+  try {
+    const value = JSON.parse(payload) as unknown;
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+/** An asset field: a non-empty string, or null. A malformed value reads as absent. */
+function asAssetName(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function asNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/** Read an image payload, tolerating a malformed row rather than throwing into a render. */
+export function parseImagePayload(payload: string): ImagePayload {
+  const value = asObject(payload);
+  return {
+    asset: asAssetName(value.asset),
+    natural_width: asNumber(value.natural_width),
+    natural_height: asNumber(value.natural_height),
+    alt: asString(value.alt),
+    source_name: asString(value.source_name),
+  };
+}
+
+/** Read a link payload, tolerating a malformed row rather than throwing into a render. */
+export function parseLinkPayload(payload: string): LinkPayload {
+  const value = asObject(payload);
+  return {
+    url: asString(value.url),
+    title: asString(value.title),
+    description: asString(value.description),
+    favicon_asset: asAssetName(value.favicon_asset),
+    thumbnail_asset: asAssetName(value.thumbnail_asset),
+    fetched_at: asAssetName(value.fetched_at),
+  };
+}
+
+/** Read a video payload. `provider` defaults to youtube — the only provider in the MVP. */
+export function parseVideoPayload(payload: string): VideoPayload {
+  const value = asObject(payload);
+  return {
+    url: asString(value.url),
+    provider: asString(value.provider) || 'youtube',
+    title: asString(value.title),
+    thumbnail_asset: asAssetName(value.thumbnail_asset),
+    fetched_at: asAssetName(value.fetched_at),
+  };
+}
+
+/** The host of an address, or an empty string when it does not parse. */
+export function urlHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The display name for a card of any kind: the note title, the image's original file name,
+ * the link or video title, falling back to the address host and then to a stable
+ * `<kind>-<padded id>`. The properties panel header and (from Phase 4) search both need
+ * one answer to this, which is why it lives in `lib/` rather than in either.
+ */
+export function cardTitle(item: Item): string {
+  const fallback = `${item.kind}-${String(item.id).padStart(3, '0')}`;
+  switch (item.kind) {
+    case 'note':
+      return parseNotePayload(item.payload).title || fallback;
+    case 'image': {
+      const payload = parseImagePayload(item.payload);
+      return payload.source_name || payload.alt || fallback;
+    }
+    case 'link': {
+      const payload = parseLinkPayload(item.payload);
+      return payload.title || urlHost(payload.url) || fallback;
+    }
+    case 'video': {
+      const payload = parseVideoPayload(item.payload);
+      return payload.title || urlHost(payload.url) || fallback;
+    }
+    default:
+      return fallback;
+  }
+}
+
+/** Every asset file name a payload holds. Mirrors `asset_names` in Rust. */
+export function payloadAssetNames(kind: ItemKind, payload: string): string[] {
+  const names: (string | null)[] = [];
+  if (kind === 'image') names.push(parseImagePayload(payload).asset);
+  if (kind === 'link') {
+    const value = parseLinkPayload(payload);
+    names.push(value.favicon_asset, value.thumbnail_asset);
+  }
+  if (kind === 'video') names.push(parseVideoPayload(payload).thumbnail_asset);
+  return names.filter((n): n is string => n !== null && n.length > 0);
+}
+
+/** Whether a fetching card's preview has been read, and how it went. */
+export type FetchStatus = 'idle' | 'fetching' | 'ok' | 'failed';
+
+/** One asset file name and whether it is actually in `assets/`. Mirrors the Rust struct. */
+export interface AssetStatus {
+  name: string;
+  exists: boolean;
+  byte_size: number;
+}
+
+/** What `add_image_from_path` / `add_image_from_bytes` return. */
+export interface AssetRef {
+  name: string;
+  byte_size: number;
+}
+
+/**
+ * What `fetch_link_preview` returns. `fetched: false` is the drawn not-fetched state; a
+ * `fetched: true` with no `thumbnail_asset` is the drawn "no preview picture" state. Neither
+ * is an error — a failed fetch is a value the card draws (contract 3).
+ */
+export interface LinkPreviewResult {
+  url: string;
+  fetched: boolean;
+  title: string;
+  description: string;
+  favicon_asset: string | null;
+  thumbnail_asset: string | null;
+}
+
+/** What `fetch_video_metadata` returns. oEmbed reports no duration, so none is carried. */
+export interface VideoPreviewResult {
+  url: string;
+  provider: string;
+  fetched: boolean;
+  title: string;
+  author_name: string;
+  thumbnail_asset: string | null;
 }

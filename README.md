@@ -62,18 +62,58 @@ shows the save state.
 | Key                 | Action                                                   |
 | ------------------- | -------------------------------------------------------- |
 | `N`                 | New note at the pointer                                  |
+| `I`                 | Add a picture from the file picker                       |
 | `C`                 | Start a connection from the selected card                |
 | `Enter`             | Edit the selected card                                   |
 | `Esc`               | Cancel a link, close the menu, finish the edit, or clear |
 | `Del`               | Delete the selection, or the selected connection         |
 | `Ctrl+D`            | Duplicate                                                |
-| `Ctrl+C` / `Ctrl+V` | Copy and paste                                           |
+| `Ctrl+C` / `Ctrl+V` | Copy, and paste whatever the clipboard holds             |
 | `Ctrl+A`            | Select all                                               |
 | `Ctrl+]` / `Ctrl+[` | Bring to front / send to back                            |
 | `Ctrl+0`            | Zoom to fit                                              |
 | `Ctrl+Z` / `Ctrl+Y` | Undo and redo, within the session                        |
 
 Right-click a card or the background for the same actions as a menu.
+
+## Pictures, Links And Videos
+
+There are four kinds of card. A **note** holds Markdown. The other three arrive from outside:
+
+- **A picture.** Drop one from Explorer onto the canvas, press `I` for the file picker, or paste
+  image bits with `Ctrl+V`. The file is copied into the project's `assets/` folder and named by a
+  hash of its bytes, so two identical pictures share one file and moving or renaming the original
+  never breaks the card. The card is drawn at the picture's real proportions. Its original file
+  name is kept beside the hash and shown on the card and in the panel's **File** group, together
+  with an **Alt Text** box, **Replace**, and **Show in folder**.
+- **A web address.** Paste one and the card appears **immediately**, showing the address and
+  marked not fetched. The page is then read for its Open Graph title, description, preview
+  picture and icon, and the card fills in behind it. Nothing waits on the network.
+- **A YouTube address.** Paste one and it becomes a video card with the video's title and
+  thumbnail. Clicking it opens the video in your system browser — video never plays inside
+  IdeaScape. A Vimeo address, or any other video host, becomes an ordinary link card.
+
+`Ctrl+V` decides between all of these in one place, in this order: cards you copied inside
+IdeaScape, a picture on the clipboard, a YouTube address, a web address, then plain text.
+
+Deleting the last card that uses a picture takes the file out of `assets/`; `Ctrl+Z` brings the
+card **and** the file back together. A picture shared by two cards is not removed when only one
+of them goes.
+
+### When Something Goes Wrong
+
+Nothing here is a dialog. Every failure is drawn on the card:
+
+- **A page that cannot be reached, or is slower than five seconds.** The card keeps the address
+  and offers **Refetch**, on the card itself and in the properties panel.
+- **A page with no preview picture.** The card says so and keeps the title and address.
+- **A picture file missing from `assets/`.** The card draws a dashed marker reading _File not
+  found in assets/_ at its authored size. The card, its position and its alt text all survive,
+  and **Replace** and **Show in folder** stay enabled, because they are the fix.
+
+Every fetch is cut off after five seconds. All network access lives in `src-tauri/src/fetch/`
+and nothing is ever fetched that you did not paste — the front end makes no network call of any
+kind, and there is no telemetry.
 
 ## Connecting Cards
 

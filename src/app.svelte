@@ -13,6 +13,14 @@
   import EmptyCanvas from './features/canvas/EmptyCanvas.svelte';
   import PerfOverlay from './features/canvas/PerfOverlay.svelte';
   import CardLayer from './features/cards/CardLayer.svelte';
+  import DropTarget from './features/cards/DropTarget.svelte';
+  import {
+    addImageFromClipboardItem,
+    addImagesFromPaths,
+    imageTypeOf,
+    pickImages,
+    IMAGE_EXTENSIONS,
+  } from './features/cards/ingest.svelte';
   import ConnectionLayer from './features/connections/ConnectionLayer.svelte';
   import ConnectionLabels from './features/connections/ConnectionLabels.svelte';
   import {
@@ -39,6 +47,9 @@
   } from './features/undo/commands';
   import { canvasStore } from './stores/canvasStore.svelte';
   import { invokeSafe, IpcError } from './lib/ipc';
+  import { getAssetsFolder, noteAssetPresent, setAssetsFolder } from './lib/assets';
+  import { LINK_SIZE, NOTE_SIZE, VIDEO_SIZE } from './lib/cardKinds';
+  import { decidePaste, type UrlClassification } from './lib/paste';
   import { registerShortcuts } from './lib/shortcuts';
   import { debounce, flushPlacements, queuePlacementUpdate, writeNow } from './lib/save';
   import { runPass } from './lib/perfGate';
@@ -51,15 +62,21 @@
   } from './lib/menu';
   import type { Point } from './lib/geometry';
   import {
+    parseImagePayload,
+    parseLinkPayload,
     parseNotePayload,
+    parseVideoPayload,
+    type AssetRef,
     type DeleteEffect,
     type Item,
+    type LinkPreviewResult,
     type Placement,
     type PlacementWithItem,
+    type VideoPreviewResult,
   } from './lib/types';
 
-  const NEW_NOTE_WIDTH = 236;
-  const NEW_NOTE_HEIGHT = 150;
+  const NEW_NOTE_WIDTH = NOTE_SIZE.width;
+  const NEW_NOTE_HEIGHT = NOTE_SIZE.height;
   const DUPLICATE_OFFSET = 22;
   /** Below this window width the fixed chrome leaves no canvas, so the panel must collapse. */
   const PANEL_AUTO_COLLAPSE_WIDTH = 420;
@@ -80,6 +97,11 @@
   let pointerWorld = $state<Point>({ x: 0, y: 0 });
   /** Cards copied with Ctrl+C, held in the application rather than the system clipboard. */
   let clipboard = $state<PlacementWithItem[]>([]);
+
+  /** True while a file drag is over the window, which draws the mid-drop state. */
+  let dragOver = $state(false);
+  /** The item just pasted, which carries the §9.7 "Pasted here · Ctrl+V" caption. */
+  let pastePendingItemId = $state<number | null>(null);
 
   let canvas = $state<CanvasSurface | null>(null);
   let cards = $state<CardLayer | null>(null);
@@ -120,13 +142,94 @@
     void guard(async () => {
       folderPath = await invokeSafe<string>('dev_project_path');
       await canvasStore.openProject(folderPath);
+      // The asset URL helper cannot build an <img src> until it knows the folder.
+      setAssetsFolder(await invokeSafe<string>('assets_folder'));
       await maybeRunPerfGate();
     });
   });
 
   /**
+   * File drop. Tauri's `dragDropEnabled` is on by default and suppresses the webview's own
+   * HTML5 drop events in favour of `tauri://drag-drop`, so an `ondrop` handler on the canvas
+   * would silently never fire.
+   */
+  $effect(() => {
+    let stop: (() => void) | null = null;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+        const unlisten = await getCurrentWebview().onDragDropEvent((event) => {
+          const payload = event.payload;
+          if (payload.type === 'enter' || payload.type === 'over') {
+            dragOver = true;
+            return;
+          }
+          if (payload.type === 'leave') {
+            dragOver = false;
+            return;
+          }
+          dragOver = false;
+          void addDroppedFiles(payload.paths);
+        });
+        if (cancelled) unlisten();
+        else stop = unlisten;
+      } catch (error) {
+        // No Tauri runtime (a unit test, or the bare Vite server): drop is simply absent.
+        logError('file drop could not be listened for', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  });
+
+  async function addDroppedFiles(paths: string[]) {
+    await guard(async () => {
+      const created = await addImagesFromPaths(paths, pointerWorld);
+      if (created.length === 0) return;
+      undoStack.push(addImagesCommand(created));
+      canvasStore.markSaved();
+    });
+  }
+
+  async function addFromPicker() {
+    await guard(async () => {
+      const created = await pickImages(pointerWorld);
+      if (created.length === 0) return;
+      undoStack.push(addImagesCommand(created));
+      canvasStore.markSaved();
+    });
+  }
+
+  /** One command for a whole ingestion batch: forty dropped pictures are one Ctrl+Z. */
+  function addImagesCommand(created: PlacementWithItem[]) {
+    const command = duplicateCommand(created);
+    return {
+      ...command,
+      label: created.length > 1 ? 'Add Images' : 'Add Image',
+    };
+  }
+
+  /** An image the page has decoded: record its real size and re-fit the card once. */
+  async function recordImageSize(itemId: number, naturalWidth: number, naturalHeight: number) {
+    await guard(async () => {
+      const updated = await invokeSafe<Item>('update_image_dimensions', {
+        itemId,
+        naturalWidth,
+        naturalHeight,
+      });
+      canvasStore.upsertItem(updated);
+    });
+  }
+
+  /**
    * Task 21's measurement, run inside the real window when the binary is launched with
-   * `--perf-gate`. It seeds 250 note cards, pans continuously at 100% and again at 40%,
+   * `--perf-gate`. It seeds 250 MIXED cards — notes, pictures, link and video previews —
+   * pans continuously at 100% and again at 40%,
    * and records the result so an automated check can assert on a number that was actually
    * measured in the running application.
    */
@@ -142,9 +245,15 @@
     if (canvasId === null) return;
 
     if (canvasStore.cardCount < 250) {
-      await invokeSafe('seed_note_cards', { canvasId, count: 250 - canvasStore.cardCount });
+      await invokeSafe('seed_mixed_cards', { canvasId, count: 250 - canvasStore.cardCount });
       await canvasStore.loadCanvas(canvasId);
     }
+
+    // The two-second project-open budget, re-measured on the mixed canvas: reading 250 cards
+    // and checking every asset name they hold in one pass is what opening a project costs.
+    const openStarted = performance.now();
+    await canvasStore.loadCanvas(canvasId);
+    const openMs = Math.round(performance.now() - openStarted);
 
     const passes = [];
     for (const [label, zoom] of [
@@ -155,7 +264,7 @@
     }
 
     const path = await invokeSafe<string>('record_perf_result', {
-      json: JSON.stringify({ startedAt: new Date().toISOString(), passes }, null, 2),
+      json: JSON.stringify({ startedAt: new Date().toISOString(), openMs, passes }, null, 2),
     });
     logInfo(`the performance gate result was written to ${path}`);
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -282,24 +391,82 @@
     }
   }
 
-  async function paste() {
-    if (clipboard.length > 0) {
-      await copyCards(clipboard, pointerWorld);
-      return;
+  /**
+   * The one clipboard read. `readText()` alone cannot see image bits, so the item list is
+   * read first and the text second; both are allowed to fail, because a clipboard the
+   * renderer refuses is not an error the user needs told about.
+   */
+  async function readClipboard(): Promise<{ item: ClipboardItem | null; text: string }> {
+    let item: ClipboardItem | null = null;
+    try {
+      const items = (await navigator.clipboard?.read()) ?? [];
+      item = items.find((candidate) => imageTypeOf(candidate) !== null) ?? null;
+    } catch (error) {
+      logInfo('the clipboard offered no readable items; falling back to text');
+      logError('the clipboard items could not be read', error);
     }
-    // Address-shaped and image clipboard content becomes its own card kind in Phase 3;
-    // until then everything pasted lands in a note.
     let text = '';
     try {
       text = (await navigator.clipboard?.readText()) ?? '';
     } catch (error) {
       logError('the system clipboard could not be read', error);
-      return;
     }
-    if (!text.trim()) return;
+    return { item, text };
+  }
 
+  /**
+   * Ctrl+V, the busiest key in the product. It routes internal cards, a picture, a YouTube
+   * address, a web address and plain text — in that order — to the right card kind.
+   *
+   * For an address the card is created FIRST, marked not fetched, and the fetch is started
+   * without being awaited here (contract 2: the wait never blocks the work).
+   */
+  async function paste() {
     const canvasId = canvasStore.activeCanvasId;
     if (canvasId === null) return;
+
+    const { item, text } = clipboard.length > 0 ? { item: null, text: '' } : await readClipboard();
+    let classification: UrlClassification | undefined;
+    if (clipboard.length === 0 && item === null && text.trim() !== '') {
+      classification = await invokeSafe<UrlClassification>('classify_url', { text }).catch(
+        () => ({ kind: 'none' }) as UrlClassification,
+      );
+    }
+
+    const decision = decidePaste({
+      hasCards: clipboard.length > 0,
+      imageMimeType: item === null ? null : imageTypeOf(item),
+      text,
+      classification,
+    });
+
+    switch (decision.kind) {
+      case 'cards':
+        await copyCards(clipboard, pointerWorld);
+        return;
+      case 'image':
+        await guard(async () => {
+          const created = await addImageFromClipboardItem(item as ClipboardItem, pointerWorld);
+          if (created.length === 0) return;
+          undoStack.push(addImagesCommand(created));
+          canvasStore.markSaved();
+        });
+        return;
+      case 'video':
+        await createFetchingCard(canvasId, 'video', decision.url, decision.provider);
+        return;
+      case 'link':
+        await createFetchingCard(canvasId, 'link', decision.url, null);
+        return;
+      case 'note':
+        await createPastedNote(canvasId, decision.text);
+        return;
+      default:
+        return;
+    }
+  }
+
+  async function createPastedNote(canvasId: number, text: string) {
     await guard(async () => {
       const card = await writeNow(
         () =>
@@ -318,6 +485,138 @@
       canvasStore.setSelection([card.placement.id]);
       undoStack.push(createCardCommand(card));
     });
+  }
+
+  /**
+   * Create a link or video card and start its fetch. The card exists on the canvas before
+   * the network is consulted, and the fetch is deliberately NOT awaited: awaiting it would
+   * make Ctrl+V hang for up to five seconds.
+   */
+  async function createFetchingCard(
+    canvasId: number,
+    kind: 'link' | 'video',
+    url: string,
+    provider: string | null,
+  ) {
+    await guard(async () => {
+      const size = kind === 'video' ? VIDEO_SIZE : LINK_SIZE;
+      const card = await writeNow(
+        () =>
+          invokeSafe<PlacementWithItem>(
+            kind === 'video' ? 'create_video_card' : 'create_link_card',
+            {
+              canvasId,
+              x: pointerWorld.x,
+              y: pointerWorld.y,
+              width: size.width,
+              height: size.height,
+              url,
+              ...(kind === 'video' ? { provider: provider ?? 'youtube' } : {}),
+            },
+          ),
+        saveHooks,
+      );
+      canvasStore.upsertCard(card);
+      canvasStore.setSelection([card.placement.id]);
+      undoStack.push(createCardCommand(card));
+      pastePendingItemId = card.item.id;
+      void fetchPreview(card.item.id, false);
+    });
+  }
+
+  /**
+   * Read an address and patch the card's payload. The one function the paste path and both
+   * Refetch controls share.
+   *
+   * A failure never goes through `guard()` — a failed fetch is drawn on the card (contract
+   * 3), and an `Err` here would land in the shell's message strip, which is the dialog
+   * behaviour by another name.
+   */
+  async function fetchPreview(itemId: number, pushUndo: boolean) {
+    const before = canvasStore.items.get(itemId);
+    if (!before) return;
+    const wasVideo = before.kind === 'video';
+    const url = wasVideo
+      ? parseVideoPayload(before.payload).url
+      : parseLinkPayload(before.payload).url;
+    if (!url) return;
+
+    canvasStore.setFetchStatus(itemId, 'fetching');
+    try {
+      // Re-classify from the payload's stored address, never from displayed text: a video
+      // that has become a plain link must not write a payload of the wrong shape. When the
+      // classification no longer matches the item's kind, the kind is kept and the link
+      // path is taken.
+      const classification = await invokeSafe<UrlClassification>('classify_url', { text: url });
+      const asVideo = wasVideo && classification.kind === 'video';
+
+      let payload: string;
+      let fetched: boolean;
+      if (asVideo) {
+        const meta = await invokeSafe<VideoPreviewResult>('fetch_video_metadata', { url });
+        fetched = meta.fetched;
+        payload = JSON.stringify({
+          url,
+          provider: meta.provider || 'youtube',
+          title: meta.title,
+          thumbnail_asset: meta.thumbnail_asset,
+          fetched_at: meta.fetched ? new Date().toISOString() : null,
+        });
+      } else {
+        const preview = await invokeSafe<LinkPreviewResult>('fetch_link_preview', { url });
+        fetched = preview.fetched;
+        payload = wasVideo
+          ? JSON.stringify({
+              url,
+              provider: parseVideoPayload(before.payload).provider,
+              title: preview.title,
+              thumbnail_asset: preview.thumbnail_asset,
+              fetched_at: preview.fetched ? new Date().toISOString() : null,
+            })
+          : JSON.stringify({
+              url,
+              title: preview.title,
+              description: preview.description,
+              favicon_asset: preview.favicon_asset,
+              thumbnail_asset: preview.thumbnail_asset,
+              fetched_at: preview.fetched ? new Date().toISOString() : null,
+            });
+      }
+
+      // The card may have been deleted while the fetch was in flight; writing the payload
+      // back would re-create a row an undone paste had removed.
+      if (!canvasStore.items.has(itemId)) return;
+
+      const updated = await invokeSafe<Item>('update_item_payload', { itemId, payload });
+      canvasStore.upsertItem(updated);
+      canvasStore.setFetchStatus(itemId, fetched ? 'ok' : 'failed');
+      if (pushUndo) undoStack.push(editItemCommand(itemId, before.payload, payload));
+    } catch (error) {
+      logError('the preview could not be fetched', error);
+      canvasStore.setFetchStatus(itemId, 'failed');
+    } finally {
+      if (pastePendingItemId === itemId) pastePendingItemId = null;
+    }
+  }
+
+  /** Open a video in the system browser, re-checking the address parses as http/https. */
+  async function openVideo(itemId: number) {
+    const item = canvasStore.items.get(itemId);
+    if (!item) return;
+    const { url } = parseVideoPayload(item.payload);
+    const classification = await invokeSafe<UrlClassification>('classify_url', { text: url }).catch(
+      () => ({ kind: 'none' }) as UrlClassification,
+    );
+    if (classification.kind === 'none') {
+      logInfo('that video address is not an http address and was not opened');
+      return;
+    }
+    try {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(classification.url);
+    } catch (error) {
+      logError('the video could not be opened in the system browser', error);
+    }
   }
 
   async function reorder(direction: 'front' | 'back') {
@@ -400,6 +699,78 @@
     });
   }
 
+  // --- image card actions ------------------------------------------------
+
+  /** The single selected card's item, or null. The panel's per-kind groups act on it. */
+  function selectedItem(): Item | null {
+    if (canvasStore.selection.size !== 1) return null;
+    const placement = canvasStore.selectedPlacements[0];
+    return placement ? canvasStore.itemFor(placement) : null;
+  }
+
+  async function writeItemPayload(item: Item, payload: string) {
+    if (payload === item.payload) return;
+    const updated = await writeNow(
+      () => invokeSafe<Item>('update_item_payload', { itemId: item.id, payload }),
+      saveHooks,
+    );
+    canvasStore.upsertItem(updated);
+    undoStack.push(editItemCommand(item.id, item.payload, payload));
+  }
+
+  /** The Alt text group, committed on blur. */
+  async function commitAltText(alt: string) {
+    const item = selectedItem();
+    if (!item || item.kind !== 'image') return;
+    await guard(async () => {
+      const payload = parseImagePayload(item.payload);
+      await writeItemPayload(item, JSON.stringify({ ...payload, alt }));
+    });
+  }
+
+  /**
+   * Replace: choose one new picture and patch the payload. The alt text is deliberately
+   * kept — the card is still about the same thing.
+   */
+  async function replaceImage() {
+    const item = selectedItem();
+    if (!item || item.kind !== 'image') return;
+    await guard(async () => {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const chosen = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'Pictures', extensions: [...IMAGE_EXTENSIONS] }],
+      });
+      if (chosen === null || Array.isArray(chosen)) return;
+      const asset = await invokeSafe<AssetRef>('add_image_from_path', { path: chosen });
+      noteAssetPresent(asset.name, asset.byte_size);
+      const before = parseImagePayload(item.payload);
+      await writeItemPayload(
+        item,
+        JSON.stringify({
+          asset: asset.name,
+          natural_width: 0,
+          natural_height: 0,
+          alt: before.alt,
+          source_name: chosen.split(/[\\/]/).pop() ?? chosen,
+        }),
+      );
+    });
+  }
+
+  /** Show in folder: a WebView cannot reveal a path, so the opener plugin does it. */
+  async function showAssetsFolder() {
+    try {
+      const path = getAssetsFolder();
+      if (path === null) return;
+      const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
+      await revealItemInDir(path);
+    } catch (error) {
+      logError('the assets folder could not be revealed', error);
+    }
+  }
+
   // --- connection actions ------------------------------------------------
 
   /** True when a link can be started from the current selection. */
@@ -447,6 +818,7 @@
   $effect(() =>
     registerShortcuts({
       'new-note': () => void createNote(pointerWorld),
+      'new-image': () => void addFromPicker(),
       edit: () => cards?.editSelected(),
       connect: startLinkFromSelection,
       cancel: () => {
@@ -545,13 +917,20 @@
       action: 'new-note',
       run: () => void createNote(pointerWorld),
     },
-    { kind: 'item', label: 'Add Image…', glyph: 'image', action: 'new-image', available: false },
+    {
+      kind: 'item',
+      label: 'Add Image…',
+      glyph: 'image',
+      action: 'new-image',
+      run: () => void addFromPicker(),
+    },
     {
       kind: 'item',
       label: 'Paste',
       glyph: 'copy',
       action: 'paste',
-      available: clipboard.length > 0,
+      // Always available: an address or a picture on the system clipboard is pasteable
+      // even when the application's own card clipboard is empty.
       run: () => void paste(),
     },
     { kind: 'separator' },
@@ -666,11 +1045,19 @@
         onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
         onSelect={selectCard}
         onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
+        onImageDecoded={(itemId, width, height) => void recordImageSize(itemId, width, height)}
+        onRefetch={(itemId) => void fetchPreview(itemId, true)}
+        onOpenVideo={(itemId) => void openVideo(itemId)}
+        {pastePendingItemId}
       />
     </CanvasSurface>
 
-    {#if canvasStore.cardCount === 0}
+    {#if canvasStore.cardCount === 0 && !dragOver}
       <EmptyCanvas onNewNote={() => void createNote(pointerWorld)} />
+    {/if}
+
+    {#if dragOver}
+      <DropTarget />
     {/if}
 
     <PropertiesPanel
@@ -683,6 +1070,13 @@
       onDelete={() => void deleteSelection()}
       onConnectionChange={(label, directed) => void changeConnection(label, directed)}
       onDeleteConnection={() => void deleteSelectedConnection()}
+      onAltTextChange={(alt) => void commitAltText(alt)}
+      onReplaceImage={() => void replaceImage()}
+      onShowInFolder={() => void showAssetsFolder()}
+      onRefetch={() => {
+        const item = selectedItem();
+        if (item) void fetchPreview(item.id, true);
+      }}
     />
   </div>
 

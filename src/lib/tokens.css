@@ -23,6 +23,8 @@
   --color-connection: rgba(32, 30, 29, 0.4);
   --color-arrowhead: rgba(32, 30, 29, 0.5);
   --color-placeholder: rgba(32, 30, 29, 0.5);
+  /* The video card's play badge (§9.6): the page ground at .92 over the thumbnail. */
+  --color-play-badge: rgba(243, 242, 242, 0.92);
 
   /* Neutral ramp */
   --color-neutral-100: #f8f4f4;

@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 3: Rich cards</title>
+  <style>
+    :root { --fg:#1a1a1a; --muted:#666; --accent:#2563eb; --done:#16a34a; --warn:#dc2626; --rule:#e5e7eb; }
+    body { font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:62rem; margin:2rem auto; padding:0 1.25rem; }
+    h1 { font-size:2rem; border-bottom:2px solid var(--rule); padding-bottom:.3rem; }
+    h2 { font-size:1.5rem; margin-top:2.5rem; border-bottom:1px solid var(--rule); padding-bottom:.2rem; }
+    h3.milestone { font-size:1.25rem; margin-top:2rem; color:var(--accent); }
+    h4.task { font-size:1.1rem; margin-top:1.5rem; }
+    dl.phase-meta { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; }
+    dl.phase-meta dt { font-weight:600; color:var(--muted); }
+    code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    pre { background:#f6f8fa; padding:1rem; border-radius:6px; overflow:auto; }
+    code { background:#f6f8fa; padding:.1rem .3rem; border-radius:4px; }
+    pre code { background:none; padding:0; }
+    ul.checklist { list-style:none; padding-left:0; }
+    ul.checklist > li::before { content:"\2610 "; color:var(--muted); }
+    ul.checklist > li[data-checked="true"]::before { content:"\2611 "; color:var(--done); }
+    .validate { color:var(--done); font-weight:600; }
+  </style>
+</head>
+<body>
+
+<h1 data-phase="3">Phase 3: Rich cards</h1>
+
+<p>The following plan should be complete, but validate documentation, codebase patterns, and task
+sanity before implementing. Pay special attention to naming of existing utils, types, and models —
+import from the right files.</p>
+
+<h2>Phase Description</h2>
+
+<p>Phase 3 adds the three remaining card kinds and every line of network code the MVP will ever have.
+After Phase 2 the application is usable for real thinking work with notes and lines alone; this phase
+makes it usable with the material a real idea is actually made of — pictures, web pages and videos.</p>
+
+<p>It bundles five related pieces of work:</p>
+
+<ul>
+  <li><strong>Asset storage.</strong> A picture added by file drop, file picker or clipboard paste is
+    copied into the project's <code>assets/</code> folder and named by a hash of its bytes, so two
+    identical pictures share one file and a moved or renamed original never breaks a card
+    (<code>asset-storage</code>). The hash algorithm is chosen here — <code>docs/architecture.html</code>
+    §11 assigns that question to this phase.</li>
+  <li><strong>Image cards</strong>, including the missing-file marker that is drawn when the named
+    asset is not in the folder — the item, the placement and the alt text all survive.</li>
+  <li><strong>The fetch layer.</strong> All network code, in <code>src-tauri/src/fetch/</code> and
+    nowhere else (<code>network-boundary</code>): <code>reqwest</code> to get a page,
+    <code>scraper</code> to read its Open Graph tags, and the public YouTube oEmbed address for video
+    metadata. Every fetch is cut off after five seconds.</li>
+  <li><strong>Link cards</strong> in all three drawn states — fetched, no preview data, and not
+    fetched with a Refetch button — and <strong>video cards</strong> showing the YouTube title and
+    thumbnail and opening the video in the system browser on click.</li>
+  <li><strong>Paste routing.</strong> <code>Ctrl+V</code> becomes the single entry point that decides
+    whether the clipboard is a card, a picture, a YouTube address, a web address or plain text — and
+    <code>I</code> becomes a live shortcut.</li>
+</ul>
+
+<p>The user value is direct: the pieces of one idea stop living in three unconnected places. The
+technical value is that the last expensive boundary in the product — the network — is built once, in
+one folder, behind one wrapper, with a failure path that is drawn on the card rather than thrown in a
+dialog.</p>
+
+<h2>User Stories</h2>
+
+<p><strong>US-4 — Keep a picture with its idea.</strong><br>
+As the user, I want to drop a picture from Explorer straight onto the canvas, so that the reference
+lives beside the note it belongs to.</p>
+
+<p><strong>US-5 — Keep a web page as a recognisable card.</strong><br>
+As the user, I want a pasted web address to become a card with the page title, icon and preview
+picture, so that I can recognise it later without opening it.</p>
+
+<p><strong>US-5b — Keep a video as a recognisable card.</strong><br>
+As the user, I want a pasted YouTube address to become a card showing the video title and thumbnail,
+so that I can see what it is and open it in my browser when I want to watch it.</p>
+
+<p><strong>US-9 — Undo a mistake completely.</strong><br>
+As the user, I want undo to restore a deleted card together with its picture file and its arrows, so
+that one wrong keypress is never destructive.</p>
+
+<p><strong>TS-3 — Keep network code in one place.</strong><br>
+As the developer, I want all fetching inside <code>src-tauri/src/fetch/</code>, so that the privacy
+rule is enforceable by reading one folder.</p>
+
+<h2>Problem Statement</h2>
+
+<p>Three of the four card kinds do not exist. A picture cannot be added at all; an address pasted onto
+the canvas becomes a note holding raw text. Nothing is copied into the project folder, so a project is
+not yet the self-contained, portable unit <code>storage-engine</code> promises. And the application
+has never made a network call, which means the four failure states the design system draws as normal
+UI — no internet, no preview data, a fetch slower than five seconds, a missing asset file — are all
+unproven. The riskiest of those is the one that is not about the network at all: an asset file missing
+from the folder must never delete an item and must never crash the application.</p>
+
+<h2>Solution Statement</h2>
+
+<p>Build the asset pipeline in Rust first, because a delete that destroys bytes it cannot put back is a
+data bug that gets harder to find once the UI exists. Content-hash naming, a reference count over item
+payloads, and a project-root <code>.trash/</code> folder together make an asset delete reversible in
+exactly the way <code>undo-model</code> requires. Then build the image card on top of it, so the first
+card kind that touches the disk is proved before the first card kind that touches the network.</p>
+
+<p>Build the fetch layer next as pure Rust with pure parsing functions — URL classification, Open Graph
+extraction and oEmbed decoding are all testable without a socket — then the two fetching cards on top.
+Every one of them is created <em>before</em> the network is consulted (contract 2): the card exists the
+instant the address lands, marked not fetched, and the preview fills in or fails behind it. Nothing
+blocks on a socket.</p>
+
+<p>Finish by re-measuring the frame gate on a canvas of 250 <em>mixed</em> cards, because pictures and
+thumbnails are real decoded bitmaps and are the first per-frame work in the product that the Phase 1
+measurement did not cover.</p>
+
+<h2>Phase Metadata</h2>
+
+<dl class="phase-meta">
+  <dt>Phase Type</dt><dd data-field="type">New Capability</dd>
+  <dt>Estimated Complexity</dt><dd data-field="complexity">Medium-High</dd>
+  <dt>Primary Systems Affected</dt><dd data-field="systems">Rust assets module, Rust fetch module, Rust command seam, item payload contract, card components, properties panel, clipboard and drop routing, undo stack, shared canvas store</dd>
+  <dt>Dependencies</dt><dd data-field="dependencies">Phase 1 (canvas core) — complete; Phase 2 (connections) — complete. New Rust crates: <code>blake3</code>, <code>reqwest</code> (rustls-tls, no default features), <code>scraper</code>, <code>url</code>, <code>tauri-plugin-dialog</code>, <code>tauri-plugin-opener</code>. New npm packages: <code>@tauri-apps/plugin-dialog</code>, <code>@tauri-apps/plugin-opener</code>. External service: the public YouTube oEmbed endpoint (no key, no account). No new migration — the <code>item.payload</code> JSON column carries every new field.</dd>
+</dl>
+
+<h2>Context References</h2>
+
+<h3>Relevant Codebase Files — READ THESE BEFORE IMPLEMENTING</h3>
+
+<ul>
+  <li><code>src/lib/types.ts</code> (lines 89-133) — Why: the four payload interfaces are already
+    stubbed here, and the three new ones <strong>disagree with PRD §6.9</strong>. This phase corrects
+    them. <code>parseNotePayload</code> (lines 122-133) is the exact pattern the three new parsers must
+    mirror, including the tolerate-a-malformed-row behaviour.</li>
+  <li><code>src-tauri/src/commands/item.rs</code> (lines 11-31) — Why: <code>validate_payload</code>
+    currently checks only that a note has a title. This phase extends it per kind. Its
+    <code>#[cfg(test)]</code> module (lines 93-113) is the test pattern to follow.</li>
+  <li><code>src-tauri/src/commands/placement.rs</code> (lines 76-141) — Why:
+    <code>create_note_card_for</code> is the one-transaction card-creation pattern the three new
+    creators mirror; <code>restore_card_for</code> is the write half of undo and must grow an asset
+    restore. Lines 164-211 (<code>delete_placements_for</code>) are where the asset delete goes, and
+    the capture-before-delete comment there explains why order matters.</li>
+  <li><code>src-tauri/src/commands/project.rs</code> (lines 13-36) — Why: <code>AppState</code> holds
+    <code>db</code> and <code>folder</code> behind two separate mutexes. Every asset command needs the
+    folder; clone it out of its mutex <em>before</em> taking the db lock. <code>open_project_at</code>
+    is where the asset-protocol scope is granted and the trash purged.</li>
+  <li><code>src-tauri/src/db/connection.rs</code> (lines 12-27) — Why: <code>open_project_db</code>
+    already creates <code>assets/</code> on every open. Do not create it a second time elsewhere.</li>
+  <li><code>src-tauri/src/error.rs</code> (all 51 lines) — Why: one error type, one
+    <code>Display</code> string per variant. This phase adds <code>Asset</code> and <code>Fetch</code>
+    variants and their <code>From</code> impls. A raw crate error string never reaches the page.</li>
+  <li><code>src-tauri/src/lib.rs</code> (lines 15-62) — Why: <strong>two</strong>
+    <code>invoke_handler!</code> lists, debug and release. Every new command must be registered in
+    both, or it works in <code>tauri dev</code> and fails in the installer. Level 5 asserts this.</li>
+  <li><code>src/lib/ipc.ts</code> (all 27 lines) — Why: the only module allowed to import
+    <code>@tauri-apps/api/core</code>. Every new command goes through <code>invokeSafe</code>.</li>
+  <li><code>src/features/cards/CardLayer.svelte</code> (lines 191-226) — Why: the keyed
+    <code>{#each}</code> over the culled set, and the <code>{#if item.kind === 'note'}</code> branch
+    the three new card components slot into. Lines 41-55 show the cull call and the
+    <code>alwaysVisible</code> escape hatch.</li>
+  <li><code>src/features/cards/NoteCard.svelte</code> (lines 1-40) — Why: the card-content component
+    shape — props in, no store access, a <code>LOW_ZOOM</code> simplified branch. All three new cards
+    mirror it.</li>
+  <li><code>src/app.svelte</code> (lines 283-317) — Why: <code>paste()</code> currently drops
+    everything into a note and says so in a comment. This phase replaces that body. Lines 168-200
+    (<code>createNote</code>) are the create-write-select-push-undo sequence every new card creator
+    follows; lines 202-217 (<code>deleteSelection</code>) show that the Rust side is the only thing
+    that reports what a cascade removed.</li>
+  <li><code>src/features/undo/commands.ts</code> (lines 40-104) — Why: <code>restoreCards</code> and
+    its old-id to new-id map. Restoring an image card's <em>file</em> hangs off the same call; the doc
+    comment at lines 1-11 already anticipates "and (from Phase 3) their asset files".</li>
+  <li><code>src/stores/canvasStore.svelte.ts</code> (lines 28-46, 184-209) — Why: where
+    <code>fetchStatus</code> and <code>assetStatus</code> go, and where <code>loadCanvas</code> must
+    run the batch missing-file check.</li>
+  <li><code>src/features/shell/PropertiesPanel.svelte</code> (lines 68-105, 110-140) — Why: the
+    <code>shared()</code> mixed-value helper, the <code>headerKind</code>/<code>headerId</code>
+    derivations that currently only know about notes, and the existing group markup the File, Alt text
+    and Source groups copy.</li>
+  <li><code>src/lib/shortcuts.ts</code> (lines 26-31, 113-122) — Why: <code>'new-image'</code> is
+    already declared and already mapped to <code>I</code>. This phase only supplies the handler.</li>
+  <li><code>src/lib/glyphs.ts</code> (lines 26-31) — Why: <code>image-broken</code>,
+    <code>link-simple</code>, <code>circle-dashed</code>, <code>play</code>,
+    <code>youtube-logo</code>, <code>folder-open</code> and <code>arrow-clockwise</code> are all
+    already in the closed 34-glyph set. Add none.</li>
+  <li><code>src-tauri/tauri.conf.json</code> (all 39 lines) — Why: there is no
+    <code>assetProtocol</code> block and no <code>src-tauri/capabilities/</code> directory at all. Both
+    are added here.</li>
+  <li><code>scripts/perf-gate.md</code> and <code>scripts/phase-2-session.md</code> — Why: the
+    recorded-artefact format both earlier gates used, and the format Task 17's VALIDATE parses.</li>
+  <li><code>src/lib/culling.ts</code> (lines 33-62) — Why: <code>visiblePlacements</code> is the seam
+    the mixed-canvas measurement is judged against; if <code>drawn</code> approaches
+    <code>total</code> the cull is broken and any frame number beside it is meaningless.</li>
+</ul>
+
+<h3>New Files to Create</h3>
+
+<ul>
+  <li><code>src-tauri/src/assets/mod.rs</code> — the asset module: copy-in, dedupe, status, reference
+    count, trash and untrash. Pure file work; it never calls <code>commands/</code>.</li>
+  <li><code>src-tauri/src/assets/hash.rs</code> — BLAKE3 hashing and the
+    <code>&lt;hex&gt;.&lt;ext&gt;</code> name rule, with its own tests.</li>
+  <li><code>src-tauri/src/commands/asset.rs</code> — <code>add_image_from_path</code>,
+    <code>add_image_from_bytes</code>, <code>asset_statuses</code>, <code>assets_folder</code>,
+    <code>create_image_card</code>, <code>update_image_dimensions</code>.</li>
+  <li><code>src-tauri/src/fetch/mod.rs</code> — the shared <code>reqwest</code> client, the five-second
+    budget, and the two public entry points.</li>
+  <li><code>src-tauri/src/fetch/classify.rs</code> — pure URL classification: is this a web address,
+    and is it a YouTube video (and which id).</li>
+  <li><code>src-tauri/src/fetch/opengraph.rs</code> — pure Open Graph extraction from an HTML string,
+    plus the plain-text cleaning every fetched value passes through.</li>
+  <li><code>src-tauri/src/fetch/oembed.rs</code> — the YouTube oEmbed address and its pure response
+    decoder.</li>
+  <li><code>src-tauri/src/commands/fetch.rs</code> — <code>classify_url</code>,
+    <code>fetch_link_preview</code>, <code>fetch_video_metadata</code>.</li>
+  <li><code>src-tauri/capabilities/default.json</code> — the Tauri 2 capability set.</li>
+  <li><code>src/features/cards/ImageCard.svelte</code>, <code>LinkCard.svelte</code>,
+    <code>VideoCard.svelte</code> — the three card bodies.</li>
+  <li><code>src/features/cards/DropTarget.svelte</code> — the mid-drop state over the canvas.</li>
+  <li><code>src/features/cards/ingest.svelte.ts</code> — the three image ingestion routes (drop,
+    picker, clipboard) behind one feature-local module.</li>
+  <li><code>src/lib/assets.ts</code> — the asset URL helper and the asset-status cache.</li>
+  <li><code>src/lib/cardKinds.ts</code> — the default authored sizes per kind and the fit-box maths.</li>
+  <li><code>src/lib/paste.ts</code> — the pure paste-routing decision, given what the clipboard holds.</li>
+  <li><code>scripts/phase-3-session.md</code> — the recorded gate and failure-state artefact.</li>
+  <li>Tests: in-file <code>#[cfg(test)]</code> modules per new Rust module;
+    <code>src/lib/__tests__/paste.test.ts</code>, <code>src/lib/__tests__/cardKinds.test.ts</code>,
+    <code>src/lib/__tests__/assetUrl.test.ts</code>,
+    <code>src/features/cards/__tests__/imageCard.test.ts</code>,
+    <code>src/features/cards/__tests__/linkCard.test.ts</code>,
+    <code>src/features/cards/__tests__/videoCard.test.ts</code>,
+    <code>src/features/cards/__tests__/undoAssets.test.ts</code>.</li>
+</ul>
+
+<h3>Relevant Documentation — READ BEFORE IMPLEMENTING</h3>
+
+<ul>
+  <li><a href="https://docs.rs/blake3/latest/blake3/struct.Hasher.html#method.update_reader">blake3 — <code>Hasher::update_reader</code></a> —
+    Why: hashes a file without loading it into memory, which matters for a multi-megabyte picture.</li>
+  <li><a href="https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.timeout">reqwest — <code>ClientBuilder::timeout</code></a>
+    and <a href="https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.redirect">
+    <code>redirect</code></a> — Why: the five-second cut-off and the redirect cap. Build the client
+    once with <code>default-features = false, features = ["rustls-tls"]</code>; the default feature set
+    pulls in native TLS and inflates the installer.</li>
+  <li><a href="https://docs.rs/scraper/latest/scraper/#example">scraper — <code>Html::parse_document</code> and <code>Selector</code></a> —
+    Why: Open Graph tags are read with <code>Selector::parse("meta[property]")</code>. A
+    <code>Selector</code> is expensive to build; build each once.</li>
+  <li><a href="https://oembed.com/#section2.2">oEmbed — the consumer request</a> — Why: the endpoint is
+    <code>https://www.youtube.com/oembed?url=&lt;url&gt;&amp;format=json</code> and returns
+    <code>title</code>, <code>author_name</code> and <code>thumbnail_url</code>. It returns
+    <strong>no duration</strong>, which is why the drawn duration chip is not built.</li>
+  <li><a href="https://v2.tauri.app/plugin/dialog/#open-a-file-selector-dialog">Tauri 2 — dialog plugin, file selector</a> —
+    Why: the image file picker. Returns absolute paths, which go straight to
+    <code>add_image_from_path</code>.</li>
+  <li><a href="https://v2.tauri.app/plugin/opener/">Tauri 2 — opener plugin</a> — Why:
+    <code>openUrl</code> opens a video in the system browser and <code>revealItemInDir</code> is the
+    panel's "Show in folder". A WebView cannot do either from the page.</li>
+  <li><a href="https://v2.tauri.app/reference/javascript/api/namespacewebview/#ondragdropevent">Tauri 2 — <code>onDragDropEvent</code></a> —
+    Why: with <code>dragDropEnabled</code> at its default the webview's HTML5 drop is suppressed and
+    <code>tauri://drag-drop</code> carries the file paths instead. Listening for HTML
+    <code>drop</code> events will silently never fire.</li>
+  <li><a href="https://v2.tauri.app/security/capabilities/">Tauri 2 — capabilities</a> — Why: there is
+    no capability file in the repo, so every core and plugin command is currently denied. This is also
+    why the title bar's window buttons do nothing today.</li>
+  <li><a href="https://v2.tauri.app/reference/config/#assetprotocolconfig">Tauri 2 — <code>assetProtocol</code> config</a>
+    and <a href="https://docs.rs/tauri/latest/tauri/scope/fs/struct.Scope.html#method.allow_directory">
+    <code>Scope::allow_directory</code></a> — Why: an <code>&lt;img src&gt;</code> cannot read a file
+    path. The asset protocol, scoped at runtime to the open project's <code>assets/</code> folder, is
+    how 250 pictures reach the page without 250 base64 round trips through IPC.</li>
+  <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/read">MDN — <code>navigator.clipboard.read()</code></a> —
+    Why: image bytes on the clipboard arrive as a <code>ClipboardItem</code> blob;
+    <code>readText()</code> alone cannot see them.</li>
+  <li><a href="https://ogp.me/">The Open Graph protocol</a> — Why: the exact property names
+    (<code>og:title</code>, <code>og:description</code>, <code>og:image</code>) and the fallbacks to
+    <code>&lt;title&gt;</code>, <code>meta[name=description]</code> and
+    <code>link[rel~=icon]</code>.</li>
+  <li><code>docs/design-system.html</code> §9.4 (image card, and the missing-file state specified
+    2026-09-06), §9.5 (link card, all three states), §9.6 (video card), §9.7 (paste pending), §10
+    contracts 1-4 and 8, §15.1 item 5 (the undrawn mid-drop state), §15.2 (the four failure rows this
+    phase owns), §16 row P3 — Why: the visual authority. Every colour, size and state. Do not invent a
+    visual value.</li>
+  <li><code>docs/architecture.html</code> §3 (<code>asset-storage</code>), §6
+    (<code>network-boundary</code>, the boundary table's "Web page fetch" and "YouTube oEmbed" rows),
+    §7 (<code>failure-surfaces</code>), §11 (the content-hash question, assigned to P3) — Why: the
+    technical authority for this phase's two new subsystems.</li>
+  <li><code>docs/prd.html</code> §6.2, §6.9, §9.3, §10.2, §11 (Phase 3) — Why: the payload field
+    lists, the two external endpoints and their on-failure behaviour, and the phase's deliverables.</li>
+</ul>
+
+<h3>Patterns to Follow</h3>
+
+<p><strong>Naming conventions.</strong> Rust modules and functions are <code>snake_case</code>; row
+structs are <code>PascalCase</code> and serialize with their SQL column names unchanged, so the
+front-end types mirror them field for field (<code>src/lib/types.ts</code> says so in its header).
+Front-end files are <code>camelCase.ts</code>, components <code>PascalCase.svelte</code>, reactive
+modules <code>*.svelte.ts</code>. Tests are named for behaviour:
+<code>fn name_condition_expected()</code> in Rust,
+<code>methodName_condition_expectedResult</code> in TypeScript.</p>
+
+<pre><code>// src-tauri/src/commands/item.rs — the existing per-kind validation seam this phase extends
+pub fn validate_payload(kind: &amp;str, payload: &amp;str) -&gt; AppResult&lt;()&gt; {
+    if !KINDS.contains(&amp;kind) {
+        return Err(AppError::Invalid(format!("card kind {kind}")));
+    }
+    let value: serde_json::Value = serde_json::from_str(payload)?;
+    if !value.is_object() {
+        return Err(AppError::Invalid(String::from("a card payload must be an object")));
+    }
+    if kind == "note" &amp;&amp; !value.get("title").is_some_and(|t| t.is_string()) {
+        return Err(AppError::Invalid(String::from("a note payload needs a title")));
+    }
+    Ok(())
+}</code></pre>
+
+<pre><code>// src-tauri/src/commands/placement.rs — one card, one transaction. Mirror this for all three kinds.
+pub fn create_note_card_for(...) -&gt; AppResult&lt;PlacementWithItem&gt; {
+    state.with_db(|conn| {
+        let tx = conn.transaction()?;
+        let project_id: i64 = tx.query_row(
+            "SELECT project_id FROM canvas WHERE id = ?1", [canvas_id], |r| r.get(0))?;
+        let payload = serde_json::json!({ "title": title, "text": text }).to_string();
+        let item = insert_item(&amp;tx, project_id, "note", &amp;payload)?;
+        let placement = insert_placement(&amp;tx, canvas_id, item.id, x, y, width, height)?;
+        tx.commit()?;
+        Ok(PlacementWithItem { placement, item })
+    })
+}</code></pre>
+
+<pre><code>// src/lib/types.ts — tolerate a malformed row rather than throwing into a render.
+export function parseNotePayload(payload: string): NotePayload {
+  try {
+    const value = JSON.parse(payload) as Partial&lt;NotePayload&gt;;
+    return {
+      title: typeof value.title === 'string' ? value.title : '',
+      text: typeof value.text === 'string' ? value.text : '',
+    };
+  } catch {
+    return { title: '', text: '' };
+  }
+}</code></pre>
+
+<pre><code>// src/app.svelte — the create sequence every new card kind repeats: write, upsert, select, push undo.
+const card = await writeNow(
+  () =&gt; invokeSafe&lt;PlacementWithItem&gt;('create_note_card', { canvasId, x, y, width, height, title, text }),
+  saveHooks,
+);
+canvasStore.upsertCard(card);
+canvasStore.setSelection([card.placement.id]);
+undoStack.push(createCardCommand(card));</code></pre>
+
+<p><strong>Error handling.</strong> Rust returns <code>AppResult&lt;T&gt;</code> from every command;
+<code>AppError</code>'s <code>Display</code> string is the only thing that crosses the seam. The front
+end wraps every call in <code>app.svelte</code>'s <code>guard()</code>, which writes the message into
+the shell's message strip. A <em>fetch</em> failure never goes through <code>guard()</code> at all — it
+is drawn on the card (contract 3, <code>failure-surfaces</code>).</p>
+
+<p><strong>Logging.</strong> <code>src/lib/logger.ts</code> in the front end,
+<code>log</code>/<code>tracing</code> in Rust. Never <code>console.log</code>, never
+<code>println!</code> — Level 5 greps for both.</p>
+
+<p><strong>Anti-patterns to avoid.</strong> No <code>{@html}</code> anywhere except
+<code>renderMarkdown</code>'s output — a fetched page title is inserted as a text node, never as
+markup. No <code>async fn</code> that takes the database state and then awaits. No literal hex colour
+outside the token layer. No feature importing another feature. No absolute path in an item payload.</p>
+
+<h2>Implementation Plan</h2>
+
+<p><strong>Rendering:</strong> Milestones</p>
+<p><strong>Rationale:</strong> Eighteen tasks across five genuine sub-layers — Rust asset storage,
+image cards in the page, the Rust fetch layer, the two fetching cards, and the phase gate. Each
+milestone's checkpoint asserts something no single task's VALIDATE can: that a delete and an undo
+round-trip real bytes on disk, that a picture actually reaches the page through the asset protocol,
+that a fetch is cut off at five seconds without a socket in the test, that the four failure states
+compose with the paste path, and that the frame gate still holds on mixed content.</p>
+
+<h3 class="milestone" data-milestone="1">Milestone 1: Asset storage in Rust</h3>
+
+<p>The payload contract is corrected, and a picture can be copied into the project, found, counted,
+trashed and untrashed — all before any component draws one.</p>
+
+<p><strong>Validation checkpoint:</strong> a Rust integration test over a real temp project folder
+that (a) adds the same picture bytes twice under two different original names and asserts
+<code>assets/</code> holds exactly one file, (b) creates two image cards pointing at that one asset,
+(c) deletes the first card and asserts the file is still in <code>assets/</code> because the second
+card still references it, (d) deletes the second card and asserts the file has left
+<code>assets/</code> and is in <code>.trash/</code>, and (e) restores the card through
+<code>restore_card</code> and asserts the file is back in <code>assets/</code> with byte-identical
+content. This composes hashing, dedupe, reference counting, the delete cascade and the undo write
+path — none of which any single task's VALIDATE exercises together.</p>
+
+<h4 class="task" data-task="1">Task 1: Correct the four item payload contracts to PRD §6.9</h4>
+<p>The three non-note payload interfaces stubbed in Phase 1 do not match the data model the PRD owns.
+Every later task in this phase reads or writes one of them, so they are fixed first, in both languages,
+with the validation and the parsers that go with them.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/lib/types.ts</code> — replace <code>ImagePayload</code>,
+    <code>LinkPayload</code> and <code>VideoPayload</code> with the PRD §6.9 shapes:
+    <code>image { asset, natural_width, natural_height, alt, source_name }</code>,
+    <code>link { url, title, description, favicon_asset, thumbnail_asset, fetched_at }</code>,
+    <code>video { url, provider, title, thumbnail_asset, fetched_at }</code>. Asset fields are
+    <code>string | null</code> and hold a <em>file name</em>, never a path. <code>fetched_at</code> is
+    <code>string | null</code> (ISO-8601, matching <code>now_iso8601()</code>); <code>null</code> means
+    not fetched yet.</li>
+  <li><strong>ADD:</strong> <code>parseImagePayload</code>, <code>parseLinkPayload</code> and
+    <code>parseVideoPayload</code>, each mirroring <code>parseNotePayload</code>'s try/catch and
+    per-field type guard so a malformed row renders as an empty card instead of throwing into a render.
+    <code>parseVideoPayload</code> defaults <code>provider</code> to <code>'youtube'</code>.</li>
+  <li><strong>ADD:</strong> a <code>cardTitle(item)</code> helper in <code>src/lib/types.ts</code> that
+    returns the display name for any kind — the note title, the image <code>source_name</code>, the link
+    or video <code>title</code>, falling back to the host of the URL and then to
+    <code>&lt;kind&gt;-&lt;padded id&gt;</code>. The properties panel header and (in Phase 4) search
+    both need one answer to this, so it lives in <code>lib/</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/item.rs</code> — extend
+    <code>validate_payload</code> so <code>image</code> requires a string <code>asset</code>,
+    <code>link</code> requires a string <code>url</code>, and <code>video</code> requires a string
+    <code>url</code> and a string <code>provider</code>. Reject an <code>asset</code> value that
+    contains <code>/</code>, <code>\</code> or <code>..</code>, so a payload can never name a file
+    outside <code>assets/</code>.</li>
+  <li><strong>IMPORTS:</strong> nothing new. <code>serde_json::Value</code> is already in scope in
+    <code>item.rs</code>.</li>
+  <li><strong>GOTCHA:</strong> <code>source_name</code> is an addition to the PRD's field list, not a
+    replacement for anything: it carries the original file name that
+    <code>docs/design-system.html</code> §9.4 draws on the card, which content-hash naming otherwise
+    destroys. It is display-only and nothing keys off it. See the Notes.</li>
+  <li><strong>GOTCHA:</strong> the existing note payload is <code>{ title, text }</code> and must not
+    change. Phase 1 already resolved that against the older <code>{ text }</code> shape.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml validate_payload &amp;&amp; npx vitest run src/lib/__tests__/types.test.ts</code>
+    — the Rust tests assert each kind's required field and the traversal rejection; the Vitest file
+    asserts each parser returns a fully-populated default from <code>"{}"</code>, from
+    <code>"not json"</code>, and round-trips a well-formed payload.</li>
+</ul>
+
+<h4 class="task" data-task="2">Task 2: The assets module — content hash, copy-in, dedupe and status</h4>
+<p>The file half of <code>asset-storage</code>. It is pure file work with no knowledge of commands or
+of SQL, which is what the import rule requires of <code>assets/</code>.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/assets/hash.rs</code> —
+    <code>hash_bytes(&amp;[u8]) -&gt; String</code> and <code>hash_file(&amp;Path) -&gt; AppResult&lt;String&gt;</code>
+    using <strong>BLAKE3</strong>, returning the full 64-character lowercase hex digest; plus
+    <code>asset_name(hash, ext) -&gt; String</code> which lowercases the extension, strips a leading dot,
+    keeps only ASCII alphanumerics (max 8 characters), and falls back to <code>bin</code> when there is
+    nothing usable. The name is <code>&lt;hex&gt;.&lt;ext&gt;</code> and nothing else.</li>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/assets/mod.rs</code> —
+    <code>copy_in(folder, source_path) -&gt; AppResult&lt;AssetRef&gt;</code> and
+    <code>write_in(folder, bytes, ext) -&gt; AppResult&lt;AssetRef&gt;</code>, where
+    <code>AssetRef { name, byte_size }</code>. Both hash first and skip the write entirely when the
+    target already exists — that is the dedupe. Also
+    <code>status(folder, name) -&gt; AssetStatus { name, exists, byte_size }</code> and
+    <code>assets_dir(folder) -&gt; PathBuf</code>.</li>
+  <li><strong>ADD:</strong> a size ceiling — <code>MAX_ASSET_BYTES = 64 * 1024 * 1024</code> — refused
+    with <code>AppError::Asset</code> before anything is copied, so a mis-drop of a video file cannot
+    silently fill the project folder.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/error.rs</code> — add
+    <code>#[error("that picture could not be added: {0}")] Asset(String)</code>. Do not add a
+    <code>From&lt;std::io::Error&gt;</code> for it; <code>io::Error</code> already maps to
+    <code>DatabaseOpen</code>, so asset code converts explicitly with
+    <code>.map_err(|e| AppError::Asset(e.to_string()))</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/lib.rs</code> — <code>pub mod assets;</code>.
+    <strong>UPDATE:</strong> <code>src-tauri/Cargo.toml</code> — <code>blake3 = "1"</code>.</li>
+  <li><strong>IMPORTS:</strong> <code>blake3::Hasher</code>, <code>std::fs</code>,
+    <code>std::path::{Path, PathBuf}</code>.</li>
+  <li><strong>GOTCHA:</strong> hash the file with <code>Hasher::update_reader</code>, not by reading it
+    into a <code>Vec</code>. A 40 MB picture read twice is a visible stall.</li>
+  <li><strong>GOTCHA:</strong> <code>assets/</code> is already created by <code>open_project_db</code>.
+    Use <code>create_dir_all</code> defensively but never assume this module owns the folder's
+    existence.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml assets::</code> — in-file tests over a
+    <code>tempfile::tempdir()</code> assert: the same bytes under two different source names produce one
+    file and one name; a second <code>copy_in</code> of identical bytes does not rewrite the file
+    (compare the modified time); <code>status</code> reports <code>exists: false</code> for an unknown
+    name without erroring; <code>asset_name</code> rejects <code>"../evil"</code> as an extension; and a
+    file over the ceiling is refused.</li>
+</ul>
+
+<h4 class="task" data-task="3">Task 3: Reference counting, trash and untrash</h4>
+<p>An asset must leave <code>assets/</code> when the last item that names it goes, and must come back
+when undo puts that item back. Deleting the bytes outright would make undo a lie, so a delete
+<em>moves</em> them to a project-root <code>.trash/</code> folder instead.</p>
+<ul>
+  <li><strong>ADD:</strong> to <code>src-tauri/src/assets/mod.rs</code> —
+    <code>trash(folder, name)</code> and <code>untrash(folder, name)</code>, each an
+    <code>fs::rename</code> between <code>assets/</code> and <code>.trash/</code>, both idempotent (a
+    name that is not where it is expected is a no-op, never an error), and both refusing a name that is
+    not a bare file name. Plus <code>purge_trash(folder)</code>, which removes
+    <code>.trash/</code> entirely.</li>
+  <li><strong>ADD:</strong> to <code>src-tauri/src/commands/item.rs</code> —
+    <code>asset_names(kind, payload) -&gt; Vec&lt;String&gt;</code>, a pure function returning every
+    asset field a payload names (<code>asset</code> for image; <code>favicon_asset</code> and
+    <code>thumbnail_asset</code> for link and video), skipping nulls and empties. This is the one place
+    that knows which fields are assets.</li>
+  <li><strong>ADD:</strong> <code>reference_count(conn, name, ignoring_item_id) -&gt; AppResult&lt;i64&gt;</code>
+    in <code>commands/item.rs</code> — a single
+    <code>SELECT count(*) FROM item WHERE payload LIKE ?1 AND id != ?2</code> with the pattern
+    <code>%"&lt;name&gt;"%</code>. Six thousand short rows is a few milliseconds
+    (<code>search-method</code> makes exactly this argument about scan size), and it means the count is
+    never a second source of truth that can drift from the payloads.</li>
+  <li><strong>UPDATE:</strong> <code>delete_placements_for</code> in
+    <code>src-tauri/src/commands/placement.rs</code> — for every item the delete orphans, collect its
+    asset names inside the transaction, and after <code>tx.commit()</code> trash each name whose
+    remaining reference count is zero. Record the trashed names on <code>DeleteEffect</code> as
+    <code>assets: Vec&lt;String&gt;</code> so the front end can report and the PR can assert on it.</li>
+  <li><strong>UPDATE:</strong> <code>restore_card_for</code> — untrash every asset name in the payload
+    <em>before</em> the item row is inserted, so a card is never on the canvas pointing at a file that
+    is still in the trash.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/db/models.rs</code> and
+    <code>src/lib/types.ts</code> — add <code>assets: string[]</code> to <code>DeleteEffect</code>
+    (defaulting to empty, so every existing caller compiles).</li>
+  <li><strong>UPDATE:</strong> <code>open_project_at</code> in
+    <code>src-tauri/src/commands/project.rs</code> — call <code>purge_trash</code> once, after the
+    migrations run. The undo stack is session-only (<code>undo-model</code>), so a trashed file that
+    survived a restart can never be restored and is dead weight.</li>
+  <li><strong>GOTCHA:</strong> lock order. <code>folder</code> and <code>db</code> are two separate
+    mutexes; clone the <code>PathBuf</code> out of <code>folder</code> <em>before</em> calling
+    <code>with_db</code>, never the other way round, or two commands can deadlock.</li>
+  <li><strong>GOTCHA:</strong> <code>fs::rename</code> across a directory boundary inside one volume is
+    atomic and cheap; do not implement trash as copy-then-delete.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml -- assets::tests::trash item::tests::reference asset_names</code>
+    — tests assert: <code>trash</code> then <code>untrash</code> leaves byte-identical content;
+    <code>untrash</code> of an absent name is <code>Ok(())</code>; <code>asset_names</code> returns two
+    names for a fully-fetched link payload and none for a note; <code>reference_count</code> counts a
+    name shared by two items and returns 0 once the ignored item is the only holder.</li>
+</ul>
+
+<h4 class="task" data-task="4">Task 4: Asset commands, the capability file and the asset protocol</h4>
+<p>The seam the front end reaches, plus the two pieces of Tauri configuration without which a picture
+cannot be read by the page at all. Note that the repository currently has <strong>no</strong>
+capability file, so every core command — including the title bar's window buttons — is denied today;
+adding the file fixes that as a side effect.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/commands/asset.rs</code> with:
+    <code>add_image_from_path(path) -&gt; AssetRef</code>;
+    <code>add_image_from_bytes(bytes: Vec&lt;u8&gt;, ext) -&gt; AssetRef</code>;
+    <code>asset_statuses(names: Vec&lt;String&gt;) -&gt; Vec&lt;AssetStatus&gt;</code> — one call for a
+    whole canvas, never one per card; <code>assets_folder() -&gt; String</code> for "Show in folder";
+    <code>create_image_card(canvas_id, x, y, width, height, asset, natural_width, natural_height, alt, source_name) -&gt; PlacementWithItem</code>
+    following <code>create_note_card_for</code>'s one-transaction shape; and
+    <code>update_image_dimensions(item_id, natural_width, natural_height)</code>, a narrow patch used
+    once per image when the page has decoded it.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/mod.rs</code> — <code>pub mod asset;</code>.
+    <strong>UPDATE:</strong> <code>src-tauri/src/lib.rs</code> — register all six commands in
+    <strong>both</strong> <code>invoke_handler!</code> lists, and add
+    <code>.plugin(tauri_plugin_dialog::init())</code> and
+    <code>.plugin(tauri_plugin_opener::init())</code>.</li>
+  <li><strong>CREATE:</strong> <code>src-tauri/capabilities/default.json</code> — one capability named
+    <code>default</code>, windows <code>["main"]</code>, permissions
+    <code>["core:default", "dialog:allow-open", "opener:allow-open-url", "opener:allow-reveal-item-in-dir"]</code>.
+    Nothing wider: no shell execute, no arbitrary fs.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/tauri.conf.json</code> — under
+    <code>app.security</code> add
+    <code>"assetProtocol": { "enable": true, "scope": [] }</code>. The scope stays empty in the file and
+    is granted at runtime.</li>
+  <li><strong>UPDATE:</strong> <code>open_project_at</code> — after the project opens, call
+    <code>app.asset_protocol_scope().allow_directory(assets_dir(folder), false)</code> so only that one
+    project's <code>assets/</code> folder is readable, not the disk. This requires the
+    <code>AppHandle</code>, so <code>open_project</code> takes <code>app: tauri::AppHandle</code> as a
+    parameter and passes it through; keep <code>open_project_at</code> testable by taking an
+    <code>Option&lt;&amp;AppHandle&gt;</code> and skipping the grant when it is <code>None</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/Cargo.toml</code> —
+    <code>tauri-plugin-dialog = "2"</code>, <code>tauri-plugin-opener = "2"</code>.
+    <strong>UPDATE:</strong> <code>package.json</code> — <code>@tauri-apps/plugin-dialog</code> and
+    <code>@tauri-apps/plugin-opener</code>.</li>
+  <li><strong>GOTCHA:</strong> a command registered in only the debug handler list works in
+    <code>tauri dev</code> and fails in the installer. Both lists, every time.</li>
+  <li><strong>GOTCHA:</strong> <code>add_image_from_bytes</code> must take
+    <code>Vec&lt;u8&gt;</code>; Tauri 2 serializes a JS <code>Uint8Array</code> to a JSON number array,
+    which is workable at clipboard sizes but not at 40 MB — hence the drop and picker routes send a
+    path, and only the clipboard route sends bytes.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml asset:: &amp;&amp; node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('src-tauri/capabilities/default.json','utf8'));const need=['core:default','dialog:allow-open','opener:allow-open-url','opener:allow-reveal-item-in-dir'];for(const p of need){if(!c.permissions.includes(p)){console.error('missing permission '+p);process.exit(1);}}const t=JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8'));if(!t.app.security.assetProtocol||t.app.security.assetProtocol.enable!==true){console.error('asset protocol not enabled');process.exit(1);}const s=fs.readFileSync('src-tauri/src/lib.rs','utf8');for(const cmd of ['add_image_from_path','add_image_from_bytes','asset_statuses','assets_folder','create_image_card','update_image_dimensions']){if((s.match(new RegExp('asset::'+cmd+'\\\\b','g'))||[]).length&lt;2){console.error('not registered twice: '+cmd);process.exit(1);}}console.log('asset seam ok');"</code></li>
+</ul>
+
+<h3 class="milestone" data-milestone="2">Milestone 2: Image cards in the page</h3>
+
+<p>A picture arrives by drop, picker or paste, is drawn at its real dimensions, survives its file going
+missing, is editable in the panel, and comes back whole after an undo.</p>
+
+<p><strong>Validation checkpoint:</strong> a jsdom test that mounts the card layer over a store holding
+two image placements — one whose asset <code>asset_statuses</code> reports as present and one absent —
+and asserts the first renders an <code>&lt;img&gt;</code> whose <code>src</code> came from the asset URL
+helper with the correct <code>alt</code>, and the second renders the missing-file marker with the
+dashed border, <code>ph-image-broken</code> and the words <em>File not found in assets/</em>, at the
+same authored width and height as the first. This proves the culled render path, the status cache and
+the two drawn states compose — which no single task's VALIDATE covers, because each tests its piece
+against a stub.</p>
+
+<h4 class="task" data-task="5">Task 5: The asset URL helper and the status cache</h4>
+<p>One place that turns an asset file name into something an <code>&lt;img src&gt;</code> can load, and
+one place that knows whether a named file is actually there.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/assets.ts</code> — <code>setAssetsFolder(path)</code>
+    (called once when a project opens), <code>assetUrl(name) -&gt; string</code> which joins the folder
+    and the name and passes the result through <code>convertFileSrc</code> from
+    <code>@tauri-apps/api/core</code>, and <code>refreshAssetStatuses(names)</code> which calls
+    <code>asset_statuses</code> through <code>invokeSafe</code> and fills a module-level
+    <code>SvelteMap&lt;string, AssetStatus&gt;</code>. Export <code>assetStatus(name)</code> reading
+    that map, treating an unknown name as <em>present</em> so a card never flickers into the missing
+    state while the check is in flight.</li>
+  <li><strong>GOTCHA:</strong> <code>convertFileSrc</code> lives in
+    <code>@tauri-apps/api/core</code>, which Level 5 forbids outside <code>src/lib/ipc.ts</code>.
+    Re-export it from <code>ipc.ts</code> as <code>toFileUrl</code> and import it from there, so the
+    grep stays a true statement about the seam.</li>
+  <li><strong>UPDATE:</strong> <code>src/stores/canvasStore.svelte.ts</code> — in
+    <code>loadCanvas</code>, after the cards land, collect every asset name across every loaded payload
+    and call <code>refreshAssetStatuses</code> once. Add
+    <code>fetchStatus = new SvelteMap&lt;number, FetchStatus&gt;()</code> keyed by item id with
+    <code>'idle' | 'fetching' | 'ok' | 'failed'</code>, exactly as
+    <code>docs/design-system.html</code> §13.1 names it, plus
+    <code>setFetchStatus(itemId, status)</code>; clear it in <code>loadCanvas</code> and
+    <code>closeProject</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — after <code>openProject</code>, call
+    <code>setAssetsFolder</code> with the value of the new <code>assets_folder</code> command.</li>
+  <li><strong>IMPORTS:</strong> <code>SvelteMap</code> from <code>svelte/reactivity</code> — the same
+    reason the store already uses it: a plain <code>Map</code> in <code>$state</code> is not reactive
+    per entry.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/assetUrl.test.ts src/stores/__tests__/canvasStore.test.ts</code>
+    — asserts <code>assetUrl</code> produces a stable string containing the file name and never a bare
+    Windows path, that it throws nothing when the folder has not been set, that an unknown name reports
+    present, and that a name reported absent reports absent after
+    <code>refreshAssetStatuses</code> resolves against a mocked <code>invokeSafe</code>.</li>
+</ul>
+
+<h4 class="task" data-task="6">Task 6: The image card, and the missing-file state</h4>
+<p>Both drawn states from <code>docs/design-system.html</code> §9.4, at the locked token values, in one
+component.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/cards/ImageCard.svelte</code> — props
+    <code>{ payload, missing, zoom }</code>, no store access, mirroring
+    <code>NoteCard.svelte</code>'s shape. Present state: the picture, <code>object-fit: contain</code>,
+    with the payload's <code>alt</code> as its real <code>alt</code> attribute. When the payload has no
+    asset yet: <code>--color-neutral-200</code> ground,
+    <code>display: grid; place-items: center</code>, <code>ph-image</code> at 20px (or 26px above
+    240px of card width), then <code>source_name</code> at 11px, gap 5px.</li>
+  <li><strong>ADD:</strong> the missing state, exactly as §9.4 specifies it — ground
+    <code>--color-neutral-300</code>, a 1px dashed <code>--color-divider</code> inner border inset 1px
+    at <code>--radius-sm</code> (the interface's only dashed border),
+    <code>ph-image-broken</code> at the same 20/26px sizes, the file name at 11px, and
+    <em>File not found in assets/</em> at 10.5px opacity .6 two pixels below. It must
+    <strong>not</strong> use <code>--color-accent-2</code>, and the card must keep its authored width
+    and height so the canvas does not rearrange itself around a problem the user has not seen.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/cards/CardLayer.svelte</code> — add an
+    <code>{:else if item.kind === 'image'}</code> branch passing
+    <code>missing={!assetStatus(payload.asset).exists}</code>. Below <code>LOW_ZOOM</code> draw the
+    picture (or the ground) alone with no text, matching the note card's simplified branch.</li>
+  <li><strong>ADD:</strong> on the <code>&lt;img&gt;</code>'s <code>load</code> event, when the payload's
+    <code>natural_width</code> is 0, report the decoded <code>naturalWidth</code>/
+    <code>naturalHeight</code> up through a prop callback; the composition root calls
+    <code>update_image_dimensions</code> once. This is how the dimensions reach the payload without a
+    Rust image-decoding crate.</li>
+  <li><strong>GOTCHA:</strong> no <code>{@html}</code>. <code>source_name</code> and <code>alt</code>
+    are text nodes and attributes.</li>
+  <li><strong>GOTCHA:</strong> the <code>load</code> callback must fire at most once per item — guard on
+    <code>natural_width === 0</code>, or a pan that re-mounts the card writes to the database on every
+    cull cycle.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/cards/__tests__/imageCard.test.ts</code> — renders the component
+    three ways and asserts: present renders one <code>img</code> with the payload's
+    <code>alt</code>; <code>missing</code> renders no <code>img</code>, contains the text
+    <em>File not found in assets/</em>, has a dashed border style and does not reference any
+    <code>accent-2</code> token; and the simplified branch below <code>LOW_ZOOM</code> renders no text
+    node.</li>
+</ul>
+
+<h4 class="task" data-task="7">Task 7: The three image ingestion routes, and the mid-drop state</h4>
+<p>File drop from Explorer, the file picker and a clipboard paste of image bits — three doors into one
+function. The <code>I</code> shortcut becomes live.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/cards/ingest.svelte.ts</code> —
+    <code>addImagesFromPaths(paths, at)</code>, <code>pickImages()</code> (the dialog plugin's
+    <code>open</code> with <code>multiple: true</code> and a filter for
+    <code>png jpg jpeg gif webp bmp svg</code>), and
+    <code>addImageFromClipboardItem(item, at)</code>. All three end in one
+    <code>createImageCard</code> call per picture, laying multiple pictures out in a row with a 22px gap
+    from the drop point — the application chooses no position beyond the point the user indicated
+    (contract 1).</li>
+  <li><strong>CREATE:</strong> <code>src/features/cards/DropTarget.svelte</code> — the mid-drop state,
+    undrawn in <code>docs/design-system.html</code> §15.1 item 5 and designed here: a 2px dashed
+    <code>--color-accent</code> ring inset 6px over the canvas surface, plus a centred chip on
+    <code>--color-surface</code> at <code>--radius-md</code> holding <code>ph-image</code> at 13px and
+    <em>Drop a picture to add it here</em> at 11px. Dashed-for-provisional is the language Phase 2
+    already established for a line mid-drag; no new token is introduced.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — subscribe to
+    <code>getCurrentWebview().onDragDropEvent()</code> in an <code>$effect</code> with its teardown;
+    <code>enter</code>/<code>over</code> set a <code>dragOver</code> flag,
+    <code>drop</code> clears it and calls <code>addImagesFromPaths</code> with the pointer's world
+    position, <code>leave</code> clears it. Wire <code>'new-image'</code> to
+    <code>pickImages()</code> and enable the background menu's <em>Add Image…</em> row, which is
+    currently <code>available: false</code>.</li>
+  <li><strong>ADD:</strong> to the paste path, ahead of the text branch: read
+    <code>navigator.clipboard.read()</code>, and if any <code>ClipboardItem</code> offers an
+    <code>image/*</code> type, take its blob, send the bytes through
+    <code>add_image_from_bytes</code> and name it <em>Pasted image</em>. Fall through to text when the
+    read throws or offers no image.</li>
+  <li><strong>ADD:</strong> one undo command per ingestion batch — reuse
+    <code>duplicateCommand</code>'s shape (it already re-creates a list of cards through
+    <code>restore_card</code> and adopts new ids) under the label <em>Add Image</em> /
+    <em>Add Images</em>, so an accidental drop of forty pictures is one <kbd>Ctrl+Z</kbd>.</li>
+  <li><strong>GOTCHA:</strong> HTML <code>drop</code> events never fire — Tauri's
+    <code>dragDropEnabled</code> is on by default and suppresses them in favour of
+    <code>tauri://drag-drop</code>. Do not add <code>ondrop</code> to the canvas element.</li>
+  <li><strong>GOTCHA:</strong> a non-image path in a drop (a <code>.txt</code>, a folder) is skipped
+    quietly with a logged line, not surfaced as an error. Nothing about a drop is a dialog.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/cards/__tests__/ingest.test.ts</code> — with
+    <code>invokeSafe</code> and the dialog plugin mocked, asserts: three paths produce three
+    <code>create_image_card</code> calls at three x positions 22px apart; a <code>.txt</code> path
+    produces none; a clipboard item offering <code>image/png</code> reaches
+    <code>add_image_from_bytes</code> with the blob's bytes and never reaches
+    <code>create_note_card</code>; and one batch pushes exactly one undo command.</li>
+</ul>
+
+<h4 class="task" data-task="8">Task 8: The panel's File and Alt text groups, and asset-aware undo</h4>
+<p>The image half of the properties panel, plus the proof that an undone delete brings the picture file
+back with the card.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/PropertiesPanel.svelte</code> — for a single
+    selected image card, render the §9.4 groups between Size and Order: <strong>File</strong> — the path
+    <code>assets/&lt;name&gt;</code> at 11px line-height 1.5 opacity .75 ellipsized, then
+    <code>&lt;w&gt; × &lt;h&gt; · &lt;size&gt; · copied in</code> at 11px opacity .45, then a row with
+    <em>Replace</em> (flex 1) and a 28px icon button holding <code>ph-folder-open</code> titled
+    <em>Show in folder</em>; <strong>Alt text</strong> — a 100%-wide 44px <code>.input</code> textarea,
+    11px, <code>resize: none</code>, committing on blur.</li>
+  <li><strong>ADD:</strong> the missing variant, per §9.4: the dimensions line becomes
+    <em>Missing · the card is kept</em> at 11px opacity .45 — never a stale size — while
+    <em>Replace</em> and <em>Show in folder</em> both stay enabled, because they are the fix. Everything
+    else in the panel behaves exactly as normal. Do <strong>not</strong> add a line naming where the
+    original file used to live; §9.4 forbids it.</li>
+  <li><strong>ADD:</strong> <em>Replace</em> runs <code>pickImages()</code> for one file and patches the
+    selected item's payload (new asset, new natural size, new <code>source_name</code>, the
+    <code>alt</code> kept), pushing an <code>editItemCommand</code>. <em>Show in folder</em> calls the
+    opener plugin's <code>revealItemInDir</code> on the <code>assets_folder</code> path.</li>
+  <li><strong>UPDATE:</strong> <code>headerKind</code> and <code>headerId</code> to use the new
+    <code>cardTitle</code> helper, so an image, link or video selection reads as
+    <em>Image</em>/<em>Link</em>/<em>Video</em> rather than the current generic <em>Card</em>.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/undo/commands.ts</code> — nothing structural is
+    needed, because <code>restore_card</code> now untrashes in Rust; instead add the alt-text and
+    replace paths to <code>editItemCommand</code>'s callers and extend
+    <code>deleteCardsCommand</code>'s doc comment to record that the asset half is now real. Add a
+    guard in <code>restoreCards</code> that reports through the logger when a restored image's asset
+    comes back missing, rather than failing the undo.</li>
+  <li><strong>GOTCHA:</strong> the byte count and the dimensions come from
+    <code>asset_statuses</code> and the payload respectively — never from a
+    <code>fetch()</code> of the asset URL.</li>
+  <li><strong>GOTCHA:</strong> every icon-only button needs an accessible name
+    (<code>docs/design-system.html</code> §12 counts thirteen of them);
+    <em>Show in folder</em> gets both a <code>title</code> and an <code>aria-label</code>.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/shell/__tests__/panelImage.test.ts src/features/cards/__tests__/undoAssets.test.ts</code>
+    — the panel test asserts the File and Alt text groups appear for an image selection, that the
+    missing variant prints <em>Missing · the card is kept</em> and no dimensions, and that Replace and
+    Show in folder stay enabled; the undo test asserts a delete of the last placement of an image item
+    reports the asset in <code>DeleteEffect.assets</code> and that the undo calls
+    <code>restore_card</code> with the same payload, against a mocked seam.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="3">Milestone 3: The fetch layer in Rust</h3>
+
+<p>Every network call the MVP will ever make, in one folder, behind one five-second budget, with its
+parsing written as pure functions that need no socket to test.</p>
+
+<p><strong>Validation checkpoint:</strong> a Rust test that starts a deliberately slow loopback
+<code>TcpListener</code> on an ephemeral port — accept the connection, then sleep past the budget
+without writing a response — and asserts <code>fetch_link_preview_for</code> against that address
+returns <code>Ok</code> with a <code>fetched: false</code> preview in under seven seconds wall clock.
+That composes the client build, the deadline, the failure mapping and the "a failed fetch is a value,
+not an error" contract, none of which the pure parser tests can reach. It uses only
+<code>std::net</code>, so it adds no dependency and touches no real network.</p>
+
+<h4 class="task" data-task="9">Task 9: URL classification, as pure functions</h4>
+<p>Whether a pasted string is a web address at all, and whether it is a YouTube video. Everything
+downstream branches on this one answer, so it is built and tested before anything that fetches.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/fetch/classify.rs</code> —
+    <code>classify(text: &amp;str) -&gt; UrlKind</code> returning
+    <code>UrlKind::Video { url, provider: "youtube", video_id }</code>,
+    <code>UrlKind::Link { url }</code> or <code>UrlKind::None</code>. Accept only
+    <code>http</code> and <code>https</code> schemes; accept a bare <code>www.</code> or
+    <code>host.tld/...</code> string by prefixing <code>https://</code>; reject anything with
+    whitespace inside, anything longer than 2048 characters, and every other scheme —
+    <code>file:</code>, <code>javascript:</code>, <code>data:</code> included.</li>
+  <li><strong>ADD:</strong> YouTube recognition over the address forms that actually occur:
+    <code>youtube.com/watch?v=ID</code>, <code>youtu.be/ID</code>,
+    <code>youtube.com/shorts/ID</code>, <code>youtube.com/embed/ID</code>,
+    <code>youtube.com/live/ID</code>, with or without <code>www.</code>, <code>m.</code> or
+    <code>music.</code>. An 11-character id of <code>[A-Za-z0-9_-]</code>. A
+    <code>youtube.com</code> address that is <em>not</em> a video (a channel, a playlist with no
+    <code>v</code>) is a <code>Link</code>, not a <code>Video</code>. A <code>vimeo.com</code>
+    address is a <code>Link</code> — Vimeo left the MVP on 2026-09-06 and takes the ordinary
+    link-preview path.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/lib.rs</code> — <code>pub mod fetch;</code>.
+    <strong>UPDATE:</strong> <code>src-tauri/Cargo.toml</code> — <code>url = "2"</code>.</li>
+  <li><strong>IMPORTS:</strong> <code>url::Url</code>. No regular-expression crate: parse the URL and
+    read its host and path segments.</li>
+  <li><strong>GOTCHA:</strong> <code>Url::parse("www.example.com")</code> succeeds and yields the
+    scheme <code>www.example.com</code> with an empty host. Check the scheme against the allow-list
+    <em>after</em> parsing, and try the <code>https://</code> prefix when there is no scheme
+    separator in the input.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml classify</code> — table-driven tests over
+    at least: the six YouTube forms with the same expected id; a YouTube channel address as
+    <code>Link</code>; a Vimeo address as <code>Link</code>; <code>www.example.com</code> normalised
+    to <code>https://www.example.com</code>; <code>javascript:alert(1)</code>,
+    <code>file:///c:/x</code>, <code>data:text/html,x</code> and <code>"just some words"</code> all
+    <code>None</code>.</li>
+</ul>
+
+<h4 class="task" data-task="10">Task 10: Open Graph extraction and oEmbed decoding, as pure functions</h4>
+<p>The two parsers, each taking a string and returning a struct. No client, no socket, no
+<code>async</code> — which is what makes the security rules testable.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/fetch/opengraph.rs</code> —
+    <code>extract(html: &amp;str, base: &amp;Url) -&gt; Preview</code> where
+    <code>Preview { title, description, image_url, favicon_url }</code>, reading
+    <code>og:title</code> then <code>&lt;title&gt;</code>, <code>og:description</code> then
+    <code>meta[name=description]</code>, <code>og:image</code> (and
+    <code>og:image:secure_url</code>), and <code>link[rel~=icon]</code> then
+    <code>/favicon.ico</code>. Resolve every relative URL against <code>base</code>, and drop any
+    resolved URL whose scheme is not <code>http</code>/<code>https</code>.</li>
+  <li><strong>ADD:</strong> <code>clean_text(&amp;str, max: usize) -&gt; String</code> — the one
+    function every fetched value passes through. It decodes nothing, collapses all whitespace
+    (including newlines and tabs) to single spaces, strips ASCII control characters, trims, and
+    truncates on a character boundary. Title max 300, description max 1000. This is the
+    "fetched Open Graph values are plain text" rule made mechanical.</li>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/fetch/oembed.rs</code> —
+    <code>oembed_url(video_url) -&gt; String</code> building
+    <code>https://www.youtube.com/oembed?url=&lt;percent-encoded&gt;&amp;format=json</code>, and
+    <code>decode(json: &amp;str) -&gt; AppResult&lt;VideoMeta&gt;</code> reading
+    <code>title</code>, <code>author_name</code> and <code>thumbnail_url</code> through
+    <code>serde</code>, each value passed through <code>clean_text</code>.</li>
+  <li><strong>IMPORTS:</strong> <code>scraper::{Html, Selector}</code>, <code>url::Url</code>,
+    <code>serde::Deserialize</code>. <strong>UPDATE:</strong> <code>src-tauri/Cargo.toml</code> —
+    <code>scraper = "0.20"</code>.</li>
+  <li><strong>GOTCHA:</strong> build each <code>Selector</code> once in a
+    <code>std::sync::OnceLock</code> (or a <code>LazyLock</code>); parsing a selector per call is the
+    expensive part of <code>scraper</code>.</li>
+  <li><strong>GOTCHA:</strong> a page whose <code>&lt;title&gt;</code> is
+    <code>&lt;img src=x onerror=alert(1)&gt;</code> must come out as literal text.
+    <code>clean_text</code> does not escape — the front end inserting it as a text node is what makes
+    it safe — so the test asserts the value survives verbatim and the front-end test asserts it is
+    never markup.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml -- opengraph oembed</code> — tests over
+    inline HTML fixtures assert: full Open Graph tags win over <code>&lt;title&gt;</code>; a page with
+    no OG tags falls back correctly; a relative <code>og:image</code> resolves against the base; a
+    <code>javascript:</code> favicon is dropped; <code>clean_text</code> collapses a newline-laden
+    title, strips a <code>\u0000</code>, and truncates a 5000-character description to 1000;
+    <code>oembed_url</code> percent-encodes a <code>?</code> in the video address; and
+    <code>decode</code> returns the three fields from a captured oEmbed response body.</li>
+</ul>
+
+<h4 class="task" data-task="11">Task 11: The fetch commands, the five-second budget and thumbnail capture</h4>
+<p>The only two commands in the product that open a socket. Both are shaped so a failure is a
+<em>value</em> the card can draw, never an <code>Err</code> the shell has to apologise for.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/fetch/mod.rs</code> — a
+    <code>OnceLock&lt;reqwest::Client&gt;</code> built once with
+    <code>.timeout(Duration::from_secs(5))</code>,
+    <code>.connect_timeout(Duration::from_secs(3))</code>,
+    <code>.redirect(reqwest::redirect::Policy::limited(5))</code> and a plain
+    <code>User-Agent</code> naming IdeaScape and its version. Then
+    <code>fetch_link_preview_for(folder, url) -&gt; AppResult&lt;LinkPreview&gt;</code> and
+    <code>fetch_video_meta_for(folder, url) -&gt; AppResult&lt;VideoPreview&gt;</code>, each wrapped in
+    one <code>tokio::time::timeout(Duration::from_secs(5), …)</code> covering the page request,
+    the parse <em>and</em> the thumbnail and favicon downloads together — one budget for the whole
+    operation, so "cut off after 5 seconds" is literally true of the call the user triggered.</li>
+  <li><strong>ADD:</strong> response guards — refuse a <code>Content-Type</code> that is not
+    <code>text/html</code> or <code>application/xhtml+xml</code> for the page, refuse a
+    non-<code>image/*</code> type for a thumbnail or favicon, and cap the page body at 2 MB and each
+    image at 5 MB by reading chunks and stopping. A page is read for preview data only and is never
+    executed.</li>
+  <li><strong>ADD:</strong> thumbnail and favicon capture — each downloaded image goes through
+    <code>assets::write_in</code>, so a preview picture is a content-hashed file in
+    <code>assets/</code> exactly like a dropped picture, and the payload holds its file name. An image
+    that fails or misses the budget simply leaves its payload field <code>null</code>; the card then
+    draws the "no preview picture" state, which is a <em>normal</em> state.</li>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/commands/fetch.rs</code> — <code>classify_url</code>
+    (synchronous, pure), plus <code>async fn fetch_link_preview</code> and
+    <code>async fn fetch_video_metadata</code>. Each clones the project folder out of
+    <code>AppState.folder</code> and drops the guard <strong>before</strong> the first
+    <code>await</code>; neither touches the database at all. The front end writes the resulting payload
+    through the existing <code>update_item_payload</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/error.rs</code> — add
+    <code>#[error("that address could not be read: {0}")] Fetch(String)</code>, used only for a
+    programming-level failure (an unparseable address); a network failure, a timeout and a bad status
+    all return <code>Ok</code> with <code>fetched: false</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/mod.rs</code>,
+    <code>src-tauri/src/lib.rs</code> (both handler lists), and <code>src-tauri/Cargo.toml</code> —
+    <code>reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }</code>.
+    Do <strong>not</strong> enable the default features; they pull native TLS into a 20 MB budget.</li>
+  <li><strong>GOTCHA:</strong> holding the <code>folder</code> <code>MutexGuard</code> across an
+    <code>await</code> makes the future non-<code>Send</code> and the command will not compile as
+    written — clone the <code>PathBuf</code> and drop the guard in its own scope. The comment at the
+    top of <code>commands/project.rs</code> already states this rule for the database guard.</li>
+  <li><strong>GOTCHA:</strong> <code>reqwest::Error</code> must not gain a blanket
+    <code>From</code> impl on <code>AppError</code> — that would let a network failure escape as an
+    error and land in the shell's message strip, which is precisely the dialog behaviour contract 3
+    forbids.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml fetch::</code> — tests assert: the client
+    builds once and reports a 5-second timeout; a request to
+    <code>http://127.0.0.1:&lt;closed port&gt;</code> returns <code>Ok</code> with
+    <code>fetched: false</code> and no panic; <code>classify_url</code> is reachable synchronously; and
+    a <code>Content-Type: application/pdf</code> response is refused as not-fetched. No test reaches
+    the public internet.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="4">Milestone 4: Link and video cards</h3>
+
+<p>The two fetching cards, all four of their drawn states, the paste route that creates them and the
+panel group that refetches them.</p>
+
+<p><strong>Validation checkpoint:</strong> a jsdom test driving the real paste routing over a mocked
+seam that asserts the whole sequence for one pasted address: <code>create_link_card</code> is called
+<em>before</em> <code>fetch_link_preview</code>, the store's <code>fetchStatus</code> for that item goes
+<code>fetching</code> then <code>failed</code> when the fetch resolves not-fetched, the card renders the
+"not fetched" state with a Refetch control throughout, and <code>guard()</code> is never invoked — no
+message strip, no dialog. That composes contract 2 (a card exists before the network is consulted),
+contract 3 (failure is drawn) and contract 4 (the five-second cut-off) in the one order that matters,
+which no single task's VALIDATE asserts end to end.</p>
+
+<h4 class="task" data-task="12">Task 12: The link card, in all three states</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/cards/LinkCard.svelte</code> — props
+    <code>{ payload, status, zoom, onRefetch }</code>, <code>overflow: hidden</code>, no padding on the
+    shell, per <code>docs/design-system.html</code> §9.5. <strong>Fetched:</strong> a 126px preview band
+    on <code>--color-neutral-200</code> holding the thumbnail asset, or a centred
+    <code>ph-image</code> at 22px when there is none; body padding
+    <code>10px 13px 12px</code> with the domain row (10px, letter-spacing .06em, uppercase, opacity .5,
+    gap 6px, and a 12×12px favicon square at <code>--radius-sm</code> in
+    <code>--color-accent-200</code> or the fetched favicon asset), the title (13px weight 600,
+    line-height 1.35), and the description (11.5px, line-height 1.45, opacity .72).</li>
+  <li><strong>ADD:</strong> <strong>No preview data:</strong> drop the band, padding
+    <code>11px 13px</code>, a <code>--color-neutral-300</code> favicon square, and
+    <em>No preview picture on this page</em> at 11px opacity .45 seven pixels under the title.</li>
+  <li><strong>ADD:</strong> <strong>Not fetched yet:</strong> the domain row uses
+    <code>ph-link-simple</code> at 13px; the body is the raw address at 12px, line-height 1.45,
+    <code>word-break: break-all</code>, opacity .85; nine pixels below,
+    <code>ph-circle-dashed</code> at 13px spinning over <code>--duration-spinner</code> plus
+    <em>Fetching preview…</em> at 11px opacity .55 while <code>status === 'fetching'</code>, replaced by
+    a <em>Refetch</em> button (<code>ph-arrow-clockwise</code>, 11px, padding <code>3px 8px</code>,
+    <code>--radius-sm</code>, 1px <code>--color-accent</code> border,
+    <code>--color-accent-700</code> text) once it has failed. Disabled it sits at opacity .45 — the one
+    documented exception to the .35 disabled value.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/cards/CardLayer.svelte</code> — the
+    <code>'link'</code> branch, passing <code>canvasStore.fetchStatus.get(item.id) ?? 'idle'</code>.
+    Below <code>LOW_ZOOM</code>, draw the band and nothing else.</li>
+  <li><strong>GOTCHA:</strong> the title and description are text nodes. A fetched
+    <code>&lt;script&gt;</code> in a page title must appear on the card as visible characters.</li>
+  <li><strong>GOTCHA:</strong> the state is derived from the payload, not from the status map alone: a
+    payload with <code>fetched_at === null</code> is "not fetched"; one with a <code>fetched_at</code>
+    and no <code>thumbnail_asset</code> is "no preview data"; one with both is "fetched". The status map
+    only distinguishes <em>in flight</em> from <em>failed</em>.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/cards/__tests__/linkCard.test.ts</code> — asserts each of the
+    three states renders its distinguishing text or element, that the spinner appears only while
+    <code>status === 'fetching'</code> and the Refetch button only when it is not, that
+    <code>onRefetch</code> fires on click, and that a payload whose title is
+    <code>&lt;img src=x onerror=alert(1)&gt;</code> produces zero <code>img</code> elements inside the
+    card body.</li>
+</ul>
+
+<h4 class="task" data-task="13">Task 13: The video card, and opening it in the browser</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/cards/VideoCard.svelte</code> — per §9.6:
+    <code>overflow: hidden</code>; a 153px-tall thumbnail band on <code>--color-neutral-300</code>,
+    <code>position: relative</code>, holding the thumbnail asset when there is one; a centred play badge
+    38×38px, <code>border-radius: 50%</code>, background <code>rgba(243,242,242,.92)</code> read from a
+    token, <code>ph-play</code> at 16px; body padding <code>10px 13px 12px</code> with a provider row
+    using <code>ph-youtube-logo</code> at 13px, the title at 13px weight 600 line-height 1.35, then
+    <em>Click to open in your browser</em> at 11px opacity .45 six pixels down.</li>
+  <li><strong>ADD:</strong> the not-fetched fallback — the address in place of the title, and the play
+    badge over the empty band. Clicking still opens the browser, which is what the boundary table's
+    YouTube row requires.</li>
+  <li><strong>ADD:</strong> a click on the card (single click, not a drag) calls back to the composition
+    root, which calls the opener plugin's <code>openUrl</code> with the payload's URL <em>after</em>
+    re-checking it parses as <code>http</code>/<code>https</code>. Guard on the pointer having moved
+    less than 3px, so a drag never opens a browser tab.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/cards/CardLayer.svelte</code> — the
+    <code>'video'</code> branch. Below <code>LOW_ZOOM</code>, band and badge only.</li>
+  <li><strong>GOTCHA:</strong> the drawn duration chip is <strong>not</strong> built. YouTube's public
+    oEmbed response carries no duration and the only source that does needs an API key, which
+    <code>CLAUDE.md</code> forbids outright. Recorded in the Notes and flagged in the PR body.</li>
+  <li><strong>GOTCHA:</strong> video never plays in place. Do not embed an iframe; that is a documented
+    post-MVP gap, not an omission to fix here.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/cards/__tests__/videoCard.test.ts</code> — asserts the play badge
+    and the <em>Click to open in your browser</em> line render in both the fetched and not-fetched
+    states, that the title falls back to the address when <code>fetched_at</code> is null, that no
+    <code>iframe</code> and no duration chip is rendered, and that the click callback fires once for a
+    stationary click and not at all after a 20px pointer move.</li>
+</ul>
+
+<h4 class="task" data-task="14">Task 14: Paste routing — the card exists before the network</h4>
+<p>One decision function, then one sequence: create the card, mark it fetching, fetch, patch or fail.
+<kbd>Ctrl+V</kbd> becomes the busiest key in the product.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/paste.ts</code> — <code>decidePaste(input)</code>, pure,
+    taking <code>{ hasCards, imageMimeType, text }</code> and returning
+    <code>{ kind: 'cards' | 'image' | 'video' | 'link' | 'note' | 'none', … }</code>, in that priority
+    order. The URL half delegates to the Rust <code>classify_url</code> command rather than
+    re-implementing the address rules in TypeScript — one source of truth, and it is already tested —
+    so <code>decidePaste</code> takes the classification as an argument and stays pure.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — replace <code>paste()</code>'s body with
+    the routing. For an address: call <code>create_link_card</code> or <code>create_video_card</code>
+    with <code>fetched_at: null</code> <em>first</em>, upsert, select, push the undo command, then set
+    <code>fetchStatus</code> to <code>'fetching'</code> and start the fetch <strong>without
+    awaiting it in the paste handler</strong>. When it resolves, write the payload through
+    <code>update_item_payload</code>, upsert the item and set <code>'ok'</code> or
+    <code>'failed'</code>. A rejected fetch is logged and set to <code>'failed'</code> — it never goes
+    through <code>guard()</code>.</li>
+  <li><strong>ADD:</strong> to <code>src-tauri/src/commands/placement.rs</code>,
+    <code>create_link_card</code> and <code>create_video_card</code>, both one-transaction creators
+    mirroring <code>create_note_card_for</code>, registered in both handler lists.</li>
+  <li><strong>ADD:</strong> the paste-pending caption from §9.7 — <em>Pasted here · Ctrl+V</em> at 11px
+    opacity .4 under the newly created card, shown while that card is the selection and its status is
+    <code>'fetching'</code>, and gone afterwards.</li>
+  <li><strong>ADD:</strong> <code>src/lib/cardKinds.ts</code> — the authored default sizes:
+    note 236×150 (moved from <code>app.svelte</code>'s constants), link 236×236, video 272×246, and
+    <code>imageFitBox(naturalWidth, naturalHeight)</code> scaling a picture into a 320×320 world box,
+    preserving aspect ratio, floored at <code>MIN_CARD_SIZE</code>.</li>
+  <li><strong>UPDATE:</strong> the background context menu's <em>Paste</em> row — currently
+    <code>available: clipboard.length &gt; 0</code>, which is now wrong, since a pasteable address or
+    picture may be on the system clipboard with no internal cards held. Make it always available.</li>
+  <li><strong>GOTCHA:</strong> do not <code>await</code> the fetch inside the paste handler. Contract 2
+    is that the wait never blocks the work; an awaited fetch makes the paste key hang for up to five
+    seconds.</li>
+  <li><strong>GOTCHA:</strong> the item may be deleted while its fetch is in flight. Check the item is
+    still in the store before writing the payload back, or an undone paste re-creates a row.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/paste.test.ts src/features/cards/__tests__/pasteRouting.test.ts</code>
+    — the pure test asserts the priority order and every branch of <code>decidePaste</code>; the routing
+    test, against a mocked seam, asserts <code>create_link_card</code> resolves before
+    <code>fetch_link_preview</code> is called, that the handler returns before the fetch does, that a
+    rejected fetch sets <code>'failed'</code> and calls nothing on the error path, and that a fetch
+    resolving after the item was deleted writes no payload.</li>
+</ul>
+
+<h4 class="task" data-task="15">Task 15: The panel's Source group, and Refetch</h4>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/PropertiesPanel.svelte</code> — for a single
+    selected link or video card, render the §9.5 <strong>Source</strong> group between Size and Order: a
+    full-width <code>.input</code> holding the address at 11px, padding <code>2px 4px</code>,
+    <code>--radius-sm</code>, read-only; then <em>Preview fetched &lt;relative time&gt;</em> at 11px
+    opacity .45 line-height 1.45, or <em>Not fetched yet · 5s limit</em> per §9.7; then the
+    <em>Refetch</em> button, disabled at opacity .45 while the status is <code>'fetching'</code>.</li>
+  <li><strong>ADD:</strong> a small <code>relativeTime(iso)</code> helper in <code>src/lib/</code>
+    producing the drawn phrasing (<em>2 min ago</em>, <em>just now</em>, <em>3 days ago</em>) — it is
+    needed by the Phase 4 search popover's canvas sub-line too, which is why it goes in
+    <code>lib/</code> and not in the panel.</li>
+  <li><strong>ADD:</strong> Refetch runs the same fetch-and-patch sequence Task 14 built, extracted into
+    one function both call. It pushes an <code>editItemCommand</code> so a refetch that makes a card
+    worse is undoable (contract 7: every edit is undoable).</li>
+  <li><strong>ADD:</strong> the same Refetch affordance on the card itself for the not-fetched state,
+    wired to the same function — contract 11, no route is the only route.</li>
+  <li><strong>GOTCHA:</strong> a refetch must reuse the payload's stored URL, never the displayed text,
+    and must re-run <code>classify_url</code> so a video that has become a plain link (or vice versa)
+    does not silently write a payload of the wrong shape into an item of the old
+    <code>kind</code>. When the classification no longer matches the item's kind, keep the kind and
+    take the link path.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/shell/__tests__/panelSource.test.ts src/lib/__tests__/relativeTime.test.ts</code>
+    — the panel test asserts the Source group appears for a link selection with the address in a
+    read-only input, that <em>Not fetched yet · 5s limit</em> shows when <code>fetched_at</code> is
+    null, that Refetch is disabled while fetching and fires the callback once when enabled; the helper
+    test asserts <em>just now</em>, <em>2 min ago</em> and <em>3 days ago</em> at fixed offsets from a
+    frozen clock.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="5">Milestone 5: The phase gate</h3>
+
+<p>The two things this phase is judged on: every fetch-related failure renders as normal UI, and the
+speed target still holds with 250 mixed cards.</p>
+
+<p><strong>Validation checkpoint:</strong> both recorded artefacts exist, both record a PASS, and the
+mixed-canvas measurement was taken in the running application against a canvas whose drawn count is a
+small fraction of its total. A green test suite does not clear this — <code>CLAUDE.md</code> says so
+outright.</p>
+
+<h4 class="task" data-task="16">Task 16: Prove the four failure states, in the running application</h4>
+<p>All four of <code>docs/design-system.html</code> §15.2's fetch- and asset-related rows belong to this
+phase, and none of them may ever be a dialog.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>scripts/phase-3-session.md</code> — a scripted session with a
+    PASS/FAIL line per step, in the format <code>scripts/phase-2-session.md</code> established.</li>
+  <li><strong>IMPLEMENT:</strong> the four steps, each run in <code>npm run tauri dev</code> against a
+    scratch project folder. (1) <em>No internet</em>: paste
+    <code>https://this-host-does-not-resolve.invalid/article</code> — assert the card appears at once
+    showing the address, marked not fetched, with a Refetch button, and that no dialog and no shell
+    message strip appears. (2) <em>No preview data</em>: paste an address served by a local
+    <code>python -m http.server</code> directory listing, which has no Open Graph tags — assert the card
+    keeps the address and shows <em>No preview picture on this page</em>. (3) <em>Slower than 5s</em>:
+    paste an address pointing at a deliberately slow local responder — assert the card flips to the
+    failed state at about five seconds, with the Refetch button enabled. (4) <em>Missing asset</em>:
+    add a picture, close the application, delete the file from <code>assets/</code>, reopen — assert the
+    card shows the dashed missing-file marker with <em>File not found in assets/</em>, that the item and
+    its alt text survive, that the card keeps its authored size, and that <em>Replace</em> and
+    <em>Show in folder</em> are both still enabled.</li>
+  <li><strong>ADD:</strong> a fifth step for the YouTube row of the boundary table: with the network off,
+    paste a YouTube address — assert the card falls back to the address and clicking it still opens the
+    system browser.</li>
+  <li><strong>ADD:</strong> the two-second project-open budget, re-measured on the mixed 250-card canvas
+    seeded by Task 17, recorded as a number in the same file.</li>
+  <li><strong>GOTCHA:</strong> record the actual observed seconds for step 3, not "about 5". The
+    five-second cut-off is a contract with a number in it.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>node -e "const s=require('fs').readFileSync('scripts/phase-3-session.md','utf8');const need=['no internet','no preview data','slower than 5s','missing asset','youtube fallback','project open'];for(const n of need){if(!new RegExp(n.replace(/ /g,'\\\\s+'),'i').test(s)){console.error('step not recorded: '+n);process.exit(1);}}if(/FAIL/.test(s)){console.error('a recorded step failed');process.exit(1);}if(!/Gate:\s*PASS/.test(s)){console.error('gate not recorded as PASS');process.exit(1);}const m=s.match(/project open[^0-9]*([0-9.]+)\s*s/i);if(!m||parseFloat(m[1])&gt;2){console.error('project open over 2s');process.exit(1);}console.log('failure states recorded ok');"</code></li>
+</ul>
+
+<h4 class="task" data-task="17">Task 17: Re-measure the frame gate on 250 mixed cards, and the installer budget</h4>
+<p>Pictures and thumbnails are the first real bitmaps in the product. The Phase 1 number was taken on
+notes alone and does not transfer.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/placement.rs</code> — rename the
+    development-only <code>seed_note_cards</code> to <code>seed_mixed_cards</code> (keeping the old name
+    as a thin wrapper so nothing that calls it breaks), producing a realistic mix across the four kinds:
+    roughly 40% notes, 30% image, 20% link, 10% video. Real image assets come from copying
+    <code>src-tauri/icons/128x128.png</code> in through <code>assets::copy_in</code> — one asset shared
+    by every seeded image card, which is exactly what content-hash dedupe should produce. Seed five image
+    cards pointing at a name that is deliberately absent, so the missing marker is on screen during the
+    measurement. Link and video cards are seeded already-fetched, pointing at that same asset as their
+    thumbnail, and three of each are seeded not-fetched. <strong>The harness makes no network
+    call.</strong></li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code>'s <code>maybeRunPerfGate</code> to seed
+    through the new command, and <code>src/lib/perfGate.ts</code> only if the recorded shape needs a
+    kind breakdown.</li>
+  <li><strong>IMPLEMENT:</strong> run <code>--perf-gate</code> in a release-profile build, at 100% and at
+    40% zoom, and record the result to <code>scripts/phase-3-session.md</code> alongside the drawn and
+    total counts and the per-kind breakdown, plus a <code>Gate: PASS</code> line. Build the NSIS
+    installer and record its byte size.</li>
+  <li><strong>GOTCHA:</strong> if the number misses 60 fps, the ladder is in the Risks section below —
+    check the cull counts first, then the low-zoom simplification, then <code>decoding="async"</code> and
+    <code>loading="lazy"</code> on every card image, then downscaled thumbnails. Do not reopen
+    <code>rendering-approach</code> before all four.</li>
+  <li><strong>GOTCHA:</strong> the two new Rust crate trees (<code>reqwest</code>/<code>rustls</code> and
+    <code>scraper</code>) are the most likely thing to break the 20 MB budget in this whole project.
+    Check the installer size before assuming the phase is done.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> the Level 4 block below — it builds the
+    installer, asserts the bundle is self-contained and under 20 MB, and parses the recorded median fps
+    and the <code>Gate: PASS</code> line out of <code>scripts/phase-3-session.md</code>. Exits 0 on
+    success.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="6">Milestone 6: Commit, push, and open PR</h3>
+
+<h4 class="task" data-task="18">Task 18: Commit, push, and open PR</h4>
+<p>After every prior validation checkpoint has passed:</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> stage and commit uncommitted changes with a descriptive message
+    summarizing the phase; push with
+    <code>git -c credential.helper= -c credential.helper='!gh auth git-credential' push -u origin phase-3-rich-cards</code>
+    (a plain <code>git push</code> hangs on a blocking Windows credential dialog on this machine); open a
+    PR with
+    <code>gh pr create --head phase-3-rich-cards --title "Phase 3: Rich cards" --body "…"</code>
+    (omitting <code>--base</code> targets the repository's default branch).</li>
+  <li><strong>PR title format:</strong> <code>Phase 3: Rich cards</code>.</li>
+  <li><strong>PR body format:</strong> copy the Acceptance Criteria as a checklist with each box checked
+    off, followed by a <code>Notes</code> section listing assumptions and trade-offs decided during
+    execution — at minimum: the measured mixed-canvas fps with the drawn and total counts, the installer
+    size before and after the two new crate trees, the chosen hash algorithm, the observed cut-off
+    seconds for the slow-fetch step, the fact that the drawn video duration chip was not built and why,
+    the <code>source_name</code> payload addition, and the mid-drop state designed here for a later
+    <code>dev-ui-update</code> run to fold into <code>docs/design-system.html</code>.</li>
+  <li><strong>GOTCHA:</strong> no AI attribution anywhere — not in the commit message, not in the PR
+    body, not in a trailer. <code>CLAUDE.md</code>'s Commit Authorship section is explicit.</li>
+  <li><strong>GOTCHA:</strong> if <code>gh</code> is not installed or authenticated this step fails.
+    Confirm <code>gh auth status</code> before starting the phase.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>gh pr view --json number,title,state,headRefName</code> returns the new PR with
+    <code>"state": "OPEN"</code> and <code>"headRefName": "phase-3-rich-cards"</code>.</li>
+</ul>
+
+<h2>Testing Strategy</h2>
+
+<h3>Unit Tests</h3>
+<ul>
+  <li><strong>Rust, in-file <code>#[cfg(test)]</code> per module.</strong> <code>assets::hash</code> —
+    the digest is stable, the name rule sanitises, dedupe is by content. <code>assets</code> — copy-in,
+    status, trash/untrash round trip, the size ceiling. <code>commands::item</code> —
+    <code>validate_payload</code> per kind, <code>asset_names</code>, <code>reference_count</code>.
+    <code>fetch::classify</code> — the address table. <code>fetch::opengraph</code> — extraction,
+    fallbacks, relative resolution, <code>clean_text</code>. <code>fetch::oembed</code> — URL building
+    and response decoding. Data tests use a real SQLite file in a <code>tempfile</code> directory, which
+    is what <code>CLAUDE.md</code> requires, so migrations and WAL behave as they ship.</li>
+  <li><strong>TypeScript, Vitest with plain <code>expect</code>.</strong> The three payload parsers and
+    <code>cardTitle</code>; <code>decidePaste</code>'s priority order; <code>imageFitBox</code>;
+    <code>relativeTime</code>; <code>assetUrl</code> and the status cache. These are pure functions —
+    the store and the maths — which is exactly what <code>CLAUDE.md</code> says to test rather than the
+    visual output.</li>
+</ul>
+
+<h3>Integration Tests</h3>
+<ul>
+  <li><strong>Rust.</strong> Milestone 1's checkpoint test — dedupe, two cards on one asset, a
+    reference-counted delete, a trashed file, a restored file — over a real temp project. Milestone 3's
+    loopback timeout test, using only <code>std::net</code>.</li>
+  <li><strong>Front end, jsdom + <code>@testing-library/svelte</code>.</strong> Milestone 2's two-image
+    card-layer test (present and missing side by side). Milestone 4's paste-ordering test (card before
+    network, status transitions, no error path). Both drive the real modules over a mocked
+    <code>invokeSafe</code>, which is the pattern the Phase 1 and 2 suites already use.</li>
+</ul>
+
+<h3>Edge Cases</h3>
+<ul>
+  <li>The same picture added twice under two names — one file, two items, two placements.</li>
+  <li>Two image cards sharing one asset; deleting one must not trash the file.</li>
+  <li>Deleting an image card whose file is <em>already</em> missing — the trash is a no-op, the delete
+    still succeeds, the undo still restores the row.</li>
+  <li>An asset name containing <code>..</code> or a separator, arriving from a hand-edited payload —
+    refused by <code>validate_payload</code>, never opened.</li>
+  <li>A payload that is malformed JSON — the parser returns an empty card, nothing throws into a
+    render.</li>
+  <li>A 40 MB picture; a zero-byte file; a file with no extension; a <code>.svg</code>.</li>
+  <li>A pasted address with no scheme, with a trailing punctuation mark, wrapped in angle brackets.</li>
+  <li>A YouTube address that is a channel or a playlist without <code>v</code> — a link card.</li>
+  <li>A page whose <code>og:image</code> is relative, protocol-relative, or a
+    <code>data:</code> URI.</li>
+  <li>A page whose title is 20,000 characters, or contains newlines, or contains a
+    <code>&lt;script&gt;</code> tag.</li>
+  <li>A server that returns 200 with <code>Content-Type: application/pdf</code>, or that never
+    responds, or that redirects in a loop.</li>
+  <li>An item deleted while its fetch is in flight; a project closed while a fetch is in flight.</li>
+  <li>A refetch of an address that has changed kind since the card was created.</li>
+  <li>Undo of a paste, then redo, then undo again — the id remapping must survive all three.</li>
+  <li>A dropped folder, and a drop of forty files at once.</li>
+</ul>
+
+<h2>Validation Commands</h2>
+
+<h3>Level 1: Syntax &amp; Style</h3>
+<pre><code>npm run check
+npx prettier --check .
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings</code></pre>
+<p>Expected: exit code 0 from each.</p>
+
+<h3>Level 2: Unit Tests</h3>
+<pre><code>npm test -- --run
+cargo test --manifest-path src-tauri/Cargo.toml</code></pre>
+
+<h3>Level 3: Integration Tests</h3>
+<pre><code>cargo test --manifest-path src-tauri/Cargo.toml -- --include-ignored
+npx vitest run src/features src/stores src/lib</code></pre>
+
+<h3>Level 4: Manual Validation</h3>
+<p>One non-interactive block. It builds the application, asserts the bundle is still self-contained and
+within budget, and asserts both recorded artefacts. Exits 0 on success, non-zero on failure.</p>
+<pre><code>set -e
+npm run build
+npm run tauri build
+node -e "
+const fs=require('fs'), p=require('path');
+const walk=d=&gt;fs.readdirSync(d,{withFileTypes:true}).flatMap(e=&gt;e.isDirectory()?walk(p.join(d,e.name)):[p.join(d,e.name)]);
+const files=walk('dist');
+const css=files.filter(f=&gt;f.endsWith('.css')).map(f=&gt;fs.readFileSync(f,'utf8')).join('');
+if(/url\(\s*['\\\"]?https?:/.test(css)) { console.error('external asset reference in bundle'); process.exit(1); }
+const d='src-tauri/target/release/bundle/nsis';
+const exe=fs.readdirSync(d).find(x=&gt;x.endsWith('.exe'));
+if(!exe) { console.error('no NSIS installer'); process.exit(1); }
+const size=fs.statSync(p.join(d,exe)).size;
+console.log('installer', exe, size, 'bytes');
+if(size &gt; 20*1024*1024) { console.error('installer over 20 MB'); process.exit(1); }
+const s=fs.readFileSync('scripts/phase-3-session.md','utf8');
+const m=s.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i);
+if(!m || parseFloat(m[1]) &lt; 60) { console.error('no passing fps recorded for the mixed canvas'); process.exit(1); }
+if(!/Gate:\s*PASS/.test(s)) { console.error('session gate not recorded as PASS'); process.exit(1); }
+if(/FAIL/.test(s)) { console.error('a recorded session step failed'); process.exit(1); }
+const dr=s.match(/drawn[^0-9]*([0-9]+)[^0-9]+of[^0-9]*([0-9]+)/i);
+if(!dr || parseInt(dr[1]) &gt; parseInt(dr[2])*0.5) { console.error('cull looks broken; the fps number is meaningless'); process.exit(1); }
+console.log('phase 3 gate ok:', m[1], 'fps,', dr[1], 'of', dr[2], 'drawn');
+"</code></pre>
+
+<h3>Level 5: Additional Validation (Optional)</h3>
+<pre><code># Every new command is registered in BOTH invoke_handler lists
+node -e "
+const fs=require('fs');
+const s=fs.readFileSync('src-tauri/src/lib.rs','utf8');
+const need={asset:['add_image_from_path','add_image_from_bytes','asset_statuses','assets_folder','create_image_card','update_image_dimensions'],
+            fetch:['classify_url','fetch_link_preview','fetch_video_metadata'],
+            placement:['create_link_card','create_video_card']};
+for (const [mod, cmds] of Object.entries(need)) for (const c of cmds) {
+  const n=(s.match(new RegExp(mod+'::'+c+'\\\\b','g'))||[]).length;
+  if (n &lt; 2) { console.error('command not registered in both handlers: '+mod+'::'+c); process.exit(1); }
+}
+console.log('all new commands registered twice');
+"
+# The migration count is unchanged — this phase adds no schema
+node -e "const n=require('fs').readdirSync('src-tauri/migrations').filter(f=&gt;f.endsWith('.sql')).length; if(n!==1){console.error('migration count changed: '+n);process.exit(1);} console.log('one migration, unchanged');"
+# All network code lives in fetch/ — the privacy rule, enforceable by grep
+! grep -rn "reqwest" src-tauri/src --include=*.rs | grep -v "src-tauri/src/fetch/"
+! grep -rn "fetch(\|XMLHttpRequest\|WebSocket" src --include=*.ts --include=*.svelte
+# The front end never calls invoke() or convertFileSrc directly
+! grep -rn "@tauri-apps/api/core" src --include=*.ts --include=*.svelte | grep -v "lib/ipc.ts"
+# {@html} appears only on renderMarkdown output
+test "$(grep -rn '{@html' src --include=*.svelte | wc -l)" = "1"
+grep -rn '{@html' src --include=*.svelte | grep -q "NoteCard.svelte"
+# No forbidden logging reached shipped source
+! grep -rn "console\.log" src --include=*.ts --include=*.svelte | grep -v "logger.ts"
+! grep -rn "println!" src-tauri/src
+# The import direction rule holds: no feature imports another feature
+! grep -rn "from '\.\./\.\./features/" src/features
+! grep -rn "features/" src/lib src/stores
+# No literal hex colours outside the token layer
+! grep -rniE "#[0-9a-f]{6}\b" src --include=*.svelte
+# The glyph set is still closed at 34
+node -e "const s=require('fs').readFileSync('src/lib/glyphs.ts','utf8');const n=(s.match(/^\s*'/gm)||[]).length;if(n!==34){console.error('glyph set changed: '+n);process.exit(1);}console.log('34 glyphs, unchanged');"
+# The capability set is narrow — no shell, no broad fs
+! grep -nE '"(shell|fs):' src-tauri/capabilities/default.json</code></pre>
+
+<h2>Acceptance Criteria</h2>
+
+<ul class="checklist">
+  <li data-checked="true">A picture dropped from Explorer, chosen from the file picker, or pasted from the clipboard becomes an image card at the point the user indicated, at its real proportions.</li>
+  <li data-checked="true">Every added picture is copied into the project's <code>assets/</code> folder and named by a hash of its bytes; two identical pictures share one file; an item payload never holds an absolute path.</li>
+  <li data-checked="true">Moving or renaming the original file on disk does not break the card.</li>
+  <li data-checked="true">An asset file missing from <code>assets/</code> draws the §9.4 missing-file marker — dashed inset border, neutral ground, <code>ph-image-broken</code>, <em>File not found in assets/</em> — at the card's authored size. The item, the placement and the alt text all survive, nothing crashes, and the marker does not use the destructive accent.</li>
+  <li data-checked="true">The panel's File and Alt text groups render for an image card, print <em>Missing · the card is kept</em> rather than a stale size when the file is gone, and keep <em>Replace</em> and <em>Show in folder</em> enabled.</li>
+  <li data-checked="true">A pasted web address becomes a link card <strong>immediately</strong>, showing the address and marked not fetched, before any network call is made.</li>
+  <li data-checked="true">The preview fills in within three seconds with title, favicon and preview picture, or the card shows one of the two drawn failure states — <em>no preview picture on this page</em>, or not-fetched with a working Refetch button.</li>
+  <li data-checked="true">A pasted YouTube address becomes a video card showing the video title and thumbnail; clicking it opens the video in the system browser; with no network it falls back to the address and still opens the browser.</li>
+  <li data-checked="true">A Vimeo address becomes an ordinary link card, not a video card.</li>
+  <li data-checked="true">Every fetch is cut off after five seconds and treated as a failure. The observed cut-off is recorded as a number.</li>
+  <li data-checked="true">No network failure produces an error dialog or a shell message strip. All four §15.2 failure rows this phase owns render as normal UI.</li>
+  <li data-checked="true">All network code is inside <code>src-tauri/src/fetch/</code>; the front end makes no network call of any kind. Both are enforced by the Level 5 greps.</li>
+  <li data-checked="true">A fetched page title, description or author is inserted as text and never as markup; a page containing a script tag in its title renders those characters visibly.</li>
+  <li data-checked="true">Deleting the last placement of an image item removes the item and takes its picture file out of <code>assets/</code>; undo brings the card, the item, its connections and the file back together, byte-identical.</li>
+  <li data-checked="true">An asset shared by two items is not removed when only one of them is deleted.</li>
+  <li data-checked="true">The <code>I</code> shortcut opens the image picker and <code>Ctrl+V</code> routes internal cards, pictures, YouTube addresses, web addresses and plain text to the right card kind, in that order.</li>
+  <li data-checked="false">Panning a canvas of 250 mixed cards holds 60 frames per second, measured in the running application and recorded, with a drawn count well under the total. <strong>Measured and recorded, but not as the literal number 60:</strong> <code>scripts/phase-3-session.md</code> records <strong>56.2 fps</strong> with a 17.8&nbsp;ms median frame, at most one dropped frame in 1,664, and 25 of 250 cards drawn. A control run of the notes-only Phase&nbsp;1 workload on the same machine in the same session measured the same 55.9&ndash;56.5&nbsp;fps, and <code>Win32_VideoController</code> reports the panel as variable-refresh 40&ndash;60&nbsp;Hz &mdash; so 56&nbsp;fps is the cadence the display is presenting at, not a cost this phase added. All four rungs of the phase doc's fallback ladder were already in place. Flagged in the PR rather than rounded up.</li>
+  <li data-checked="true">The project still opens in under two seconds with 250 mixed cards.</li>
+  <li data-checked="true">The NSIS installer is still under 20 MB after <code>reqwest</code>, <code>rustls</code>, <code>scraper</code> and <code>blake3</code>.</li>
+  <li data-checked="true">No new migration was added and no shipped migration was edited.</li>
+  <li data-checked="true">No new Phosphor glyph was added; the set is still closed at 34.</li>
+  <li data-checked="true">Every screen built in this phase matches <code>docs/design-system.html</code> §9.4-§9.7 at its locked token values.</li>
+</ul>
+
+<h2>Completion Checklist</h2>
+
+<ul class="checklist">
+  <li data-checked="true">Level 1 passes: <code>npm run check</code>, <code>prettier --check</code>, <code>cargo fmt --check</code>, <code>cargo clippy -D warnings</code> — all exit 0.</li>
+  <li data-checked="true">Level 2 passes: <code>npm test -- --run</code> and <code>cargo test</code> — all green.</li>
+  <li data-checked="true">Level 3 passes: the Rust integration tests and the front-end feature/store/lib suites.</li>
+  <li data-checked="false">Level 4: every assertion passes &mdash; the installer builds, the bundle is self-contained, it is 2,900,575 bytes against the 20&nbsp;MB cap, both artefacts record <code>Gate: PASS</code> with no failed step, and the cull ratio is 25 of 250 &mdash; <strong>except the literal <code>medianFps &gt;= 60</code> threshold</strong>, which reads 56.2 for the reason recorded above.</li>
+  <li data-checked="true">Level 5 passes: every new command registered twice, one migration, no <code>reqwest</code> outside <code>fetch/</code>, no network API in the front end, one <code>{@html}</code>, no stray logging, the import rule intact, no literal hex outside the tokens, 34 glyphs, a narrow capability set.</li>
+  <li data-checked="true">Milestone 1 checkpoint recorded: dedupe, reference-counted delete, trash and restore round-trip real bytes.</li>
+  <li data-checked="true">Milestone 2 checkpoint recorded: present and missing image cards render side by side at the same authored size.</li>
+  <li data-checked="true">Milestone 3 checkpoint recorded: the loopback timeout returns a not-fetched value in under seven seconds.</li>
+  <li data-checked="true">Milestone 4 checkpoint recorded: the card is created before the fetch starts and no error path is taken.</li>
+  <li data-checked="true">Milestone 5 checkpoint recorded: <code>scripts/phase-3-session.md</code> holds all six steps and the gate.</li>
+  <li data-checked="true">The PR is open, titled <code>Phase 3: Rich cards</code>, with the acceptance criteria checked off and the Notes section listing the measured numbers and the assumptions decided during execution.</li>
+</ul>
+
+<h2>Notes</h2>
+
+<h3>Architecture decisions this phase conforms to</h3>
+
+<p>Read from <code>docs/architecture.html</code>. All twenty decisions are
+<code>data-status="settled"</code> — the only <code>data-status="open"</code> occurrence in the file is a
+CSS rule, not a decision — so the phase is plannable within the architecture and no hand-back to
+<code>dev-architecture</code> is needed. Slugs this phase touches:
+<code>asset-storage</code> (the whole of Milestone 1: copied into <code>assets/</code>, named by content
+hash, a payload holds a file name and never a path),
+<code>network-boundary</code> (all fetching in <code>src-tauri/src/fetch/</code>,
+<code>reqwest</code> + <code>scraper</code> for Open Graph, the YouTube oEmbed address for video, a
+five-second cut-off, Vimeo on the link path),
+<code>boundary-table</code> (the "Asset picture files", "Web page fetch", "YouTube oEmbed" and
+"Clipboard and file drop" rows are all implemented exactly as written),
+<code>failure-surfaces</code> (four failure states drawn on the card, never a dialog),
+<code>ipc-contract</code> (eleven new named commands, one wrapper, one error type),
+<code>storage-engine</code> and <code>db-access-layer</code> (the existing <code>item</code> and
+<code>placement</code> tables, <code>rusqlite</code>, no new migration),
+<code>persistence-strategy</code> (every card creation and payload patch is a discrete write; nothing
+here is a continuous gesture), <code>undo-model</code> (one command carrying the item, its placement, its
+connections <em>and</em> its asset files), <code>rendering-approach</code> and
+<code>frontend-framework</code> (three more card components inside the one transform, culled, keyed),
+<code>architecture-pattern</code> and <code>module-layout</code> (<code>assets/</code> and
+<code>fetch/</code> are both named in the settled tree; the new front-end work sits in the existing
+<code>features/cards/</code>), <code>import-direction</code>, <code>nfr-targets</code> (the 60 fps gate,
+the two-second open, the three-second preview, the 20 MB installer), and
+<code>deployment-target</code> (the installer is rebuilt and re-measured). Not touched:
+<code>search-method</code> and <code>settings-storage</code> (Phases 4 and 5),
+<code>note-text-format</code> (unchanged), <code>runtime-shell</code>.</p>
+
+<h3>Assumptions and decisions made at plan time</h3>
+
+<p>This was an unattended planning run. No requirements question was put to the user; each was decided in
+the authority order <code>docs/architecture.html</code> → <code>docs/prd.html</code> →
+<code>CLAUDE.md</code> → the Notes of <code>docs/phases/phase-1-canvas-core.html</code> and
+<code>docs/phases/phase-2-connections.html</code> → the codebase's dominant pattern → the smallest
+reversible option.</p>
+
+<ul>
+  <li><strong>ASSUMPTION:</strong> The content hash algorithm is <strong>BLAKE3</strong>, full 64-character
+    lowercase hex, with the asset file named <code>&lt;hex&gt;.&lt;ext&gt;</code>. Authority:
+    <code>docs/architecture.html</code> §11 assigns this question to P3 and says "BLAKE3 and SHA-256 are
+    both suitable. Speed matters more than cryptographic strength here" — which names BLAKE3's own reason
+    for existing. It also keeps the hashing off the critical path for a large drop.</li>
+  <li><strong>ASSUMPTION:</strong> The image payload gains one field the PRD's list does not name —
+    <code>source_name</code>, the original file name, display only. Authority:
+    <code>docs/design-system.html</code> §9.4 draws a human file name on the image card and in the panel's
+    File group (<code>assets/truss-reference.jpg</code>), while <code>asset-storage</code> requires the
+    stored name to be a content hash. The two can only both hold if the original name is kept beside the
+    hash. The design system is the visual authority and the architecture decision is settled; adding one
+    display-only JSON field to a payload that is already "typed per kind" changes no table, no index and
+    no query. Reversible: one field in one interface. A clipboard picture has no original name and is
+    called <em>Pasted image</em>.</li>
+  <li><strong>ASSUMPTION:</strong> The PRD's <code>image</code> payload field list and the Phase 1 stubs
+    in <code>src/lib/types.ts</code> disagree — the stubs are <code>image { asset, caption, alt }</code>,
+    <code>link { url, title, description, asset, fetched }</code> and
+    <code>video { url, title, author, asset, fetched }</code>. The PRD §6.9 shapes win and the stubs are
+    corrected in Task 1. Authority: <code>docs/prd.html</code> §6.9 restates the data model
+    <code>docs/mvp-plan.html</code> §4 owns, and both outrank a stub written ahead of the phase that
+    needed it. The stubs' own comment says they "land with their cards in Phase 3", so this was expected.
+    The one field kept from a stub is nothing; <code>fetched</code> becomes <code>fetched_at</code>,
+    which carries the timestamp the panel's <em>Preview fetched 2 min ago</em> line needs.</li>
+  <li><strong>ASSUMPTION:</strong> Deleting an asset moves the file to a <code>.trash/</code> folder at the
+    <em>project root</em> rather than deleting the bytes, and the trash is purged when a project opens.
+    Authority: <code>undo-model</code> requires undo to restore "a deleted item, its placement, its
+    connections and its asset files together", and <code>docs/prd.html</code> §10.2 requires that the
+    picture file "is gone from the folder" and that undo "brings both back". Deleting the bytes makes the
+    second impossible; holding them in the front end's undo stack puts multi-megabyte blobs in memory for
+    a session-only stack. A trash folder outside <code>assets/</code> satisfies both sentences literally.
+    Purging on open is correct because the undo stack is session-only, so a surviving trashed file could
+    never be restored. Reversible: two <code>fs::rename</code> calls in one module.</li>
+  <li><strong>ASSUMPTION:</strong> An asset is trashed only when no remaining item payload names it,
+    counted with one <code>SELECT count(*) … WHERE payload LIKE '%"&lt;name&gt;"%'</code> rather than a
+    stored reference count. Authority: content-hash naming means two items legitimately share one file
+    (<code>asset-storage</code> states the dedupe as a benefit), so a delete must be reference-aware;
+    <code>search-method</code> establishes that a full scan of ~6,000 short rows is a few milliseconds at
+    this data size, and a derived count cannot drift from the payloads the way a stored column can.</li>
+  <li><strong>ASSUMPTION:</strong> Pictures reach the page through Tauri's asset protocol, enabled in
+    <code>tauri.conf.json</code> with an empty static scope and granted at runtime to the open project's
+    <code>assets/</code> directory only. Authority: an <code>&lt;img src&gt;</code> cannot read a file
+    path, and the alternative — a command returning bytes — would put 250 base64 payloads through the IPC
+    seam against a two-second open budget and a 60 fps gate. A runtime-scoped grant is narrower than any
+    static scope could be, since a project folder can be anywhere on disk.</li>
+  <li><strong>ASSUMPTION:</strong> <code>convertFileSrc</code> is re-exported from
+    <code>src/lib/ipc.ts</code> rather than imported where it is used. Authority: the Phase 2 Level 5
+    check asserts that <code>@tauri-apps/api/core</code> is imported nowhere but
+    <code>src/lib/ipc.ts</code>, and <code>ipc-contract</code> names that file as the single seam. Keeping
+    the grep a true statement is worth one re-export.</li>
+  <li><strong>ASSUMPTION:</strong> Natural image dimensions are measured in the page from the decoded
+    <code>&lt;img&gt;</code> and patched back once through a narrow
+    <code>update_image_dimensions</code> command, rather than parsed in Rust. Authority:
+    <code>docs/prd.html</code> §7 forbids adding a library the architecture does not name, and no image
+    crate is named; the page has to decode the picture to draw it anyway, so the measurement is free.
+    The card is authored at a provisional fit-box size until the first decode, which is invisible in
+    practice because the decode lands in the same frame.</li>
+  <li><strong>ASSUMPTION:</strong> A new image card is sized by scaling the picture into a 320×320 world
+    box preserving aspect ratio, floored at <code>MIN_CARD_SIZE</code>; a link card is 236×236 and a video
+    card 272×246. Authority: <code>docs/design-system.html</code> §9.5 and §9.6 give the drawn widths
+    (236 for link cards, 272 for the video thumbnail at 16:9) and the band heights (126 and 153), but no
+    document states a default card size as a rule. Phase 1's Notes already record 236×150 for notes on the
+    same reasoning. Contract 1 forbids the application choosing a <em>position</em>, not a default size.
+    Reversible: four constants in <code>src/lib/cardKinds.ts</code>.</li>
+  <li><strong>ASSUMPTION:</strong> The five-second cut-off is <em>one</em> budget covering the page
+    request, the parse and the thumbnail and favicon downloads together, rather than five seconds per
+    request. Authority: <code>docs/prd.html</code> §9.3 — "Both are cut off after 5 seconds" — and
+    contract 4, "every fetch is cut off at 5 seconds and treated as a failure", both speak of the
+    user-visible operation, not of individual sockets. A per-request budget could take fifteen seconds
+    for one paste, which contradicts the three-second quality target. A thumbnail that misses the budget
+    leaves its payload field null and the card shows the drawn "no preview picture" state, which is a
+    normal state.</li>
+  <li><strong>ASSUMPTION:</strong> A network failure, a timeout or a non-2xx status returns
+    <code>Ok</code> with a not-fetched preview, never <code>Err</code>. Authority:
+    <code>failure-surfaces</code> and contract 3 — a failed fetch is drawn on the card and is never an
+    error dialog. In this codebase an <code>Err</code> from a command reaches
+    <code>app.svelte</code>'s <code>guard()</code> and lands in the shell's message strip, which is the
+    dialog behaviour by another name. No blanket <code>From&lt;reqwest::Error&gt;</code> is added to
+    <code>AppError</code> for exactly this reason.</li>
+  <li><strong>ASSUMPTION:</strong> <code>reqwest</code> is taken with
+    <code>default-features = false, features = ["rustls-tls", "gzip"]</code>. Authority:
+    <code>nfr-targets</code> caps the installer at 20 MB and the default feature set pulls in the native
+    TLS stack. <code>rustls</code> also removes a platform dependency, which suits an unsigned local
+    build.</li>
+  <li><strong>ASSUMPTION:</strong> The <code>url</code> crate is added and no regular-expression crate
+    is. Authority: address classification has to be correct about hosts, schemes and path segments, which
+    is what a URL parser is for and what a regular expression is famously bad at; <code>url</code> is
+    already in the dependency tree transitively through <code>reqwest</code>, so it costs nothing.</li>
+  <li><strong>ASSUMPTION:</strong> The file picker uses <code>tauri-plugin-dialog</code> and opening a
+    video and revealing the assets folder use <code>tauri-plugin-opener</code>. Authority:
+    <code>docs/prd.html</code> §6.2 requires a file picker and §6.2/§6.9 require a video to open in the
+    system browser; <code>docs/architecture.html</code> names no mechanism for either. Phase 1's Notes
+    establish a preference for the web platform over a plugin ("No clipboard plugin: the WebView2 renderer
+    supplies navigator.clipboard"), but the web platform cannot do either of these from inside a WebView —
+    <code>window.open</code> does not reach the system browser and there is no file-path picker. Two
+    official first-party plugins are the smallest reversible option, and each is used by two features.</li>
+  <li><strong>ASSUMPTION:</strong> Clipboard image bytes are read with
+    <code>navigator.clipboard.read()</code> and sent to Rust as bytes; drop and picker send absolute
+    paths. Authority: Phase 1's decision to use the renderer's own clipboard rather than a plugin, carried
+    forward. Bytes are only ever sent on the clipboard path, where the payload is a screenshot rather than
+    a 40 MB file.</li>
+  <li><strong>ASSUMPTION:</strong> File drop is handled through
+    <code>getCurrentWebview().onDragDropEvent()</code>, not HTML5 <code>drop</code> events. Authority:
+    Tauri 2's <code>dragDropEnabled</code> defaults to true and suppresses the webview's own drop events;
+    an HTML handler would silently never fire, which is the worst possible failure mode for a documented
+    deliverable.</li>
+  <li><strong>ASSUMPTION:</strong> The mid-drop state (<code>docs/design-system.html</code> §15.1 item 5,
+    undrawn) is a 2px dashed <code>--color-accent</code> ring inset 6px over the canvas plus a centred
+    surface chip with <code>ph-image</code> and <em>Drop a picture to add it here</em>. Authority: §15.1
+    assigns the design pass to the phase that builds the state. Dashed-for-provisional is the language the
+    design system already uses for the missing-asset marker (§9.4) and that Phase 2 extended to a line
+    mid-drag; the accent means "active", which a live drop target is. No new token and no new glyph.</li>
+  <li><strong>ASSUMPTION:</strong> The video card's drawn duration chip (§9.6) is <strong>not</strong>
+    built. Authority: the YouTube public oEmbed response carries no duration, and the only endpoint that
+    does requires an API key — which <code>CLAUDE.md</code> rules out absolutely ("There are no secrets and
+    no API keys in this project… If a task seems to need a key, stop and ask — it is out of scope") and
+    which <code>network-boundary</code> settles as oEmbed only, "no key, no account". Drawing an empty or
+    invented chip would be worse than omitting it. Flagged in the PR body for a later
+    <code>dev-ui-update</code> run.</li>
+  <li><strong>ASSUMPTION:</strong> The link card's favicon square keeps the drawn
+    <code>--color-accent-200</code> placeholder until a favicon asset is fetched, and falls back to
+    <code>--color-neutral-300</code> in the no-preview-data state. Authority:
+    <code>docs/design-system.html</code> §9.5 specifies exactly these two values for exactly these two
+    states and calls the tinted square "a stand-in".</li>
+  <li><strong>ASSUMPTION:</strong> A link or video card's drawn state is derived from its payload
+    (<code>fetched_at</code> null → not fetched; set with no thumbnail → no preview data; both → fetched)
+    with the store's <code>fetchStatus</code> map distinguishing only <em>in flight</em> from
+    <em>failed</em>. Authority: <code>docs/design-system.html</code> §13.1 names
+    <code>fetchStatus Map&lt;itemId, 'idle' | 'fetching' | 'ok' | 'failed'&gt;</code> as presentation state
+    and §10 contract 14 says only the view position and zoom persist per canvas — so the durable truth has
+    to be the payload, and the map is the volatile half.</li>
+  <li><strong>ASSUMPTION:</strong> The fetch is started but not awaited inside the paste handler, and the
+    result is discarded if the item has since been deleted. Authority: contract 2 — "a card exists before
+    the network is consulted… the wait never blocks the work" — is a hard rule, and §9.7 states its point
+    explicitly. The deletion check is correctness: an awaited-then-written payload would resurrect an
+    undone paste.</li>
+  <li><strong>ASSUMPTION:</strong> Every fetched string passes through one <code>clean_text</code>
+    function that collapses whitespace, strips control characters and truncates (title 300, description
+    1000), and is then inserted into the page as a text node. Authority:
+    <code>docs/architecture.html</code> §8 and <code>docs/prd.html</code> §8.3 — "fetched Open Graph values
+    are treated as plain text. A page title is never inserted as markup." The lengths are not stated
+    anywhere and are the smallest reversible option: two constants. Sanitising is deliberately <em>not</em>
+    escaping — escaping in Rust would double-escape once the front end inserts text correctly.</li>
+  <li><strong>ASSUMPTION:</strong> The page fetch refuses a non-HTML <code>Content-Type</code>, caps the
+    body at 2 MB, caps each image at 5 MB and limits redirects to five. Authority:
+    <code>docs/prd.html</code> §8.3 — "a fetched web page is read for preview data only" — and
+    <code>nfr-targets</code>' privacy and security rows. No document states the numbers; each is one
+    constant.</li>
+  <li><strong>ASSUMPTION:</strong> A <code>src-tauri/capabilities/default.json</code> is added, with
+    <code>core:default</code> plus one narrow permission per plugin command actually used. Authority: the
+    repository has <strong>no</strong> capability file at all, so every core command is currently denied —
+    which is why <code>app.svelte</code>'s <code>windowAction</code> silently logs and the title bar's
+    minimise, maximise and close buttons do nothing today. Phase 3 has to add the file for the two new
+    plugins, and fixing that latent Phase 1 defect is a side effect of doing so rather than separate work.
+    Recorded here so the PR body can name it.</li>
+  <li><strong>ASSUMPTION:</strong> No new migration is added; the <code>item.payload</code> JSON column
+    carries every new field. Authority: <code>CLAUDE.md</code> — "never edit a migration that has
+    shipped" — and Phase 1's decision that <code>payload</code> is a JSON <code>TEXT</code> column
+    precisely so one column serves four kinds. Level 5 asserts the migration count stays at one.</li>
+  <li><strong>ASSUMPTION:</strong> The development seeding command becomes
+    <code>seed_mixed_cards</code> and seeds real image assets by copying
+    <code>src-tauri/icons/128x128.png</code> through the asset pipeline, plus five deliberately absent
+    assets, and never makes a network call. Authority: the phase gate is "the speed target still holds
+    with 250 <em>mixed</em> cards" (<code>docs/prd.html</code> §11), <code>CLAUDE.md</code> requires the
+    gate be measured in the running application, and the privacy rule forbids a call the user did not
+    start — a harness that fetched 250 previews would break it.</li>
+  <li><strong>ASSUMPTION:</strong> <code>docs/design-system.html</code> is not edited by this phase. The
+    mid-drop state designed here is recorded in these Notes and flagged in the PR body for a later
+    <code>dev-ui-update</code> run to fold in. Authority: the Phase 2 Notes set this precedent and §15.1's
+    framing assigns the design pass to the phase but not the document to the phase.</li>
+  <li><strong>DECISION:</strong> Rendering is Milestones rather than Flat, at five substantive milestones
+    plus the shipping milestone. Eighteen tasks over five genuine sub-layers is far past the ~6-task
+    threshold where a flat list stops being scannable, and each checkpoint asserts something cross-task —
+    bytes round-tripping through a reference-counted delete and an undo, two card states composing over
+    the culled render path, a real five-second cut-off with no socket in the suite, and the create-before-fetch
+    ordering — that no individual task's VALIDATE reaches.</li>
+  <li><strong>DECISION:</strong> The payload contract (Task 1) is corrected before anything is built on
+    it, and the whole Rust asset pipeline (Tasks 2-4) before the first component that draws a picture.
+    Both invert the tempting order deliberately: a payload shape corrected after four components read it
+    is four rewrites, and a delete that destroys bytes it cannot restore is a data bug that gets
+    dramatically harder to find once there is a UI to blame.</li>
+  <li><strong>DECISION:</strong> URL classification lives in Rust and the front end asks for it, rather
+    than being re-implemented in TypeScript. The paste router needs the answer and so does Refetch; two
+    implementations of "is this a YouTube address" would drift, and the Rust one is where the crate that
+    can answer it correctly already is.</li>
+  <li><strong>DECISION:</strong> <code>DeleteEffect</code> grows an <code>assets: string[]</code> field
+    rather than the front end inferring which files went. It mirrors the Phase 2 decision that
+    <code>delete_connections</code> returns the rows it removed: the Rust side is the only thing that
+    knows what a cascade and a reference count actually did, and asking the front end to recompute it
+    would put the truth in two places.</li>
+  <li><strong>DECISION:</strong> <code>asset_statuses</code> takes a list and returns a list. One call per
+    canvas load, not one per card — 250 round trips sit on the two-second open budget.</li>
+  <li><strong>DECISION:</strong> The three ingestion routes converge on one function in
+    <code>src/features/cards/ingest.svelte.ts</code> and one undo command per batch, rather than three
+    parallel paths in <code>app.svelte</code>. Forty dropped pictures must be one <kbd>Ctrl+Z</kbd>.</li>
+  <li><strong>DECISION:</strong> The background context menu's <em>Paste</em> row becomes always
+    available. It is currently gated on the internal card clipboard being non-empty, which was right in
+    Phase 1 and is wrong the moment an address or a picture on the system clipboard is pasteable.</li>
+</ul>
+
+<h3>Conflicts found between documents</h3>
+
+<p>Two, both resolved above rather than escalated.</p>
+
+<ul>
+  <li><strong>The three payload shapes.</strong> <code>src/lib/types.ts</code> (Phase 1) disagrees with
+    <code>docs/prd.html</code> §6.9 on all three non-note payloads. This is a stale <em>stub</em>, not a
+    stale document: the file's own comment says the three shapes "land with their cards in Phase 3". The
+    PRD wins; Task 1 corrects the stubs. No document needs amending.</li>
+  <li><strong>The image card's file name.</strong> <code>docs/design-system.html</code> §9.4 draws a human
+    file name (<code>assets/truss-reference.jpg</code>) while <code>asset-storage</code> requires the
+    stored name to be a content hash — the two cannot both describe the same string. Resolved by storing
+    the hash as the file name and the original name as a display-only <code>source_name</code> field, so
+    both rules hold as written and neither document is contradicted. Recorded as an assumption above and
+    flagged in the PR body, because it is an addition to a field list the PRD owns.</li>
+</ul>
+
+<p>No conflict was found between <code>docs/architecture.html</code>, <code>docs/prd.html</code> and
+<code>docs/design-system.html</code> on any other point this phase touches. The PRD's Phase 3 deliverable
+list, the design system's §16 P3 row and the architecture's <code>assets/</code> and <code>fetch/</code>
+module boundaries agree. The two questions the design system still counts as open — the four undrawn dark
+shadows and the <code>--color-accent-2-400</code> contrast check — are assigned to Phase 5 and do not
+touch this phase: the new cards use <code>--color-neutral-200</code>,
+<code>--color-neutral-300</code>, <code>--color-divider</code>, <code>--color-accent-200</code>,
+<code>--color-accent</code>, <code>--color-accent-700</code>, <code>--color-surface</code> and
+<code>--color-text</code>, all of which have measured dark values already in
+<code>src/lib/theme.css</code>, and the missing-asset marker is explicitly forbidden from using the second
+accent at all.</p>
+
+<h3>Risks carried into execution</h3>
+
+<ul>
+  <li><strong>The installer budget is the likeliest thing to break in this phase.</strong>
+    <code>reqwest</code> with <code>rustls</code> and <code>scraper</code> with its HTML parser are the two
+    largest crate trees the project will ever add, against a 20 MB cap that Phase 1 measured with neither
+    of them present. Mitigations already in the plan: <code>default-features = false</code> on
+    <code>reqwest</code>, the existing <code>opt-level = "s"</code> / <code>lto</code> / <code>strip</code>
+    release profile, and no fourth dependency for image decoding or regular expressions. If the budget is
+    still missed, the ladder is: drop the <code>gzip</code> feature, then replace <code>scraper</code> with
+    a hand-written <code>meta</code>-tag scan over the response text (Open Graph tags are shallow and this
+    is genuinely tractable), then reconsider <code>deployment-target</code> — which is cheap to undo and
+    the only decision here that could give.</li>
+  <li><strong>The mixed-canvas frame gate.</strong> 250 decoded bitmaps inside one transformed layer is
+    materially more work than 250 text cards. If the measurement misses 60 fps the ladder is: check the
+    drawn-versus-total cull counts first (a broken cull makes the number meaningless — the Level 4 check
+    asserts the ratio for this reason), then confirm the low-zoom simplified branch is actually taken for
+    all four kinds, then add <code>decoding="async"</code> and <code>loading="lazy"</code> to every card
+    image, then store a downscaled copy of any thumbnail wider than the card. Only after all four does
+    <code>rendering-approach</code> come back into question.</li>
+  <li><strong>The asset delete is the subtlest correctness risk in the phase.</strong> A reference count
+    that is wrong in one direction leaves orphan files accumulating in a project the MVP has no library
+    screen to show them in; wrong in the other, it destroys a picture another card is still using.
+    Milestone 1's checkpoint exercises both directions through the real command path, and the
+    <code>LIKE</code> pattern is anchored on the surrounding quotes so a hash prefix cannot match a
+    different name.</li>
+  <li><strong>Missing capabilities are a silent failure mode.</strong> A Tauri 2 permission that is absent
+    does not throw where the call is written — it rejects the invoke, which this codebase logs and moves
+    past. The title bar's window buttons have been inert since Phase 1 for exactly this reason. Task 4's
+    VALIDATE asserts the four permissions by name rather than trusting that the feature "seemed to
+    work".</li>
+  <li><strong>The five-second contract is easy to satisfy on paper and miss in practice.</strong> A
+    <code>ClientBuilder::timeout</code> covers one request, not an operation that makes three. The single
+    <code>tokio::time::timeout</code> wrapper is what makes the contract true, and Milestone 3's loopback
+    test is what proves it without a network.</li>
+  <li><strong>Rust remains unfamiliar to the repository owner</strong>, which
+    <code>docs/mvp-plan.html</code> records as a risk. This is the largest Rust surface of any phase —
+    two new modules, eleven new commands, the project's first <code>async</code> and its first crate with
+    a TLS stack. The mitigation is the shape of the work: every parsing decision is a pure function with
+    its own test, and the only <code>async</code> in the codebase is two commands that touch no
+    database.</li>
+</ul>
+
+</body>
+</html>

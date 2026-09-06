@@ -1,9 +1,12 @@
 //! Placements — where a card sits on one canvas, and how it stacks. A multi-row change
 //! (a drag, a reorder, a delete) is written in exactly one transaction.
 
+use crate::assets;
 use crate::commands::connection::connections_touching;
-use crate::commands::item::insert_item;
+use crate::commands::item::{asset_names, insert_item, reference_count};
 use crate::commands::project::AppState;
+#[cfg(debug_assertions)]
+use crate::db::connection::now_iso8601;
 use crate::db::models::{
     row_to_item, row_to_placement, DeleteEffect, Item, Placement, PlacementUpdate,
     PlacementWithItem,
@@ -100,6 +103,80 @@ pub fn create_note_card_for(
     })
 }
 
+/// Create a link card. It is written with `fetched_at: null` and no assets, because
+/// contract 2 requires the card to exist *before* the network is consulted; the preview is
+/// patched in afterwards through `update_item_payload`.
+#[allow(clippy::too_many_arguments)]
+pub fn create_link_card_for(
+    state: &AppState,
+    canvas_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    url: String,
+) -> AppResult<PlacementWithItem> {
+    let payload = serde_json::json!({
+        "url": url,
+        "title": "",
+        "description": "",
+        "favicon_asset": serde_json::Value::Null,
+        "thumbnail_asset": serde_json::Value::Null,
+        "fetched_at": serde_json::Value::Null,
+    })
+    .to_string();
+    create_card_for(state, canvas_id, x, y, width, height, "link", &payload)
+}
+
+/// Create a video card, on the same before-the-network contract.
+#[allow(clippy::too_many_arguments)]
+pub fn create_video_card_for(
+    state: &AppState,
+    canvas_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    url: String,
+    provider: String,
+) -> AppResult<PlacementWithItem> {
+    let payload = serde_json::json!({
+        "url": url,
+        "provider": provider,
+        "title": "",
+        "thumbnail_asset": serde_json::Value::Null,
+        "fetched_at": serde_json::Value::Null,
+    })
+    .to_string();
+    create_card_for(state, canvas_id, x, y, width, height, "video", &payload)
+}
+
+/// One card of any kind, in one transaction. The shared body of every card creator.
+#[allow(clippy::too_many_arguments)]
+fn create_card_for(
+    state: &AppState,
+    canvas_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    kind: &str,
+    payload: &str,
+) -> AppResult<PlacementWithItem> {
+    state.with_db(|conn| {
+        let tx = conn.transaction()?;
+        let project_id: i64 = tx.query_row(
+            "SELECT project_id FROM canvas WHERE id = ?1",
+            [canvas_id],
+            |r| r.get(0),
+        )?;
+        let item = insert_item(&tx, project_id, kind, payload)?;
+        let placement = insert_placement(&tx, canvas_id, item.id, x, y, width, height)?;
+        tx.commit()?;
+        Ok(PlacementWithItem { placement, item })
+    })
+}
+
 /// Re-create a card that was deleted, keeping its geometry and its place in the stack.
 /// This is the write half of undoing a delete: the row genuinely goes back on disk, rather
 /// than only back into the front end's memory. The new row takes a new id, which the undo
@@ -116,6 +193,16 @@ pub fn restore_card_for(
     kind: String,
     payload: String,
 ) -> AppResult<PlacementWithItem> {
+    // Untrash before the row goes in, so a card is never on the canvas pointing at a file
+    // that is still in the trash. The folder guard is taken and dropped before `with_db`:
+    // `folder` and `db` are separate mutexes and only one lock order is deadlock-free.
+    let folder = state.project_folder();
+    if let Some(folder) = folder.as_deref() {
+        for name in asset_names(&kind, &payload) {
+            assets::untrash(folder, &name)?;
+        }
+    }
+
     state.with_db(|conn| {
         let tx = conn.transaction()?;
         let project_id: i64 = tx.query_row(
@@ -164,10 +251,15 @@ pub fn update_placements_for(state: &AppState, updates: Vec<PlacementUpdate>) ->
 /// Delete placements, and any item left with no placement at all. The returned effect names
 /// every row removed, so one undo command can put all of it back together.
 pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<DeleteEffect> {
-    state.with_db(|conn| {
+    // Clone the folder out of its mutex before taking the db lock — never the other way
+    // round, or two commands can deadlock.
+    let folder = state.project_folder();
+
+    let effect = state.with_db(|conn| {
         let tx = conn.transaction()?;
         let mut effect = DeleteEffect::default();
         let mut seen_connections: HashSet<i64> = HashSet::new();
+        let mut orphaned: Vec<String> = Vec::new();
 
         for id in &ids {
             let placement = tx
@@ -201,6 +293,14 @@ pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<Delet
                     [placement.item_id],
                     row_to_item,
                 )?;
+                // Collect the asset names, and whether anything else still holds them,
+                // inside the transaction: after the item row goes the payload is unreadable
+                // and the reference count would come out one short.
+                for name in asset_names(&item.kind, &item.payload) {
+                    if reference_count(&tx, &name, item.id)? == 0 && !orphaned.contains(&name) {
+                        orphaned.push(name);
+                    }
+                }
                 tx.execute("DELETE FROM item WHERE id = ?1", [placement.item_id])?;
                 effect.items.push(item);
             }
@@ -208,8 +308,17 @@ pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<Delet
         }
 
         tx.commit()?;
+        effect.assets = orphaned;
         Ok(effect)
-    })
+    })?;
+
+    // Trashing happens after the commit: a rolled-back delete must not have moved a file.
+    if let Some(folder) = folder.as_deref() {
+        for name in &effect.assets {
+            assets::trash(folder, name)?;
+        }
+    }
+    Ok(effect)
 }
 
 #[tauri::command]
@@ -251,6 +360,35 @@ pub fn create_note_card(
 
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
+pub fn create_link_card(
+    state: tauri::State<'_, AppState>,
+    canvas_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    url: String,
+) -> AppResult<PlacementWithItem> {
+    create_link_card_for(&state, canvas_id, x, y, width, height, url)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn create_video_card(
+    state: tauri::State<'_, AppState>,
+    canvas_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    url: String,
+    provider: String,
+) -> AppResult<PlacementWithItem> {
+    create_video_card_for(&state, canvas_id, x, y, width, height, url, provider)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn restore_card(
     state: tauri::State<'_, AppState>,
     canvas_id: i64,
@@ -283,8 +421,29 @@ pub fn delete_placements(
     delete_placements_for(&state, ids)
 }
 
-/// Development-only: fill a canvas with `count` note cards spread over a large world
-/// rectangle, so the 250-card performance gate has something to measure.
+/// Development-only: fill a canvas with `count` cards spread over a large world rectangle,
+/// so the 250-card performance gate has something to measure.
+///
+/// The mix is roughly 40% notes, 30% image, 20% link and 10% video, because pictures and
+/// thumbnails are real decoded bitmaps and are the first per-frame work the Phase 1
+/// measurement did not cover. Every seeded image card points at one real asset — copied in
+/// through `assets::copy_in`, which content-hash dedupe reduces to a single file — and five
+/// point at a deliberately absent name, so the missing-file marker is on screen during the
+/// measurement.
+///
+/// **The harness makes no network call.** Link and video cards are seeded already-fetched
+/// against that same local asset, and three of each are seeded not-fetched.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn seed_mixed_cards(
+    state: tauri::State<'_, AppState>,
+    canvas_id: i64,
+    count: i64,
+) -> AppResult<i64> {
+    seed_mixed_cards_for(&state, canvas_id, count)
+}
+
+/// The old name, kept as a thin wrapper so nothing that calls it breaks.
 #[cfg(debug_assertions)]
 #[tauri::command]
 pub fn seed_note_cards(
@@ -292,6 +451,27 @@ pub fn seed_note_cards(
     canvas_id: i64,
     count: i64,
 ) -> AppResult<i64> {
+    seed_mixed_cards_for(&state, canvas_id, count)
+}
+
+/// The seeded asset, or `None` when the icon this copies in cannot be found — a missing
+/// development file must not stop the harness, it just means fewer pictures on screen.
+#[cfg(debug_assertions)]
+fn seed_asset(folder: Option<&std::path::Path>) -> Option<String> {
+    let folder = folder?;
+    // The icon ships with the crate and is a real PNG, so no test fixture is needed.
+    let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("icons/128x128.png");
+    assets::copy_in(folder, &source).ok().map(|a| a.name)
+}
+
+#[cfg(debug_assertions)]
+fn seed_mixed_cards_for(state: &AppState, canvas_id: i64, count: i64) -> AppResult<i64> {
+    // The folder is cloned out of its mutex before the db lock, as everywhere else.
+    let folder = state.project_folder();
+    let asset = seed_asset(folder.as_deref());
+    let missing_asset =
+        String::from("0000000000000000000000000000000000000000000000000000000000000000.png");
+
     state.with_db(|conn| {
         let tx = conn.transaction()?;
         let project_id: i64 = tx.query_row(
@@ -302,23 +482,95 @@ pub fn seed_note_cards(
         let first_z = next_z_order(&tx, canvas_id)?;
         let columns = 20;
         let mut seeded: Vec<i64> = Vec::new();
+        let mut images = 0;
+        let mut links = 0;
+        let mut videos = 0;
+
         for (z, n) in (first_z..).zip(0..count) {
             let col = n % columns;
             let row = n / columns;
-            let payload = serde_json::json!({
-                "title": format!("Seeded Note {}", n + 1),
-                "text": format!("Card **{}** of the seeded set.\n\n- one\n- two", n + 1),
-            })
-            .to_string();
-            let item = insert_item(&tx, project_id, "note", &payload)?;
+            // 40 / 30 / 20 / 10 across every block of ten.
+            let (kind, payload, width, height) = match n % 10 {
+                0..=3 => (
+                    "note",
+                    serde_json::json!({
+                        "title": format!("Seeded Note {}", n + 1),
+                        "text": format!("Card **{}** of the seeded set.\n\n- one\n- two", n + 1),
+                    })
+                    .to_string(),
+                    236.0,
+                    150.0,
+                ),
+                4..=6 => {
+                    images += 1;
+                    // The first five image cards point at a name that is not there.
+                    let name = if images <= 5 {
+                        Some(missing_asset.clone())
+                    } else {
+                        asset.clone()
+                    };
+                    (
+                        "image",
+                        serde_json::json!({
+                            "asset": name.unwrap_or_else(|| missing_asset.clone()),
+                            "natural_width": 128,
+                            "natural_height": 128,
+                            "alt": "A seeded picture",
+                            "source_name": format!("seeded-{}.png", n + 1),
+                        })
+                        .to_string(),
+                        220.0,
+                        220.0,
+                    )
+                }
+                7..=8 => {
+                    links += 1;
+                    let fetched = links > 3;
+                    (
+                        "link",
+                        serde_json::json!({
+                            "url": format!("https://example.com/seeded/{}", n + 1),
+                            "title": if fetched { format!("Seeded Page {}", n + 1) } else { String::new() },
+                            "description": if fetched { String::from("A seeded preview description.") } else { String::new() },
+                            "favicon_asset": if fetched { asset.clone() } else { None },
+                            "thumbnail_asset": if fetched { asset.clone() } else { None },
+                            "fetched_at": if fetched { Some(now_iso8601()) } else { None },
+                        })
+                        .to_string(),
+                        236.0,
+                        236.0,
+                    )
+                }
+                _ => {
+                    videos += 1;
+                    let fetched = videos > 3;
+                    (
+                        "video",
+                        serde_json::json!({
+                            "url": format!("https://www.youtube.com/watch?v=seeded{:05}", n + 1),
+                            "provider": "youtube",
+                            "title": if fetched { format!("Seeded Video {}", n + 1) } else { String::new() },
+                            "thumbnail_asset": if fetched { asset.clone() } else { None },
+                            "fetched_at": if fetched { Some(now_iso8601()) } else { None },
+                        })
+                        .to_string(),
+                        272.0,
+                        246.0,
+                    )
+                }
+            };
+
+            let item = insert_item(&tx, project_id, kind, &payload)?;
             tx.execute(
                 "INSERT INTO placement (canvas_id, item_id, x, y, width, height, z_order)
-                 VALUES (?1, ?2, ?3, ?4, 236, 150, ?5)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 rusqlite::params![
                     canvas_id,
                     item.id,
-                    col as f64 * 300.0,
-                    row as f64 * 220.0,
+                    col as f64 * 340.0,
+                    row as f64 * 300.0,
+                    width,
+                    height,
                     z
                 ],
             )?;
@@ -539,6 +791,211 @@ mod tests {
 
         let effect = delete_placements_for(&state, vec![a, b]).unwrap();
         assert_eq!(effect.connections.len(), 1);
+    }
+
+    /// Milestone 1's checkpoint. It composes hashing, dedupe, reference counting, the
+    /// delete cascade and the undo write path — none of which any single task's tests
+    /// exercise together — over a real temp project folder.
+    #[test]
+    fn milestone1_assets_dedupe_reference_count_trash_and_restore_round_trip_real_bytes() {
+        use crate::assets;
+        use std::io::Write;
+
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("project");
+        let state = AppState::default();
+        let project = open_project_at(&state, &folder).unwrap();
+        let canvas_id = list_canvases_for(&state, project.id).unwrap()[0].id;
+
+        // (a) the same bytes under two different original names produce exactly one file.
+        let scratch = dir.path().join("scratch");
+        std::fs::create_dir_all(&scratch).unwrap();
+        let bytes = b"a picture's bytes, whatever they are";
+        for name in ["first.png", "second.png"] {
+            let mut file = std::fs::File::create(scratch.join(name)).unwrap();
+            file.write_all(bytes).unwrap();
+        }
+        let first = assets::copy_in(&folder, &scratch.join("first.png")).unwrap();
+        let second = assets::copy_in(&folder, &scratch.join("second.png")).unwrap();
+        assert_eq!(first.name, second.name, "content hashing must dedupe");
+        let count = std::fs::read_dir(assets::assets_dir(&folder))
+            .unwrap()
+            .count();
+        assert_eq!(count, 1, "assets/ must hold exactly one file");
+
+        // (b) two image cards pointing at that one asset.
+        let mut cards = Vec::new();
+        for n in 0..2 {
+            cards.push(
+                crate::commands::asset::create_image_card_for(
+                    &state,
+                    canvas_id,
+                    n as f64 * 400.0,
+                    0.0,
+                    320.0,
+                    240.0,
+                    first.name.clone(),
+                    100,
+                    80,
+                    String::from("alt text"),
+                    format!("original-{n}.png"),
+                )
+                .unwrap(),
+            );
+        }
+
+        // (c) deleting the first leaves the file, because the second still references it.
+        delete_placements_for(&state, vec![cards[0].placement.id]).unwrap();
+        assert!(
+            assets::status(&folder, &first.name).exists,
+            "a shared asset must survive one of its holders going"
+        );
+
+        // (d) deleting the second takes the file out of assets/ and into .trash/.
+        let effect = delete_placements_for(&state, vec![cards[1].placement.id]).unwrap();
+        assert_eq!(effect.assets, vec![first.name.clone()]);
+        assert!(!assets::status(&folder, &first.name).exists);
+        assert!(folder
+            .join(assets::TRASH_DIR_NAME)
+            .join(&first.name)
+            .is_file());
+
+        // (e) restoring the card brings the file back, byte-identical.
+        let restored = restore_card_for(
+            &state,
+            canvas_id,
+            0.0,
+            0.0,
+            320.0,
+            240.0,
+            0,
+            effect.items[0].kind.clone(),
+            effect.items[0].payload.clone(),
+        )
+        .unwrap();
+        assert_eq!(restored.item.kind, "image");
+        assert!(assets::status(&folder, &first.name).exists);
+        let back = std::fs::read(assets::assets_dir(&folder).join(&first.name)).unwrap();
+        assert_eq!(back, bytes, "the restored file must be byte-identical");
+    }
+
+    #[test]
+    fn delete_placements_an_image_whose_file_is_already_missing_still_succeeds() {
+        let (_dir, state, canvas_id) = open();
+        let card = crate::commands::asset::create_image_card_for(
+            &state,
+            canvas_id,
+            0.0,
+            0.0,
+            320.0,
+            240.0,
+            String::from("deadbeef.png"),
+            0,
+            0,
+            String::new(),
+            String::from("gone.png"),
+        )
+        .unwrap();
+
+        let effect = delete_placements_for(&state, vec![card.placement.id]).unwrap();
+        assert_eq!(effect.items.len(), 1);
+        assert_eq!(effect.assets, vec![String::from("deadbeef.png")]);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn seed_mixed_cards_for_two_hundred_and_fifty_gives_the_intended_mix_and_no_network() {
+        let (_dir, state, canvas_id) = open();
+        assert_eq!(seed_mixed_cards_for(&state, canvas_id, 250).unwrap(), 250);
+
+        let cards = list_placements_for(&state, canvas_id).unwrap();
+        assert_eq!(cards.len(), 250);
+
+        let count = |kind: &str| cards.iter().filter(|c| c.item.kind == kind).count();
+        assert_eq!(count("note"), 100, "40% notes");
+        assert_eq!(count("image"), 75, "30% image");
+        assert_eq!(count("link"), 50, "20% link");
+        assert_eq!(count("video"), 25, "10% video");
+
+        // Five image cards deliberately point at an absent name, so the missing-file marker
+        // is on screen during the measurement.
+        let missing = cards
+            .iter()
+            .filter(|c| c.item.kind == "image" && c.item.payload.contains("0000000000"))
+            .count();
+        assert_eq!(missing, 5);
+
+        // Three link cards and three video cards are seeded not-fetched.
+        let not_fetched = |kind: &str| {
+            cards
+                .iter()
+                .filter(|c| c.item.kind == kind && c.item.payload.contains("\"fetched_at\":null"))
+                .count()
+        };
+        assert_eq!(not_fetched("link"), 3);
+        assert_eq!(not_fetched("video"), 3);
+
+        // The seeded assets deduplicate to one real file, which is what content hashing is for.
+        let files = std::fs::read_dir(crate::assets::assets_dir(_dir.path()))
+            .unwrap()
+            .count();
+        assert_eq!(files, 1, "one asset shared by every seeded picture");
+    }
+
+    /// §15.2's "missing asset" row, driven through the real command path: add a picture,
+    /// close the project, delete the file from `assets/`, reopen. The item, the placement and
+    /// the alt text all survive, the card keeps its authored size, and nothing errors.
+    #[test]
+    fn step4_missing_asset_deleting_the_file_and_reopening_keeps_the_item_and_its_alt_text() {
+        use crate::assets;
+        use std::io::Write;
+
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("project");
+
+        let (canvas_id, asset_name) = {
+            let state = AppState::default();
+            let project = open_project_at(&state, &folder).unwrap();
+            let canvas_id = list_canvases_for(&state, project.id).unwrap()[0].id;
+
+            let source = dir.path().join("picture.png");
+            let mut file = std::fs::File::create(&source).unwrap();
+            file.write_all(b"the picture's bytes").unwrap();
+            drop(file);
+            let asset = assets::copy_in(&folder, &source).unwrap();
+
+            crate::commands::asset::create_image_card_for(
+                &state,
+                canvas_id,
+                40.0,
+                60.0,
+                320.0,
+                200.0,
+                asset.name.clone(),
+                640,
+                400,
+                String::from("A steel truss"),
+                String::from("picture.png"),
+            )
+            .unwrap();
+            (canvas_id, asset.name)
+        };
+
+        // The file leaves the folder behind the application's back.
+        std::fs::remove_file(assets::assets_dir(&folder).join(&asset_name)).unwrap();
+
+        let state = AppState::default();
+        open_project_at(&state, &folder)
+            .expect("a missing asset must never stop a project opening");
+        let cards = list_placements_for(&state, canvas_id).unwrap();
+        assert_eq!(cards.len(), 1, "the item and its placement survive");
+        assert_eq!(cards[0].placement.width, 320.0, "the authored size is kept");
+        assert_eq!(cards[0].placement.height, 200.0);
+        assert!(
+            cards[0].item.payload.contains("A steel truss"),
+            "the alt text survives"
+        );
+        assert!(!assets::status(&folder, &asset_name).exists);
     }
 
     #[test]
