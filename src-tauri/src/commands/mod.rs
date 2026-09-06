@@ -9,5 +9,6 @@ pub mod fetch;
 pub mod item;
 pub mod placement;
 pub mod project;
+pub mod search;
 
 pub use project::AppState;

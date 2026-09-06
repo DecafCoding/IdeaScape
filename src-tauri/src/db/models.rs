@@ -92,6 +92,35 @@ pub struct DeleteEffect {
     pub assets: Vec<String>,
 }
 
+/// Everything a canvas delete removed — the canvas row itself, every placement on it, the
+/// items that lost their last placement, the connections the cascade took, and the asset
+/// files no remaining payload still names. `restore_canvas` takes this whole structure back,
+/// which is why the delete has to read every row *before* the cascade runs.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct CanvasDeleteEffect {
+    pub canvas: Canvas,
+    pub placements: Vec<Placement>,
+    pub items: Vec<Item>,
+    pub connections: Vec<Connection>,
+    pub assets: Vec<String>,
+}
+
+impl Default for Canvas {
+    fn default() -> Self {
+        Canvas {
+            id: 0,
+            project_id: 0,
+            name: String::new(),
+            sort_order: 0,
+            view_x: 0.0,
+            view_y: 0.0,
+            view_zoom: 1.0,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+}
+
 pub fn row_to_project(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
     Ok(Project {
         id: row.get("id")?,

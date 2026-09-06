@@ -15,14 +15,23 @@ pub fn open_project_db(folder: &Path) -> AppResult<Connection> {
     std::fs::create_dir_all(folder)?;
     std::fs::create_dir_all(folder.join("assets"))?;
 
-    let mut conn = Connection::open(folder.join(DB_FILE_NAME))
-        .map_err(|e| AppError::DatabaseOpen(e.to_string()))?;
+    // Every failure below carries the database file path, because the picker draws this
+    // message and design-system §15.2 requires a plain message that names the file.
+    let db_path = folder.join(DB_FILE_NAME);
+    let shown = db_path.to_string_lossy().to_string();
 
-    // PRAGMA journal_mode returns a row, so it cannot go through `execute`.
-    let _: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
-    conn.pragma_update(None, "foreign_keys", "ON")?;
+    let mut conn =
+        Connection::open(&db_path).map_err(|e| AppError::DatabaseOpen(format!("{shown} — {e}")))?;
 
-    migrations::apply(&mut conn)?;
+    // PRAGMA journal_mode returns a row, so it cannot go through `execute`. A file that is
+    // locked by another process, or is not a database at all, fails here rather than at open.
+    let _: String = conn
+        .query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))
+        .map_err(|e| AppError::DatabaseOpen(format!("{shown} — {e}")))?;
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .map_err(|e| AppError::DatabaseOpen(format!("{shown} — {e}")))?;
+
+    migrations::apply(&mut conn).map_err(|e| AppError::Migration(format!("{shown} — {e}")))?;
     Ok(conn)
 }
 

@@ -10,6 +10,19 @@ export interface Project {
   updated_at: string;
 }
 
+/**
+ * One entry in `%APPDATA%\IdeaScape\recent.json` — a project the user has opened, with
+ * the counts and the timestamp a Recent card on the picker prints. This is a file record
+ * rather than a row, so its Rust struct lives in `commands/project.rs`.
+ */
+export interface RecentProject {
+  path: string;
+  name: string;
+  canvas_count: number;
+  card_count: number;
+  opened_at: string;
+}
+
 export interface Canvas {
   id: number;
   project_id: number;
@@ -20,6 +33,39 @@ export interface Canvas {
   view_zoom: number;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * One canvas whose name matched a search. Canvas hits are their own group and always
+ * rendered before card hits — that ranking is the requirement (`search-method`).
+ */
+export interface CanvasHit {
+  canvas_id: number;
+  name: string;
+  card_count: number;
+  updated_at: string;
+}
+
+/**
+ * One card whose note title or body text matched. `matched_title` says which of the two
+ * found it; either way the row is named by the card's title. Only `note` items are searched
+ * in the MVP, so `kind` is always `'note'` — it is carried so widening the search later
+ * changes a query and not a shape.
+ */
+export interface CardHit {
+  placement_id: number;
+  canvas_id: number;
+  canvas_name: string;
+  item_id: number;
+  kind: ItemKind;
+  title: string;
+  snippet: string;
+  matched_title: boolean;
+}
+
+export interface SearchResults {
+  canvases: CanvasHit[];
+  cards: CardHit[];
 }
 
 export type ItemKind = 'note' | 'image' | 'link' | 'video';
@@ -70,6 +116,19 @@ export interface DeleteEffect {
    * payload named them. The Rust side is the only thing that knows what the cascade and
    * the reference count actually did, so it reports rather than the front end inferring.
    */
+  assets: string[];
+}
+
+/**
+ * Everything a canvas delete removed, so one undo command restores the canvas, its cards,
+ * its lines and its asset files together. `restore_canvas` takes this whole structure back
+ * and mints new ids for every row, so nothing may assume an id survived.
+ */
+export interface CanvasDeleteEffect {
+  canvas: Canvas;
+  placements: Placement[];
+  items: Item[];
+  connections: Connection[];
   assets: string[];
 }
 
