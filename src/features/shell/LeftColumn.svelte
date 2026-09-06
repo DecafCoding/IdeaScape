@@ -1,31 +1,42 @@
 <!--
   The 168 px left column (design-system §8.3): the search box, the Canvases list, and the
-  Tools, Add and History groups, with Settings pinned to the bottom.
+  Tools, Add and History groups, with Close Project and Settings pinned to the bottom.
 
-  Rows this phase does not implement — Connect, Image, Settings, and the search box itself —
-  are drawn but unavailable, so the shell is not built twice. All labels are Title Case.
+  The search box and the canvas list arrive as snippet props filled by `app.svelte`. This
+  component is in `features/shell/` and `import-direction` forbids it importing
+  `features/search/` or `features/canvases/`, so a snippet from the composition root is the
+  only legal shape — the same shape the root already uses for `CanvasSurface`'s children.
+
+  Only Settings is still Phase 5. All labels are Title Case.
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
   import { canvasStore, type Tool } from '../../stores/canvasStore.svelte';
+  import type { Snippet } from 'svelte';
 
   interface Props {
+    /** The search box, filled by the root — this feature may not import `features/search/`. */
+    search?: Snippet;
+    /** The canvas list, filled the same way. */
+    canvases?: Snippet;
     undoDepth?: number;
     redoDepth?: number;
     onNewNote?: () => void;
+    onNewImage?: () => void;
     onUndo?: () => void;
     onRedo?: () => void;
-    onSelectCanvas?: (canvasId: number) => void;
     onCloseProject?: () => void;
   }
 
   const {
+    search,
+    canvases,
     undoDepth = 0,
     redoDepth = 0,
     onNewNote,
+    onNewImage,
     onUndo,
     onRedo,
-    onSelectCanvas,
     onCloseProject,
   }: Props = $props();
 
@@ -43,37 +54,9 @@
 </script>
 
 <nav class="left-column scroll-thin" data-testid="left-column" aria-label="Canvases And Tools">
-  <div class="search-wrapper">
-    <!-- Inert in this phase: search lands in Phase 4. -->
-    <div class="search-box is-unavailable" aria-disabled="true">
-      <Icon glyph="magnifying-glass" size={13} />
-      <span>Search</span>
-    </div>
-  </div>
+  {@render search?.()}
 
-  <p class="section-label with-action">
-    Canvases
-    <span class="add-canvas is-unavailable" aria-hidden="true">
-      <Icon glyph="plus" size={13} />
-    </span>
-  </p>
-
-  <ul class="rows">
-    {#each canvasStore.canvases as canvas (canvas.id)}
-      <li>
-        <button
-          type="button"
-          class="canvas-row"
-          class:active={canvas.id === canvasStore.activeCanvasId}
-          aria-current={canvas.id === canvasStore.activeCanvasId ? 'true' : undefined}
-          onclick={() => onSelectCanvas?.(canvas.id)}
-        >
-          <Icon glyph="square-half" size={13} />
-          <span class="name">{canvas.name}</span>
-        </button>
-      </li>
-    {/each}
-  </ul>
+  {@render canvases?.()}
 
   <p class="section-label">Tools</p>
   <ul class="rows">
@@ -124,8 +107,7 @@
       </button>
     </li>
     <li>
-      <!-- Image cards are Phase 3. -->
-      <button type="button" class="action-row is-unavailable" disabled>
+      <button type="button" class="action-row" onclick={onNewImage}>
         <Icon glyph="image" size={13} />
         Image
       </button>
@@ -189,20 +171,6 @@
     box-sizing: border-box;
   }
 
-  .search-wrapper {
-    padding: 0 var(--space-12) var(--space-9);
-  }
-
-  .search-box {
-    display: flex;
-    align-items: center;
-    gap: var(--space-6);
-    padding: 3px 8px;
-    border: 1px solid var(--color-divider);
-    border-radius: var(--radius-card);
-    font-size: var(--text-11-5);
-  }
-
   .section-label {
     margin: 0;
     padding: var(--space-14) var(--space-14) 8px;
@@ -212,24 +180,12 @@
     opacity: 0.45;
   }
 
-  .section-label.with-action {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 var(--space-12) var(--space-5);
-  }
-
-  .add-canvas {
-    opacity: 0.5;
-  }
-
   .rows {
     list-style: none;
     margin: 0;
     padding: 0;
   }
 
-  .canvas-row,
   .action-row {
     display: flex;
     align-items: center;
@@ -241,42 +197,6 @@
     text-align: left;
     cursor: pointer;
     transition: background-color var(--duration-90) var(--ease);
-  }
-
-  .canvas-row {
-    gap: 8px;
-    padding: var(--space-5) var(--space-12);
-    font-size: var(--text-12);
-    opacity: 0.72;
-  }
-
-  .canvas-row .name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .canvas-row:hover {
-    background: var(--tint-accent-hover);
-    opacity: 0.9;
-  }
-
-  .canvas-row:active {
-    background: var(--tint-accent-press);
-  }
-
-  /* The active row is the pressed appearance made permanent, plus weight — so a hovered
-     row can never look more selected than the selected one, and colour is not the only
-     signal. */
-  .canvas-row.active {
-    background: var(--color-accent-tint-fill);
-    color: var(--color-accent-tint-text);
-    font-weight: 600;
-    opacity: 1;
-  }
-
-  .canvas-row.active:hover {
-    background: var(--color-accent-200);
   }
 
   .action-row {

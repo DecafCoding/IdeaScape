@@ -17,6 +17,8 @@ import { logWarn } from '../../lib/logger';
 import { payloadAssetNames } from '../../lib/types';
 import { canvasStore } from '../../stores/canvasStore.svelte';
 import type {
+  Canvas,
+  CanvasDeleteEffect,
   Connection,
   DeleteEffect,
   Item,
@@ -323,5 +325,103 @@ export function editConnectionCommand(
     label: 'Edit Connection',
     undo: () => write(before),
     redo: () => write(after),
+  };
+}
+
+// --- canvases ---------------------------------------------------------------
+//
+// These three deliberately do *not* reuse `restoreCards`. That helper writes into
+// `canvasStore.placements`, which holds the ACTIVE canvas — and the canvas being restored is
+// never the active one, because deleting the active canvas switches away from it first.
+// Restoring through Rust keeps the active canvas's store untouched and the whole restore in
+// one transaction.
+
+/**
+ * What the root hands the canvas commands, so this file imports no feature: re-listing the
+ * canvases, and making one active (which also flushes whatever the outgoing one owes).
+ */
+export interface CanvasCommandHooks {
+  refresh: () => Promise<unknown>;
+  activate: (canvasId: number) => Promise<void>;
+}
+
+/**
+ * Adding a canvas. Undo switches away from it first and then removes it; redo re-creates it,
+ * adopts the new row and makes it active again.
+ *
+ * A new canvas is made active the moment it is created, so its undo has to leave the shell on
+ * a canvas that still exists — the same rule the delete follows.
+ */
+export function createCanvasCommand(canvas: Canvas, hooks: CanvasCommandHooks): UndoableCommand {
+  let current = canvas;
+  return {
+    label: 'New Canvas',
+    async undo() {
+      const sibling = canvasStore.canvases.find((c) => c.id !== current.id);
+      if (sibling && current.id === canvasStore.activeCanvasId) await hooks.activate(sibling.id);
+      await invokeSafe<CanvasDeleteEffect>('delete_canvas', { canvasId: current.id });
+      await hooks.refresh();
+    },
+    async redo() {
+      // A new row, with a new id: nothing may assume the old one came back.
+      current = await invokeSafe<Canvas>('create_canvas', {
+        projectId: current.project_id,
+        name: current.name,
+      });
+      await hooks.refresh();
+      await hooks.activate(current.id);
+    },
+  };
+}
+
+/** Renaming a canvas. Pushed on commit, not per keystroke. */
+export function renameCanvasCommand(
+  canvasId: number,
+  before: string,
+  after: string,
+): UndoableCommand {
+  async function write(name: string) {
+    const row = await invokeSafe<Canvas>('rename_canvas', { canvasId, name });
+    canvasStore.canvases = canvasStore.canvases.map((c) => (c.id === canvasId ? row : c));
+  }
+  return {
+    label: 'Rename Canvas',
+    undo: () => write(before),
+    redo: () => write(after),
+  };
+}
+
+/**
+ * Deleting a canvas. `effect` names the canvas row, every placement on it, the items it
+ * orphaned, the connections the cascade took and the asset files no remaining payload named,
+ * so `Ctrl+Z` brings all of it back together and the restored lines join the cards they were
+ * drawn between.
+ *
+ * The `let current = effect` re-adoption is mandatory: every id in a restored effect is new,
+ * so a redo against the original effect would name rows that no longer exist.
+ */
+export function deleteCanvasCommand(
+  effect: CanvasDeleteEffect,
+  hooks: CanvasCommandHooks,
+): UndoableCommand {
+  let current = effect;
+  return {
+    label: 'Delete Canvas',
+    async undo() {
+      const restored = await invokeSafe<Canvas>('restore_canvas', { effect: current });
+      await hooks.refresh();
+      await hooks.activate(restored.id);
+      // Re-read the effect against the restored ids, so a following redo deletes what exists.
+      current = {
+        ...current,
+        canvas: restored,
+      };
+    },
+    async redo() {
+      current = await invokeSafe<CanvasDeleteEffect>('delete_canvas', {
+        canvasId: current.canvas.id,
+      });
+      await hooks.refresh();
+    },
   };
 }

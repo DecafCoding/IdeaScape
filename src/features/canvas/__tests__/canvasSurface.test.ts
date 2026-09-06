@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/svelte';
+import { createRawSnippet } from 'svelte';
 import { GRID_SIZE, LOW_ZOOM } from '../../../lib/geometry';
 import { CULL_MARGIN_PX, cullWithCounts, visiblePlacements } from '../../../lib/culling';
 import type { Placement } from '../../../lib/types';
@@ -155,5 +156,71 @@ describe('store, transform, grid and cull agree', () => {
     expect(canvasStore.view.zoom).toBe(4);
     canvasStore.setView({ zoom: 0.001 });
     expect(canvasStore.view.zoom).toBe(0.1);
+  });
+});
+
+/** The surface takes a children snippet; the layers it normally holds are irrelevant here. */
+const emptyChildren = createRawSnippet(() => ({ render: () => '<g></g>' }));
+
+describe('centreOn puts a rectangle in the middle of the view', () => {
+  afterEach(cleanup);
+
+  beforeEach(() => {
+    canvasStore.closeProject();
+    canvasStore.setViewportSize(VIEWPORT);
+  });
+
+  it('centreOn_rect_putsItsCentreAtTheViewportCentre', async () => {
+    globalThis.ResizeObserver ??= class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+
+    const CanvasSurface = (await import('../CanvasSurface.svelte')).default;
+    let settled = 0;
+    const view = render(CanvasSurface, {
+      props: {
+        onViewSettled: () => (settled += 1),
+        onMarqueeEnd: () => {},
+        onBackgroundClick: () => {},
+        onOpenBackgroundMenu: () => {},
+        onPointerWorld: () => {},
+        children: emptyChildren,
+      },
+    });
+    canvasStore.setViewportSize(VIEWPORT);
+    canvasStore.setView({ x: 0, y: 0, zoom: 1 });
+
+    // A card 240 × 140 at (1000, 600): its centre is (1120, 670).
+    view.component.centreOn({ x: 1000, y: 600, width: 240, height: 140 });
+
+    expect(canvasStore.view.zoom).toBe(1);
+    expect(canvasStore.view.x).toBeCloseTo(VIEWPORT.width / 2 - 1120);
+    expect(canvasStore.view.y).toBeCloseTo(VIEWPORT.height / 2 - 670);
+    // The new view is persisted like any other, so a search jump survives a canvas switch.
+    expect(settled).toBeGreaterThan(0);
+  });
+
+  it('centreOn_atAnotherZoom_keepsTheZoomAndStillCentres', async () => {
+    const CanvasSurface = (await import('../CanvasSurface.svelte')).default;
+    const view = render(CanvasSurface, {
+      props: {
+        onViewSettled: () => {},
+        onMarqueeEnd: () => {},
+        onBackgroundClick: () => {},
+        onOpenBackgroundMenu: () => {},
+        onPointerWorld: () => {},
+        children: emptyChildren,
+      },
+    });
+    canvasStore.setViewportSize(VIEWPORT);
+    canvasStore.setView({ x: 0, y: 0, zoom: 0.5 });
+
+    view.component.centreOn({ x: 200, y: 100, width: 100, height: 100 });
+
+    expect(canvasStore.view.zoom).toBe(0.5);
+    expect(canvasStore.view.x).toBeCloseTo(VIEWPORT.width / 2 - 250 * 0.5);
+    expect(canvasStore.view.y).toBeCloseTo(VIEWPORT.height / 2 - 150 * 0.5);
   });
 });
