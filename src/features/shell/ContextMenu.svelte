@@ -153,7 +153,7 @@
   }
 
   .row:active:not(:disabled) {
-    background: var(--color-accent-600);
+    background: var(--color-accent-hover);
   }
 
   .row.destructive {
@@ -166,7 +166,7 @@
   }
 
   .row.destructive:active:not(:disabled) {
-    background: var(--color-accent-2-700);
+    background: var(--color-accent-2-hover);
   }
 
   .separator {

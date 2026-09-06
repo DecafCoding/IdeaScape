@@ -17,6 +17,30 @@
   --color-on-accent: var(--color-bg);
   --color-accent-tint-fill: #e9f8ff;
   --color-accent-tint-text: #004961;
+  /* Phase 5 additions, flagged for the owner: four role tokens standing in for ramp steps
+     that eleven shipped lines were reaching into directly. A ramp does not move between
+     palettes (§4.5 forbids redefining one), so those lines were wrong on dark. Every light
+     value below is identical to the ramp step it replaces, so the light theme is unchanged.
+     --color-accent-text  the accent as text or a border on a surface  (was accent-700)
+     --color-accent-hover an accent-FILLED control, hovered            (was accent-600)
+     --color-inset        the recessed ground §4.4 names              (was neutral-300)
+     --color-inset-hover  the same, hovered                           (was neutral-400) */
+  --color-accent-text: #006786;
+  --color-accent-hover: #1186ac;
+  --color-inset: #d7d3d3;
+  --color-inset-hover: #bab6b6;
+  /* Four more, found by the Phase 5 dark walk rather than by the eleven-line audit: the
+     accent tint row hovered, and the destructive equivalents of the three roles above. The
+     destructive ones are the same defect class — an accent-2-700 fill under --color-on-accent
+     ink goes DARKER on hover, which on the dark palette makes the label illegible.
+     --color-accent-tint-hover   the accent tint row, hovered        (was accent-200)
+     --color-accent-2-hover      a destructive FILL, hovered/pressed (was accent-2-700)
+     --color-accent-2-tint-fill  the failure strip ground            (was accent-2-100)
+     --color-accent-2-tint-text  the failure strip ink               (was accent-2-700) */
+  --color-accent-tint-hover: #cbeeff;
+  --color-accent-2-hover: #aa0b56;
+  --color-accent-2-tint-fill: #fff1f4;
+  --color-accent-2-tint-text: #aa0b56;
 
   /* Canvas ink */
   --color-dot: rgba(32, 30, 29, 0.16);

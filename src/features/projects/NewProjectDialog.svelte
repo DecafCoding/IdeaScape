@@ -222,8 +222,8 @@
   .failure {
     margin: 0 0 var(--space-12);
     padding: 8px var(--space-12);
-    background: var(--color-accent-2-100);
-    color: var(--color-accent-2-700);
+    background: var(--color-accent-2-tint-fill);
+    color: var(--color-accent-2-tint-text);
     border-radius: var(--radius-card);
     font-size: var(--text-11-5);
   }
@@ -261,8 +261,8 @@
   }
 
   .primary:hover:not(:disabled) {
-    background: var(--color-accent-600);
-    border-color: var(--color-accent-600);
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
   }
 
   .primary.is-unavailable {

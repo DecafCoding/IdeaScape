@@ -72,7 +72,7 @@
 
   .page-button.primary {
     border-color: var(--color-accent);
-    color: var(--color-accent-700);
+    color: var(--color-accent-text);
   }
 
   .page-button.primary:hover {

@@ -97,7 +97,7 @@
     height: 153px;
     flex: none;
     position: relative;
-    background: var(--color-neutral-300);
+    background: var(--color-inset);
     display: grid;
     place-items: center;
     overflow: hidden;

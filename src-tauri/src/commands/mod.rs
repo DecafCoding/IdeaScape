@@ -10,5 +10,6 @@ pub mod item;
 pub mod placement;
 pub mod project;
 pub mod search;
+pub mod settings;
 
 pub use project::AppState;

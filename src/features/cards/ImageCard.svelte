@@ -103,13 +103,13 @@
   }
 
   .image.empty {
-    background: var(--color-neutral-200);
+    background: var(--color-raised);
     display: grid;
     place-items: center;
   }
 
   .image.missing {
-    background: var(--color-neutral-300);
+    background: var(--color-inset);
     display: grid;
     place-items: center;
   }

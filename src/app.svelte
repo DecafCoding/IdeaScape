@@ -14,6 +14,7 @@
   import PerfOverlay from './features/canvas/PerfOverlay.svelte';
   import CardLayer from './features/cards/CardLayer.svelte';
   import DropTarget from './features/cards/DropTarget.svelte';
+  import SettingsPage from './features/settings/SettingsPage.svelte';
   import {
     addImageFromClipboardItem,
     addImagesFromPaths,
@@ -68,7 +69,15 @@
   import { LINK_SIZE, NOTE_SIZE, VIDEO_SIZE } from './lib/cardKinds';
   import { decidePaste, type UrlClassification } from './lib/paste';
   import { registerShortcuts } from './lib/shortcuts';
-  import { debounce, flushPlacements, queuePlacementUpdate, writeNow } from './lib/save';
+  import { getSettings, loadSettings } from './lib/settings.svelte';
+  import { applyTheme } from './lib/theme';
+  import {
+    debounce,
+    flushPlacements,
+    queuePlacementUpdate,
+    startAutoSave,
+    writeNow,
+  } from './lib/save';
   import { runPass } from './lib/perfGate';
   import { logError, logInfo } from './lib/logger';
   import {
@@ -133,6 +142,9 @@
    */
   let menuCanvasId = $state<number | null>(null);
 
+  /** True while the Settings page has replaced the canvas (§9.11, frame 16a). */
+  let settingsOpen = $state(false);
+
   /** The New project dialog: whether it is open, where it will write, and its own failure. */
   let newProjectOpen = $state(false);
   let newProjectParent = $state('');
@@ -175,15 +187,32 @@
   // --- start up ---------------------------------------------------------
 
   /**
-   * Boot loads the recents list and nothing else. There is no developer path any more and
-   * the application does not auto-open the last project: design-system §9.1 makes the picker
-   * the launch screen, and the Recent grid would be pointless if a project opened itself.
+   * Boot reads the settings file and applies the theme FIRST, before any data load, then
+   * loads the recents list. There is no developer path any more and the application does not
+   * auto-open the last project: design-system §9.1 makes the picker the launch screen, and
+   * the Recent grid would be pointless if a project opened itself.
+   *
+   * A Dark theme on a light Windows shows the light ground for one frame, because index.html
+   * paints before the file is read. §11.3 treats the theme change as an instant repaint, so
+   * that frame is not hidden behind a transition and not paid for with a blocking read.
    */
   $effect(() => {
     void guard(async () => {
+      applyTheme((await loadSettings()).theme);
       await projectsState.loadRecents();
       await maybeRunPerfGate();
     });
+  });
+
+  /**
+   * The auto-save ceiling. Re-reading `autoSaveMs` inside the effect means changing the
+   * cadence on the Settings page tears the old timer down and starts a new one, and closing
+   * the project stops it.
+   */
+  $effect(() => {
+    const cadence = getSettings().autoSaveMs;
+    if (canvasStore.project === null) return;
+    return startAutoSave(saveHooks, cadence);
   });
 
   /**
@@ -224,6 +253,7 @@
       clipboard = [];
       folderPath = null;
       openMenu = null;
+      settingsOpen = false;
       // The just-closed project is now the first recent card.
       await projectsState.loadRecents();
     });
@@ -274,6 +304,9 @@
         const { getCurrentWebview } = await import('@tauri-apps/api/webview');
         const unlisten = await getCurrentWebview().onDragDropEvent((event) => {
           const payload = event.payload;
+          // Settings has no canvas under the pointer, so a drop there would make a card the
+          // user cannot see.
+          if (settingsOpen) return;
           if (payload.type === 'enter' || payload.type === 'over') {
             dragOver = true;
             return;
@@ -300,6 +333,7 @@
   });
 
   async function addDroppedFiles(paths: string[]) {
+    if (settingsOpen) return;
     await guard(async () => {
       const created = await addImagesFromPaths(paths, pointerWorld);
       if (created.length === 0) return;
@@ -426,6 +460,8 @@
    */
   async function switchCanvas(canvasId: number) {
     if (canvasId === canvasStore.activeCanvasId) return;
+    // The canvas the user is being moved to has to be the thing on screen.
+    settingsOpen = false;
     await flushPlacements(saveHooks);
     persistView.flush();
     undoStack.clear();
@@ -647,6 +683,7 @@
    * without being awaited here (contract 2: the wait never blocks the work).
    */
   async function paste() {
+    if (settingsOpen) return;
     const canvasId = canvasStore.activeCanvasId;
     if (canvasId === null) return;
 
@@ -1061,8 +1098,18 @@
     },
   };
 
+  /**
+   * Settings has no canvas, so the canvas keys must not fire on it — the same reasoning that
+   * gave the picker its own map. No new Action and no new SHORTCUT_LABELS entry: §11.6's
+   * keyboard map prints no key for Settings, and Escape already dispatches as `cancel`.
+   */
+  const settingsShortcuts = {
+    cancel: () => (settingsOpen = false),
+  };
+
   $effect(() => {
     if (canvasStore.project === null) return registerShortcuts(pickerShortcuts);
+    if (settingsOpen) return registerShortcuts(settingsShortcuts);
     return registerShortcuts(shellShortcuts);
   });
 
@@ -1327,6 +1374,8 @@
         onUndo={() => void undoStack.undo()}
         onRedo={() => void undoStack.redo()}
         onCloseProject={() => void closeProject()}
+        onSettings={() => (settingsOpen = true)}
+        settingsActive={settingsOpen}
       >
         {#snippet search()}
           <SearchBox
@@ -1354,64 +1403,71 @@
         {/snippet}
       </LeftColumn>
 
-      <CanvasSurface
-        bind:this={canvas}
-        onViewSettled={persistView}
-        onMarqueeEnd={applyMarquee}
-        onBackgroundClick={() => {
-          canvasStore.selectConnection(null);
-          canvasStore.clearSelection();
-        }}
-        onOpenBackgroundMenu={openBackgroundMenu}
-        onPointerWorld={(point) => {
-          pointerWorld = point;
-          trackLink(point);
-        }}
-      >
-        <!-- Before the card layer in DOM order, so cards always paint over lines. -->
-        <ConnectionLayer onSelect={(id) => canvasStore.selectConnection(id)} />
-        <ConnectionLabels />
+      <!-- §9.11: the Settings page replaces the canvas, the empty state, the drop target
+           and the properties panel. The title bar and the left column stay. -->
+      {#if settingsOpen}
+        <SettingsPage {folderPath} onBack={() => (settingsOpen = false)} />
+      {:else}
+        <CanvasSurface
+          bind:this={canvas}
+          onViewSettled={persistView}
+          onMarqueeEnd={applyMarquee}
+          onBackgroundClick={() => {
+            canvasStore.selectConnection(null);
+            canvasStore.clearSelection();
+          }}
+          onOpenBackgroundMenu={openBackgroundMenu}
+          onPointerWorld={(point) => {
+            pointerWorld = point;
+            trackLink(point);
+          }}
+        >
+          <!-- Before the card layer in DOM order, so cards always paint over lines. -->
+          <ConnectionLayer onSelect={(id) => canvasStore.selectConnection(id)} />
+          <ConnectionLabels />
 
-        <CardLayer
-          bind:this={cards}
-          onGeometryCommitted={(before, after, label) => void commitGeometry(before, after, label)}
-          onOpenElementMenu={openElementMenu}
-          onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
-          onSelect={selectCard}
-          onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
-          onImageDecoded={(itemId, width, height) => void recordImageSize(itemId, width, height)}
-          onRefetch={(itemId) => void fetchPreview(itemId, true)}
-          onOpenVideo={(itemId) => void openVideo(itemId)}
-          {pastePendingItemId}
+          <CardLayer
+            bind:this={cards}
+            onGeometryCommitted={(before, after, label) =>
+              void commitGeometry(before, after, label)}
+            onOpenElementMenu={openElementMenu}
+            onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
+            onSelect={selectCard}
+            onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
+            onImageDecoded={(itemId, width, height) => void recordImageSize(itemId, width, height)}
+            onRefetch={(itemId) => void fetchPreview(itemId, true)}
+            onOpenVideo={(itemId) => void openVideo(itemId)}
+            {pastePendingItemId}
+          />
+        </CanvasSurface>
+
+        {#if canvasStore.cardCount === 0 && !dragOver}
+          <EmptyCanvas onNewNote={() => void createNote(pointerWorld)} />
+        {/if}
+
+        {#if dragOver}
+          <DropTarget />
+        {/if}
+
+        <PropertiesPanel
+          expanded={panelExpanded}
+          onToggle={() => (panelOpen = !panelOpen)}
+          onGeometryChange={changeGeometry}
+          onBringForward={() => void reorder('front')}
+          onSendBack={() => void reorder('back')}
+          onDuplicate={() => void duplicateSelection()}
+          onDelete={() => void deleteSelection()}
+          onConnectionChange={(label, directed) => void changeConnection(label, directed)}
+          onDeleteConnection={() => void deleteSelectedConnection()}
+          onAltTextChange={(alt) => void commitAltText(alt)}
+          onReplaceImage={() => void replaceImage()}
+          onShowInFolder={() => void showAssetsFolder()}
+          onRefetch={() => {
+            const item = selectedItem();
+            if (item) void fetchPreview(item.id, true);
+          }}
         />
-      </CanvasSurface>
-
-      {#if canvasStore.cardCount === 0 && !dragOver}
-        <EmptyCanvas onNewNote={() => void createNote(pointerWorld)} />
       {/if}
-
-      {#if dragOver}
-        <DropTarget />
-      {/if}
-
-      <PropertiesPanel
-        expanded={panelExpanded}
-        onToggle={() => (panelOpen = !panelOpen)}
-        onGeometryChange={changeGeometry}
-        onBringForward={() => void reorder('front')}
-        onSendBack={() => void reorder('back')}
-        onDuplicate={() => void duplicateSelection()}
-        onDelete={() => void deleteSelection()}
-        onConnectionChange={(label, directed) => void changeConnection(label, directed)}
-        onDeleteConnection={() => void deleteSelectedConnection()}
-        onAltTextChange={(alt) => void commitAltText(alt)}
-        onReplaceImage={() => void replaceImage()}
-        onShowInFolder={() => void showAssetsFolder()}
-        onRefetch={() => {
-          const item = selectedItem();
-          if (item) void fetchPreview(item.id, true);
-        }}
-      />
     </div>
   {/if}
 
@@ -1497,8 +1553,8 @@
   .error {
     margin: 0;
     padding: var(--space-6) var(--space-14);
-    background: var(--color-accent-2-100);
-    color: var(--color-accent-2-700);
+    background: var(--color-accent-2-tint-fill);
+    color: var(--color-accent-2-tint-text);
     font-size: var(--text-11-5);
   }
 </style>

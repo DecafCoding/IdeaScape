@@ -80,7 +80,7 @@
   }
 
   .body :global(a) {
-    color: var(--color-accent-700);
+    color: var(--color-accent-text);
   }
 
   .body :global(code) {

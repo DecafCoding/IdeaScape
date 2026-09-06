@@ -137,7 +137,7 @@
   }
 
   .destructive:hover {
-    background: var(--color-accent-2-700);
-    border-color: var(--color-accent-2-700);
+    background: var(--color-accent-2-hover);
+    border-color: var(--color-accent-2-hover);
   }
 </style>

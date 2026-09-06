@@ -23,7 +23,7 @@
     type Point,
     type Rect,
   } from '../../lib/geometry';
-  import { getSettings } from '../../lib/settings';
+  import { getSettings } from '../../lib/settings.svelte';
 
   interface Props {
     onViewSettled: () => void;

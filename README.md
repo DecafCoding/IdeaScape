@@ -172,12 +172,30 @@ with `Tab`, and `Enter` or `Space` selects the focused one.
 
 ## Settings
 
-`settings.json` under `%APPDATA%\IdeaScape` — one file per machine, deliberately outside
-every project folder so a copied project does not carry another machine's theme. It holds
-the auto-save cadence, snap to grid, the zoom modifier and the theme; `recent.json` sits
-beside it and holds the recent-projects list, deliberately a separate file. The application
-writes it, it has working defaults, and it is never required to exist. The Settings screen
-lands in a later phase; this build reads the defaults from `src/lib/settings.ts`.
+The **gear** at the bottom of the left column opens Settings, a full-screen page in place of
+the canvas. Changes apply the moment you make them — there is no Save, no Cancel and no
+confirm. _Back to canvas_ or `Esc` returns you to exactly where you were, with the selection
+and the view position intact.
+
+| Setting            | Options                     | Default | What it does                                            |
+| ------------------ | --------------------------- | ------- | ------------------------------------------------------- |
+| **Project folder** | —                           | —       | The open project's folder, read-only                    |
+| **Auto-save**      | `1s` / `3s` / `10s`         | `3s`    | The longest queued card geometry may sit unwritten      |
+| **Snap to grid**   | on / off                    | off     | Cards snap to the 22 px pitch; off keeps free placement |
+| **Zoom with**      | `Scroll` / `Ctrl+scroll`    | Scroll  | `Ctrl+scroll` leaves the plain wheel free to pan        |
+| **Theme**          | `Light` / `Dark` / `System` | Light   | `System` follows Windows live, with no restart          |
+
+Auto-save is a **ceiling**, not a cadence: every change is still written the moment it
+happens and a drag is still one transaction on release. The timer only catches a drag that
+outlives the setting, or a pointer release the window never saw.
+
+These four values live in `settings.json` under `%APPDATA%\IdeaScape` — one file per machine,
+deliberately outside every project folder so a copied project does not carry another
+machine's theme. The page's footer prints the folder it actually resolved. The file is
+written atomically, it has working defaults, and it is **never required to exist**: delete
+it and the application starts on the defaults with no error, and a hand-edit that puts one
+value out of range falls back on that value alone. `recent.json` sits beside it and holds
+the recent-projects list, deliberately a separate file. Nothing in either leaves the machine.
 
 ## Performance
 
@@ -189,9 +207,11 @@ when launched as `ideascape.exe --project "<folder>" --perf-gate`, writing
 exists for the measurement harness alone: a release build does not register it, and its one
 route into a project is the picker.
 
-`scripts/phase-4-session.md` is the latest recorded run — 250 mixed cards at 59.9 fps with
-zero dropped frames, a project opening in 34 ms measured from the picker, and a 2.80 MB
-installer against the 20 MB cap.
+`scripts/phase-5-session.md` is the latest recorded run and the project's own gate — 250
+mixed cards at 59.9 fps with zero dropped frames **in the dark theme with auto-save at its
+fastest setting**, a project opening in 35 ms measured from the picker, and a 2.80 MB
+installer against the 20 MB cap. It also records the four settled dark shadow values and the
+two measured WCAG contrast ratios that close the design system's last open question.
 
 `scripts/phase-2-session.md` records the same measurement over a mixed canvas — 250 cards
 _and_ 249 connections — alongside the scripted session that proves the canvas is usable with

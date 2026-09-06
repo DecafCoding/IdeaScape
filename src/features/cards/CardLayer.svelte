@@ -18,7 +18,7 @@
   import { assetStatus } from '../../lib/assets';
   import { cullWithCounts, recordCullCounts } from '../../lib/culling';
   import { resizeRect, snapToGrid, type ResizeHandle } from '../../lib/geometry';
-  import { getSettings } from '../../lib/settings';
+  import { getSettings } from '../../lib/settings.svelte';
   import {
     parseImagePayload,
     parseLinkPayload,

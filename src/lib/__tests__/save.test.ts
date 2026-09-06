@@ -6,8 +6,17 @@ vi.mock('../ipc', () => ({
   IpcError: class extends Error {},
 }));
 
-const { clearPending, debounce, flushPlacements, pendingCount, queuePlacementUpdate, writeNow } =
-  await import('../save');
+const {
+  clearPending,
+  debounce,
+  flushPlacements,
+  pendingCount,
+  queuePlacementUpdate,
+  startAutoSave,
+  writeNow,
+} = await import('../save');
+const { DEFAULT_SETTINGS, applySettings, autoSaveFooterText, resetSettings } =
+  await import('../settings.svelte');
 
 function update(id: number, x: number) {
   return { id, x, y: 0, width: 236, height: 150, z_order: id };
@@ -111,5 +120,62 @@ describe('debounce', () => {
     vi.advanceTimersByTime(500);
     expect(fn).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+});
+
+/**
+ * Task 10's auto-save ceiling. Its own describe so the shared mock is reset between these
+ * tests — the `debounce` block above has no beforeEach of its own.
+ */
+describe('the auto-save ceiling', () => {
+  beforeEach(() => {
+    invokeSafe.mockReset();
+    invokeSafe.mockResolvedValue(undefined);
+    clearPending();
+  });
+
+  it('startAutoSave_geometryQueuedPastTheCadence_flushesItOnce', async () => {
+    vi.useFakeTimers();
+    const stop = startAutoSave({ onSaving: () => {}, onSaved: () => {} }, 3000);
+    queuePlacementUpdate(update(1, 5));
+    expect(invokeSafe).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(invokeSafe).toHaveBeenCalledTimes(1);
+    expect(pendingCount()).toBe(0);
+
+    // Nothing new queued: the next tick writes nothing.
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(invokeSafe).toHaveBeenCalledTimes(1);
+    stop();
+    vi.useRealTimers();
+  });
+
+  it('startAutoSave_nothingQueued_writesNothing', async () => {
+    vi.useFakeTimers();
+    const stop = startAutoSave({ onSaving: () => {}, onSaved: () => {} }, 1000);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(invokeSafe).not.toHaveBeenCalled();
+    stop();
+    vi.useRealTimers();
+  });
+
+  it('startAutoSave_teardown_stopsTheTimer', async () => {
+    vi.useFakeTimers();
+    const stop = startAutoSave({ onSaving: () => {}, onSaved: () => {} }, 1000);
+    stop();
+    queuePlacementUpdate(update(1, 5));
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(invokeSafe).not.toHaveBeenCalled();
+    clearPending();
+    vi.useRealTimers();
+  });
+
+  it('autoSaveFooterText_afterTheCadenceChanges_readsTheNewValue', () => {
+    resetSettings();
+    expect(autoSaveFooterText()).toContain('autosave in 3s');
+    applySettings({ autoSaveMs: 10000 });
+    expect(autoSaveFooterText()).toContain('autosave in 10s');
+    applySettings({ autoSaveMs: DEFAULT_SETTINGS.autoSaveMs });
   });
 });

@@ -7,7 +7,7 @@
   `features/search/` or `features/canvases/`, so a snippet from the composition root is the
   only legal shape — the same shape the root already uses for `CanvasSurface`'s children.
 
-  Only Settings is still Phase 5. All labels are Title Case.
+  All labels are Title Case.
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
@@ -26,6 +26,9 @@
     onUndo?: () => void;
     onRedo?: () => void;
     onCloseProject?: () => void;
+    onSettings?: () => void;
+    /** True while the Settings page is showing: §9.11 draws its gear as the active row. */
+    settingsActive?: boolean;
   }
 
   const {
@@ -38,6 +41,8 @@
     onUndo,
     onRedo,
     onCloseProject,
+    onSettings,
+    settingsActive = false,
   }: Props = $props();
 
   /** Two cards is the threshold: with one there is nothing to connect (frame 14b). */
@@ -149,8 +154,13 @@
       <Icon glyph="arrow-left" size={13} />
       Close Project
     </button>
-    <!-- The Settings screen is Phase 5. -->
-    <button type="button" class="action-row is-unavailable" disabled>
+    <button
+      type="button"
+      class="action-row"
+      class:active={settingsActive}
+      onclick={onSettings}
+      data-testid="settings-row"
+    >
       <Icon glyph="gear" size={13} />
       Settings
     </button>
@@ -223,7 +233,7 @@
   }
 
   .action-row.active:hover {
-    background: var(--color-accent-600);
+    background: var(--color-accent-hover);
   }
 
   .depth {
