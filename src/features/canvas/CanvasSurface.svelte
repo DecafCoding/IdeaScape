@@ -24,6 +24,7 @@
     type Rect,
   } from '../../lib/geometry';
   import { getSettings } from '../../lib/settings.svelte';
+  import { ownsPress } from '../../lib/pressTarget';
 
   interface Props {
     onViewSettled: () => void;
@@ -80,6 +81,9 @@
 
   function onPointerDown(event: PointerEvent) {
     if (event.button !== 0) return;
+    // A press inside a control drawn over the canvas belongs to that control. Capturing the
+    // pointer here retargets the click to the surface, and the control would never see it.
+    if (ownsPress(event)) return;
     surface?.setPointerCapture(event.pointerId);
     eased = false;
 

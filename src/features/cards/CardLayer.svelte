@@ -19,6 +19,7 @@
   import { cullWithCounts, recordCullCounts } from '../../lib/culling';
   import { resizeRect, snapToGrid, type ResizeHandle } from '../../lib/geometry';
   import { getSettings } from '../../lib/settings.svelte';
+  import { ownsPress } from '../../lib/pressTarget';
   import {
     parseImagePayload,
     parseLinkPayload,
@@ -105,7 +106,19 @@
 
   function beginMove(event: PointerEvent, placement: Placement) {
     if (event.button !== 0) return;
-    if (canvasStore.editingPlacementId === placement.id) return;
+
+    // A press on a control inside the card is the control's. It must not start a move, and
+    // it must not reach the surface either, or the surface's capture eats the click.
+    if (ownsPress(event)) {
+      event.stopPropagation();
+      return;
+    }
+
+    // Same for the open note editor: its text box and format buttons own every press in it.
+    if (canvasStore.editingPlacementId === placement.id) {
+      event.stopPropagation();
+      return;
+    }
 
     // Under the Connect tool a press on a card starts a link, never a move.
     if (canvasStore.activeTool === 'connect') {

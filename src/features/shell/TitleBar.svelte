@@ -4,6 +4,10 @@
 
   In `pickerMode` — no project open — only the brand and the three window controls are
   shown (design-system §9.1). The bar keeps its height and its drag region either way.
+
+  The native Windows title bar is off (`decorations: false`), so this bar is the window's
+  only header: `data-tauri-drag-region` is what moves the window, and the three controls on
+  the right are the real minimise, maximise and close.
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
@@ -51,7 +55,7 @@
   );
 </script>
 
-<header class="title-bar" data-testid="title-bar">
+<header class="title-bar" data-testid="title-bar" data-tauri-drag-region>
   <span class="brand">IdeaScape</span>
 
   {#if pickerMode}
@@ -81,6 +85,7 @@
     <span class="counts">{countsLabel}</span>
   {/if}
 
+  <!-- Not a drag region: a press here must reach the button. -->
   <div class="window-controls">
     <button type="button" class="control" onclick={onMinimize}>
       <Icon glyph="minus" size={12} label="Minimize" />

@@ -1,10 +1,15 @@
 {
   "$schema": "../gen/schemas/windows-schema.json",
   "identifier": "default",
-  "description": "Exactly what IdeaScape's window needs: the core commands the title bar and the webview use, the file selector for adding a picture, and opening a video address or revealing the assets folder in the system shell. Nothing wider — no shell execute, no arbitrary filesystem access.",
+  "description": "Exactly what IdeaScape's window needs: the core commands the title bar and the webview use — the native title bar is off, so dragging, minimise, maximise and close are all ours — the file selector for adding a picture, and opening a video address or revealing the assets folder in the system shell. Nothing wider — no shell execute, no arbitrary filesystem access.",
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-destroy",
     "dialog:allow-open",
     "opener:allow-open-url",
     "opener:allow-reveal-item-in-dir"

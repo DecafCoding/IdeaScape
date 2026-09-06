@@ -85,6 +85,7 @@
             <button
               type="button"
               class="refetch"
+              data-owns-press
               onclick={(event) => {
                 event.stopPropagation();
                 onRefetch?.();
