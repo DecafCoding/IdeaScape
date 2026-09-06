@@ -2,13 +2,12 @@
 //! zoom so it is restored the next time the canvas opens.
 
 use crate::assets;
-use crate::commands::item::{asset_names, insert_item};
-use crate::commands::placement::delete_placements_tx;
+use crate::commands::item::{asset_names, find_item, insert_item_with_id};
+use crate::commands::placement::{delete_placements_tx, insert_placement_with_id};
 use crate::commands::project::AppState;
 use crate::db::connection::now_iso8601;
 use crate::db::models::{row_to_canvas, row_to_placement, Canvas, CanvasDeleteEffect, Placement};
 use crate::error::{AppError, AppResult};
-use std::collections::HashMap;
 
 /// Every canvas in the project, in the order the left column shows them.
 pub fn list_canvases_for(state: &AppState, project_id: i64) -> AppResult<Vec<Canvas>> {
@@ -141,10 +140,14 @@ pub fn delete_canvas_for(state: &AppState, canvas_id: i64) -> AppResult<CanvasDe
 
 /// Put a deleted canvas back — the row, its cards, its lines and its asset files together.
 ///
-/// Nothing keeps its old primary key. The connections are re-pointed by building an
-/// old-placement-id → new-placement-id map as the placements go in, in the order they
-/// arrive. A line whose endpoint is not in the map is skipped rather than failing the whole
-/// restore: a partly restored canvas is better than none.
+/// Every row goes back under its own primary key. Ids are `AUTOINCREMENT` and never
+/// re-issued, so a deleted id is always free, and keeping it is what leaves the rest of the
+/// undo stack valid: a move or an edit recorded against a card on this canvas still names a
+/// row that exists once the canvas is back (`undo-model`). An item that kept a placement
+/// elsewhere was never deleted, so its live row is reused rather than inserted twice.
+///
+/// It also restores a canvas the user has only *created* — `create_canvas`'s undo — where the
+/// effect carries the canvas row and nothing else.
 pub fn restore_canvas_for(state: &AppState, effect: CanvasDeleteEffect) -> AppResult<Canvas> {
     // Untrash before the rows go in, so a card is never on a canvas pointing at a file that
     // is still in the trash. Folder guard taken and dropped before `with_db`.
@@ -159,70 +162,74 @@ pub fn restore_canvas_for(state: &AppState, effect: CanvasDeleteEffect) -> AppRe
     state.with_db(|conn| {
         let tx = conn.transaction()?;
 
-        tx.execute(
-            "INSERT INTO canvas (project_id, name, sort_order, view_x, view_y, view_zoom,
-                                 created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            rusqlite::params![
-                effect.canvas.project_id,
-                effect.canvas.name,
-                effect.canvas.sort_order,
-                effect.canvas.view_x,
-                effect.canvas.view_y,
-                effect.canvas.view_zoom,
-                effect.canvas.created_at,
-                now_iso8601(),
-            ],
-        )?;
-        let canvas_id = tx.last_insert_rowid();
-
-        // An item that kept another placement elsewhere was never deleted, so it is not in
-        // the effect: its old id is still live and is reused as-is.
-        let mut item_ids: HashMap<i64, i64> = HashMap::new();
-        for item in &effect.items {
-            let fresh = insert_item(&tx, item.project_id, &item.kind, &item.payload)?;
-            item_ids.insert(item.id, fresh.id);
-        }
-
-        let mut placement_ids: HashMap<i64, i64> = HashMap::new();
-        for placement in &effect.placements {
-            let item_id = item_ids
-                .get(&placement.item_id)
-                .copied()
-                .unwrap_or(placement.item_id);
+        let canvas_id = effect.canvas.id;
+        // A canvas the user restores twice in a row (undo, redo, undo) is already there.
+        let live: Option<Canvas> = tx
+            .query_row(
+                "SELECT * FROM canvas WHERE id = ?1",
+                [canvas_id],
+                row_to_canvas,
+            )
+            .ok();
+        if live.is_none() {
             tx.execute(
-                "INSERT INTO placement (canvas_id, item_id, x, y, width, height, z_order)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO canvas (id, project_id, name, sort_order, view_x, view_y, view_zoom,
+                                     created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 rusqlite::params![
                     canvas_id,
-                    item_id,
-                    placement.x,
-                    placement.y,
-                    placement.width,
-                    placement.height,
-                    placement.z_order,
+                    effect.canvas.project_id,
+                    effect.canvas.name,
+                    effect.canvas.sort_order,
+                    effect.canvas.view_x,
+                    effect.canvas.view_y,
+                    effect.canvas.view_zoom,
+                    effect.canvas.created_at,
+                    now_iso8601(),
                 ],
             )?;
-            placement_ids.insert(placement.id, tx.last_insert_rowid());
+        }
+
+        for item in &effect.items {
+            if find_item(&tx, item.id)?.is_some() {
+                continue;
+            }
+            insert_item_with_id(
+                &tx,
+                Some(item.id),
+                item.project_id,
+                &item.kind,
+                &item.payload,
+            )?;
+        }
+
+        for placement in &effect.placements {
+            insert_placement_with_id(
+                &tx,
+                Some(placement.id),
+                canvas_id,
+                placement.item_id,
+                placement.x,
+                placement.y,
+                placement.width,
+                placement.height,
+                Some(placement.z_order),
+            )?;
         }
 
         for connection in &effect.connections {
-            let (Some(from), Some(to)) = (
-                placement_ids.get(&connection.from_placement_id).copied(),
-                placement_ids.get(&connection.to_placement_id).copied(),
-            ) else {
-                log::warn!(
-                    "a restored line was skipped: one of its cards is not in the effect ({} → {})",
-                    connection.from_placement_id,
-                    connection.to_placement_id
-                );
-                continue;
-            };
             tx.execute(
-                "INSERT INTO connection (canvas_id, from_placement_id, to_placement_id, label,
+                "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id, label,
                                          directed)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![canvas_id, from, to, connection.label, connection.directed],
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![
+                    connection.id,
+                    canvas_id,
+                    connection.from_placement_id,
+                    connection.to_placement_id,
+                    connection.label,
+                    connection.directed
+                ],
             )?;
         }
 
@@ -447,7 +454,10 @@ mod tests {
 
         assert_eq!(restored.name, "Second");
         assert_eq!(restored.sort_order, effect.canvas.sort_order);
-        assert_ne!(restored.id, second, "a restored canvas takes a new id");
+        assert_eq!(
+            restored.id, second,
+            "a restored canvas keeps the id it had, so the rest of the undo stack stays valid"
+        );
 
         let placements = placements_on(&state, restored.id).unwrap();
         assert_eq!(placements.len(), 2);
@@ -461,13 +471,13 @@ mod tests {
     }
 
     #[test]
-    fn restore_canvas_remaps_connection_endpoints_to_the_new_placement_ids() {
+    fn restore_canvas_puts_every_row_back_under_the_id_it_had() {
         let dir = tempfile::tempdir().unwrap();
         let state = AppState::default();
         let (_first, second) = project_with_two_canvases(&state, dir.path());
         let effect = delete_canvas_for(&state, second).unwrap();
-        let old_from = effect.connections[0].from_placement_id;
-        let old_to = effect.connections[0].to_placement_id;
+        let old_line = effect.connections[0].clone();
+        let old_placements: Vec<i64> = effect.placements.iter().map(|p| p.id).collect();
 
         let restored = restore_canvas_for(&state, effect).unwrap();
 
@@ -475,14 +485,37 @@ mod tests {
         let ids: Vec<i64> = placements.iter().map(|p| p.id).collect();
         let line = &connection::list_connections_for(&state, restored.id).unwrap()[0];
 
-        assert!(
-            ids.contains(&line.from_placement_id),
-            "endpoint must be a new placement"
-        );
-        assert!(ids.contains(&line.to_placement_id));
-        assert_ne!(line.from_placement_id, old_from);
-        assert_ne!(line.to_placement_id, old_to);
+        for id in &old_placements {
+            assert!(ids.contains(id), "placement {id} must come back as itself");
+        }
+        assert_eq!(line.id, old_line.id);
+        assert_eq!(line.from_placement_id, old_line.from_placement_id);
+        assert_eq!(line.to_placement_id, old_line.to_placement_id);
         assert_eq!(line.canvas_id, restored.id);
+    }
+
+    /// The bug this rule exists for: one delete, undone and redone twice. Every round has to
+    /// name rows that exist, which it only can while the ids stay put.
+    #[test]
+    fn restore_canvas_undone_and_redone_twice_keeps_naming_live_rows() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let (_first, second) = project_with_two_canvases(&state, dir.path());
+
+        let effect = delete_canvas_for(&state, second).unwrap();
+        for _ in 0..2 {
+            let restored = restore_canvas_for(&state, effect.clone()).expect("restore");
+            assert_eq!(restored.id, second);
+            assert_eq!(placements_on(&state, second).unwrap().len(), 2);
+            assert_eq!(
+                connection::list_connections_for(&state, second)
+                    .unwrap()
+                    .len(),
+                1
+            );
+            let again = delete_canvas_for(&state, second).expect("delete again");
+            assert_eq!(again.placements.len(), 2);
+        }
     }
 
     #[test]

@@ -3,7 +3,9 @@
 
 use crate::assets;
 use crate::commands::connection::connections_touching;
-use crate::commands::item::{asset_names, insert_item, reference_count};
+use crate::commands::item::{
+    asset_names, find_item, insert_item, insert_item_with_id, reference_count,
+};
 use crate::commands::project::AppState;
 #[cfg(debug_assertions)]
 use crate::db::connection::now_iso8601;
@@ -62,13 +64,41 @@ pub fn insert_placement(
     width: f64,
     height: f64,
 ) -> AppResult<Placement> {
-    let z = next_z_order(conn, canvas_id)?;
-    conn.execute(
-        "INSERT INTO placement (canvas_id, item_id, x, y, width, height, z_order)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        rusqlite::params![canvas_id, item_id, x, y, width, height, z],
-    )?;
-    let id = conn.last_insert_rowid();
+    insert_placement_with_id(conn, None, canvas_id, item_id, x, y, width, height, None)
+}
+
+/// Insert a placement, optionally keeping the id it had before it was deleted and the stack
+/// position it held. See `restore_card_for` for why an undo puts the old id back.
+/// `z_order` of `None` means "on top", which is what a brand-new card wants.
+#[allow(clippy::too_many_arguments)]
+pub fn insert_placement_with_id(
+    conn: &Connection,
+    id: Option<i64>,
+    canvas_id: i64,
+    item_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    z_order: Option<i64>,
+) -> AppResult<Placement> {
+    let z = match z_order {
+        Some(z) => z,
+        None => next_z_order(conn, canvas_id)?,
+    };
+    match id {
+        Some(id) => conn.execute(
+            "INSERT INTO placement (id, canvas_id, item_id, x, y, width, height, z_order)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![id, canvas_id, item_id, x, y, width, height, z],
+        )?,
+        None => conn.execute(
+            "INSERT INTO placement (canvas_id, item_id, x, y, width, height, z_order)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![canvas_id, item_id, x, y, width, height, z],
+        )?,
+    };
+    let id = id.unwrap_or_else(|| conn.last_insert_rowid());
     Ok(conn.query_row(
         "SELECT * FROM placement WHERE id = ?1",
         [id],
@@ -179,12 +209,23 @@ fn create_card_for(
 
 /// Re-create a card that was deleted, keeping its geometry and its place in the stack.
 /// This is the write half of undoing a delete: the row genuinely goes back on disk, rather
-/// than only back into the front end's memory. The new row takes a new id, which the undo
-/// command adopts.
+/// than only back into the front end's memory.
+///
+/// `placement_id` and `item_id` are the ids the card had before it was deleted. Passing them
+/// puts the row back under its own primary key, which is what keeps every *other* command on
+/// the undo stack valid — a move, an edit or a line recorded against the old id would
+/// otherwise name a row that no longer exists and fail the moment it was redone. Ids are
+/// `AUTOINCREMENT`, so a deleted id is never re-issued and cannot collide. An item id that is
+/// still live (the item kept a placement on another canvas) is reused rather than re-inserted.
+///
+/// Both are `None` when the caller wants a genuinely new card from an existing payload —
+/// duplicate and paste — which is the one case where a new id is the point.
 #[allow(clippy::too_many_arguments)]
 pub fn restore_card_for(
     state: &AppState,
     canvas_id: i64,
+    placement_id: Option<i64>,
+    item_id: Option<i64>,
     x: f64,
     y: f64,
     width: f64,
@@ -210,17 +251,24 @@ pub fn restore_card_for(
             [canvas_id],
             |r| r.get(0),
         )?;
-        let item = insert_item(&tx, project_id, &kind, &payload)?;
-        tx.execute(
-            "INSERT INTO placement (canvas_id, item_id, x, y, width, height, z_order)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            rusqlite::params![canvas_id, item.id, x, y, width, height, z_order],
-        )?;
-        let id = tx.last_insert_rowid();
-        let placement = tx.query_row(
-            "SELECT * FROM placement WHERE id = ?1",
-            [id],
-            row_to_placement,
+        let live = match item_id {
+            Some(id) => find_item(&tx, id)?,
+            None => None,
+        };
+        let item = match live {
+            Some(item) => item,
+            None => insert_item_with_id(&tx, item_id, project_id, &kind, &payload)?,
+        };
+        let placement = insert_placement_with_id(
+            &tx,
+            placement_id,
+            canvas_id,
+            item.id,
+            x,
+            y,
+            width,
+            height,
+            Some(z_order),
         )?;
         tx.commit()?;
         Ok(PlacementWithItem { placement, item })
@@ -406,6 +454,8 @@ pub fn create_video_card(
 pub fn restore_card(
     state: tauri::State<'_, AppState>,
     canvas_id: i64,
+    placement_id: Option<i64>,
+    item_id: Option<i64>,
     x: f64,
     y: f64,
     width: f64,
@@ -415,7 +465,17 @@ pub fn restore_card(
     payload: String,
 ) -> AppResult<PlacementWithItem> {
     restore_card_for(
-        &state, canvas_id, x, y, width, height, z_order, kind, payload,
+        &state,
+        canvas_id,
+        placement_id,
+        item_id,
+        x,
+        y,
+        width,
+        height,
+        z_order,
+        kind,
+        payload,
     )
 }
 
@@ -874,10 +934,12 @@ mod tests {
             .join(&first.name)
             .is_file());
 
-        // (e) restoring the card brings the file back, byte-identical.
+        // (e) restoring the card brings the file back, byte-identical, under its own ids.
         let restored = restore_card_for(
             &state,
             canvas_id,
+            Some(effect.placements[0].id),
+            Some(effect.items[0].id),
             0.0,
             0.0,
             320.0,
@@ -888,6 +950,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(restored.item.kind, "image");
+        assert_eq!(restored.placement.id, effect.placements[0].id);
+        assert_eq!(restored.item.id, effect.items[0].id);
         assert!(assets::status(&folder, &first.name).exists);
         let back = std::fs::read(assets::assets_dir(&folder).join(&first.name)).unwrap();
         assert_eq!(back, bytes, "the restored file must be byte-identical");

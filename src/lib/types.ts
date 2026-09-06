@@ -122,7 +122,7 @@ export interface DeleteEffect {
 /**
  * Everything a canvas delete removed, so one undo command restores the canvas, its cards,
  * its lines and its asset files together. `restore_canvas` takes this whole structure back
- * and mints new ids for every row, so nothing may assume an id survived.
+ * and puts every row back under the id it had, which keeps the rest of the undo stack valid.
  */
 export interface CanvasDeleteEffect {
   canvas: Canvas;

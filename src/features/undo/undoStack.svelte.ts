@@ -32,7 +32,12 @@ class UndoStack {
     if (this.#redo.length > 0) this.#redo = [];
   }
 
-  /** Undoing an empty stack is a safe no-op. */
+  /**
+   * Undoing an empty stack is a safe no-op. A step that fails stays where it is — the state
+   * it describes was not reversed, so dropping it would lose the only record of it — and the
+   * error is re-thrown so the shell draws it. Swallowing it made a stuck stack look like a
+   * dead button.
+   */
   async undo(): Promise<void> {
     const command = this.#undo.at(-1);
     if (!command) return;
@@ -40,7 +45,7 @@ class UndoStack {
       await command.undo();
     } catch (error) {
       logError('an undo step failed', error);
-      return;
+      throw error;
     }
     this.#undo = this.#undo.slice(0, -1);
     this.#redo = [...this.#redo, command];
@@ -53,7 +58,7 @@ class UndoStack {
       await command.redo();
     } catch (error) {
       logError('a redo step failed', error);
-      return;
+      throw error;
     }
     this.#redo = this.#redo.slice(0, -1);
     this.#undo = [...this.#undo, command];

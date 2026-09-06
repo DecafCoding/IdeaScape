@@ -97,6 +97,44 @@ pub fn create_connection_for(
     })
 }
 
+/// Put a deleted line back under its own id, so an `edit_connection` still on the undo stack
+/// keeps naming a row that exists. Ids are `AUTOINCREMENT` and never re-issued, so the old id
+/// is always free; a row that is somehow already there is returned rather than re-inserted.
+/// The duplicate-pair rule is not re-tested here — the id is the identity of a restore, and a
+/// line that existed once was already legal.
+pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppResult<Connection> {
+    state.with_db(|conn| {
+        let existing = conn
+            .query_row(
+                "SELECT * FROM connection WHERE id = ?1",
+                [connection.id],
+                row_to_connection,
+            )
+            .ok();
+        if let Some(existing) = existing {
+            return Ok(existing);
+        }
+        conn.execute(
+            "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id, label,
+                                     directed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                connection.id,
+                connection.canvas_id,
+                connection.from_placement_id,
+                connection.to_placement_id,
+                connection.label,
+                connection.directed
+            ],
+        )?;
+        Ok(conn.query_row(
+            "SELECT * FROM connection WHERE id = ?1",
+            [connection.id],
+            row_to_connection,
+        )?)
+    })
+}
+
 /// Change a connection's label and arrow direction. Both are always sent together, because
 /// the properties panel holds both and a partial update would need a second command.
 pub fn update_connection_for(
@@ -170,6 +208,14 @@ pub fn create_connection(
         label,
         directed,
     )
+}
+
+#[tauri::command]
+pub fn restore_connection(
+    state: tauri::State<'_, AppState>,
+    connection: Connection,
+) -> AppResult<Connection> {
+    restore_connection_for(&state, connection)
 }
 
 #[tauri::command]
@@ -323,10 +369,13 @@ mod tests {
         assert_eq!(effect.connections.len(), 2);
         assert_eq!(list_connections_for(&state, canvas_id).unwrap().len(), 1);
 
-        // Step 8: undo — the card comes back under a NEW id and the lines are re-pointed.
+        // Step 8: undo — the card and both lines come back under the ids they had, which is
+        // what leaves the rest of the undo stack naming rows that exist.
         let restored = restore_card_for(
             &state,
             canvas_id,
+            Some(effect.placements[0].id),
+            Some(effect.items[0].id),
             400.0,
             0.0,
             236.0,
@@ -337,23 +386,12 @@ mod tests {
         )
         .unwrap();
         let new_id = restored.placement.id;
-        assert_ne!(
+        assert_eq!(
             new_id, cards[1],
-            "restore_card must mint a new placement id"
+            "restore_card must put the card back under its own id"
         );
         for old in &effect.connections {
-            let from = if old.from_placement_id == cards[1] {
-                new_id
-            } else {
-                old.from_placement_id
-            };
-            let to = if old.to_placement_id == cards[1] {
-                new_id
-            } else {
-                old.to_placement_id
-            };
-            create_connection_for(&state, canvas_id, from, to, old.label.clone(), old.directed)
-                .unwrap();
+            restore_connection_for(&state, old.clone()).unwrap();
         }
         let rows = list_connections_for(&state, canvas_id).unwrap();
         assert_eq!(rows.len(), 3);
@@ -373,6 +411,10 @@ mod tests {
         assert!(rows
             .iter()
             .any(|r| r.from_placement_id == new_id || r.to_placement_id == new_id));
+        // Every restored line kept its own id too.
+        for old in &effect.connections {
+            assert!(rows.iter().any(|r| r.id == old.id));
+        }
 
         // Step 12: delete a line on its own — it goes, the cards stay.
         let removed = delete_connections_for(&state, vec![rows[0].id]).unwrap();

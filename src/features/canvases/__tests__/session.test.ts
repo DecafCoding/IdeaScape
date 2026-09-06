@@ -187,25 +187,19 @@ function backend() {
         return Promise.resolve(effect);
       }
       case 'restore_canvas': {
-        // Rust mints new ids for everything; the front end adopts what comes back.
+        // Rust puts every row back under the id it had, so the rest of the undo stack keeps
+        // naming rows that exist. Ids are AUTOINCREMENT and never re-issued.
         const effect = args?.effect as CanvasDeleteEffect;
-        const canvas = makeCanvas(effect.canvas.name, effect.canvas.sort_order);
-        const remap = new Map<number, number>();
+        const canvas = { ...effect.canvas };
+        if (!db.canvases.some((c) => c.id === canvas.id)) {
+          db.canvases.push(canvas);
+          db.views.set(canvas.id, { x: canvas.view_x, y: canvas.view_y, zoom: canvas.view_zoom });
+        }
         for (const placement of effect.placements) {
           const item = effect.items.find((i) => i.id === placement.item_id)!;
-          const card = makeNote(canvas.id, JSON.parse(item.payload).title);
-          remap.set(placement.id, card.placement.id);
+          db.placements.set(placement.id, { placement, item });
         }
-        for (const line of effect.connections) {
-          const id = db.nextId++;
-          db.connections.set(id, {
-            ...line,
-            id,
-            canvas_id: canvas.id,
-            from_placement_id: remap.get(line.from_placement_id)!,
-            to_placement_id: remap.get(line.to_placement_id)!,
-          });
-        }
+        for (const line of effect.connections) db.connections.set(line.id, line);
         return Promise.resolve(canvas);
       }
       case 'list_placements':
@@ -371,14 +365,28 @@ describe('the canvas lifecycle', () => {
 
     const restored = canvasStore.canvases.find((c) => c.name === 'Hull studies')!;
     expect(restored).toBeDefined();
+    // The canvas came back under the id it had, not a new one.
+    expect(restored.id).toBe(second);
     await waitFor(() => expect(canvasStore.activeCanvasId).toBe(restored.id));
     expect(canvasStore.cardCount).toBe(2);
     expect(canvasStore.connections.size).toBe(1);
-    // Everything came back with new ids, and the line joins the restored cards.
+    // The line joins the restored cards, and both endpoints kept their ids.
     const line = [...canvasStore.connections.values()][0];
     const ids = [...canvasStore.placements.keys()];
     expect(ids).toContain(line.from_placement_id);
     expect(ids).toContain(line.to_placement_id);
+    expect(line.from_placement_id).toBe(noteA.placement.id);
+    expect(line.to_placement_id).toBe(noteB.placement.id);
+
+    // Redo the delete and undo it once more: the ids did not drift, so the second round
+    // still names live rows. This is what used to break after one redo.
+    await undoStack.redo();
+    await waitFor(() => expect(canvasStore.canvases).toHaveLength(1));
+    await undoStack.undo();
+    await waitFor(() => expect(canvasStore.canvases).toHaveLength(2));
+    expect(canvasStore.canvases.find((c) => c.name === 'Hull studies')!.id).toBe(second);
+    expect(canvasStore.cardCount).toBe(2);
+    expect(canvasStore.connections.size).toBe(1);
   });
 });
 

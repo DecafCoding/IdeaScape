@@ -100,15 +100,47 @@ pub fn insert_item(
     kind: &str,
     payload: &str,
 ) -> AppResult<Item> {
+    insert_item_with_id(conn, None, project_id, kind, payload)
+}
+
+/// Insert an item, optionally keeping the primary key it had before it was deleted.
+///
+/// Undo restores a row under its original id (`undo-model`): every id column is
+/// `AUTOINCREMENT`, so a deleted id is never handed out again and re-using it can never
+/// collide. Keeping the id is what lets the *other* commands still on the undo stack — a
+/// move, an edit, a line — keep naming rows that exist after a restore.
+pub fn insert_item_with_id(
+    conn: &Connection,
+    id: Option<i64>,
+    project_id: i64,
+    kind: &str,
+    payload: &str,
+) -> AppResult<Item> {
     validate_payload(kind, payload)?;
     let now = now_iso8601();
-    conn.execute(
-        "INSERT INTO item (project_id, kind, payload, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?4)",
-        rusqlite::params![project_id, kind, payload, now],
-    )?;
-    let id = conn.last_insert_rowid();
+    match id {
+        Some(id) => conn.execute(
+            "INSERT INTO item (id, project_id, kind, payload, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+            rusqlite::params![id, project_id, kind, payload, now],
+        )?,
+        None => conn.execute(
+            "INSERT INTO item (project_id, kind, payload, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)",
+            rusqlite::params![project_id, kind, payload, now],
+        )?,
+    };
+    let id = id.unwrap_or_else(|| conn.last_insert_rowid());
     Ok(conn.query_row("SELECT * FROM item WHERE id = ?1", [id], row_to_item)?)
+}
+
+/// The item row with this id, when it is still there. A restore reuses a live item rather
+/// than inserting a second copy: an item kept by a placement on another canvas was never
+/// deleted, so its id is still in use.
+pub fn find_item(conn: &Connection, id: i64) -> AppResult<Option<Item>> {
+    Ok(conn
+        .query_row("SELECT * FROM item WHERE id = ?1", [id], row_to_item)
+        .ok())
 }
 
 #[tauri::command]

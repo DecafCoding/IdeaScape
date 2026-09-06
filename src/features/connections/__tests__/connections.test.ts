@@ -108,10 +108,51 @@ describe('the pending link', () => {
     expect(canvasStore.pendingLink).toBeNull();
   });
 
-  it('completeLink_theSourceCard_createsNothing', async () => {
+  it('completeLink_theSourceCard_createsNothingAndKeepsTheLinkArmed', async () => {
     beginLink(1, { x: 50, y: 50 });
+    // Press and release on the source card with no travel is a click, not a drag. Dropping
+    // the link here is what made the Connect tool look dead.
     expect(await completeLink(1)).toBeNull();
     expect(invokeSafe).not.toHaveBeenCalled();
+    expect(canvasStore.pendingLink).toEqual({ fromPlacementId: 1, pointer: { x: 50, y: 50 } });
+  });
+
+  it('beginLink_whileALinkIsArmed_doesNotMoveTheSource', () => {
+    beginLink(1, { x: 50, y: 50 });
+    void completeLink(1);
+    // The press on the second card runs through beginLink too under the Connect tool.
+    beginLink(2, { x: 300, y: 50 });
+    expect(canvasStore.pendingLink?.fromPlacementId).toBe(1);
+  });
+
+  it('clickThenClick_armsOnTheFirstCardAndFinishesOnTheSecond', async () => {
+    invokeSafe.mockResolvedValue(connection());
+
+    // Click the first card: press, release, no travel.
+    beginLink(1, { x: 50, y: 50 });
+    await completeLink(1);
+    expect(canvasStore.pendingLink).not.toBeNull();
+
+    // Move over the second card and click it.
+    trackLink({ x: 300, y: 50 });
+    beginLink(2, { x: 300, y: 50 });
+    const created = await completeLink(2);
+
+    expect(created?.id).toBe(7);
+    expect(canvasStore.pendingLink).toBeNull();
+    expect(invokeSafe).toHaveBeenCalledWith('create_connection', {
+      canvasId: 1,
+      fromPlacementId: 1,
+      toPlacementId: 2,
+      label: null,
+      directed: 1,
+    });
+  });
+
+  it('completeLink_emptySpaceWhileArmed_cancelsSoTheLineIsNotSticky', async () => {
+    beginLink(1, { x: 50, y: 50 });
+    await completeLink(1);
+    expect(await completeLink(null)).toBeNull();
     expect(canvasStore.pendingLink).toBeNull();
   });
 
@@ -153,6 +194,42 @@ describe('the connection overlay', () => {
   function draw() {
     return render(ConnectionLayer, { props: { onSelect: () => {} } });
   }
+
+  /**
+   * The whole layer was invisible in the real app: `.world` holds nothing but absolutely
+   * positioned children, so its box is 0 x 0, and the svg's `width: 100%` of that was a
+   * 0 x 0 viewport — which a browser does not render at all. Cards and label chips are
+   * ordinary HTML and paint outside a zero-size box, so only the lines went missing.
+   */
+  it('overlay_theRootSvg_isSizedInWorldPixelsNotPercentages', () => {
+    const { getByTestId } = draw();
+    const svg = getByTestId('connection-layer');
+    const style = svg.getAttribute('style') ?? '';
+
+    expect(style).not.toContain('%');
+    const width = Number(/width:\s*([\d.-]+)px/.exec(style)?.[1]);
+    const height = Number(/height:\s*([\d.-]+)px/.exec(style)?.[1]);
+    expect(width).toBeGreaterThan(0);
+    expect(height).toBeGreaterThan(0);
+
+    // The viewBox repeats the same rectangle, so a path is still written in world units.
+    const [vx, vy, vw, vh] = (svg.getAttribute('viewBox') ?? '').split(' ').map(Number);
+    expect(vw).toBe(width);
+    expect(vh).toBe(height);
+    expect(/left:\s*([\d.-]+)px/.exec(style)?.[1]).toBe(String(vx));
+    expect(/top:\s*([\d.-]+)px/.exec(style)?.[1]).toBe(String(vy));
+  });
+
+  it('overlay_theRootSvgBox_coversTheViewportAndTheCullMargin', () => {
+    // Every line the cull keeps is inside this rectangle, because the cull tests the same one.
+    canvasStore.setView({ x: 0, y: 0, zoom: 1 });
+    const { getByTestId } = draw();
+    const style = getByTestId('connection-layer').getAttribute('style') ?? '';
+    // 800 x 600 viewport plus a 200 px cull margin on each side.
+    expect(/width:\s*([\d.-]+)px/.exec(style)?.[1]).toBe('1200');
+    expect(/height:\s*([\d.-]+)px/.exec(style)?.[1]).toBe('1000');
+    expect(/left:\s*([\d.-]+)px/.exec(style)?.[1]).toBe('-200');
+  });
 
   it('overlay_oneConnection_drawsExactlyOneArrowedStroke', () => {
     const { container } = draw();

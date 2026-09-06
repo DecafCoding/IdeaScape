@@ -45,17 +45,16 @@ async function writePlacements(updates: PlacementUpdate[]): Promise<void> {
 }
 
 /**
- * Re-create a set of cards from the rows a delete removed, and adopt the new ids.
+ * Re-create a set of cards from the rows a delete removed.
  *
- * `restore_card` mints a *new* placement id, so a connection restored against the old id
- * would either fail the foreign key or attach to the wrong card. The old-id → new-id map
- * built here is what keeps the lines pointing at the cards they were drawn between. A
- * connection whose endpoint card stayed deleted is skipped rather than re-created against
- * a dead id.
+ * Every row goes back under the id it had. Ids are `AUTOINCREMENT` in SQLite and are never
+ * handed out twice, so an id a delete freed is always still free — and keeping it is what
+ * leaves the *other* commands on the stack valid. A move, an edit or a line recorded against
+ * placement 5 still names placement 5 after the restore; minting a new id there is what used
+ * to make the second redo fail and freeze the whole redo stack.
  *
- * It returns the rows it actually created, because every id in them is new: a caller that
- * kept the original effect and redid the delete against it would be naming rows that no
- * longer exist, and the redo would silently do nothing.
+ * A connection whose endpoint card is not on the canvas is skipped rather than restored
+ * against a card that is not there.
  */
 async function restoreCards(
   placements: Placement[],
@@ -63,7 +62,6 @@ async function restoreCards(
   connections: Connection[] = [],
 ): Promise<DeleteEffect> {
   const itemById = new Map(items.map((i) => [i.id, i]));
-  const idMap = new Map<number, number>();
   const restoredEffect: DeleteEffect = { placements: [], items: [], connections: [], assets: [] };
   const restoredAssetNames: string[] = [];
 
@@ -72,6 +70,8 @@ async function restoreCards(
     if (!item) continue;
     const restored = await invokeSafe<PlacementWithItem>('restore_card', {
       canvasId: placement.canvas_id,
+      placementId: placement.id,
+      itemId: item.id,
       x: placement.x,
       y: placement.y,
       width: placement.width,
@@ -81,7 +81,6 @@ async function restoreCards(
       payload: item.payload,
     });
     canvasStore.upsertCard(restored);
-    idMap.set(placement.id, restored.placement.id);
     restoredEffect.placements.push(restored.placement);
     restoredEffect.items.push(restored.item);
     restoredAssetNames.push(...payloadAssetNames(restored.item.kind, restored.item.payload));
@@ -100,16 +99,10 @@ async function restoreCards(
   }
 
   for (const connection of connections) {
-    const from = resolveEndpoint(connection.from_placement_id, idMap);
-    const to = resolveEndpoint(connection.to_placement_id, idMap);
-    if (from === null || to === null) continue;
-    const restored = await invokeSafe<Connection>('create_connection', {
-      canvasId: connection.canvas_id,
-      fromPlacementId: from,
-      toPlacementId: to,
-      label: connection.label,
-      directed: connection.directed,
-    });
+    // An endpoint whose card stayed deleted would fail the foreign key; skip that line.
+    if (!canvasStore.placements.has(connection.from_placement_id)) continue;
+    if (!canvasStore.placements.has(connection.to_placement_id)) continue;
+    const restored = await invokeSafe<Connection>('restore_connection', { connection });
     canvasStore.upsertConnection(restored);
     restoredEffect.connections.push(restored);
   }
@@ -117,35 +110,28 @@ async function restoreCards(
   return restoredEffect;
 }
 
-/** The live placement id for an endpoint: the one just restored, or one still on the canvas. */
-function resolveEndpoint(oldId: number, idMap: Map<number, number>): number | null {
-  const remapped = idMap.get(oldId);
-  if (remapped !== undefined) return remapped;
-  return canvasStore.placements.has(oldId) ? oldId : null;
-}
-
-/** Creating one card. Undo deletes it; redo puts it back. */
+/** Creating one card. Undo deletes it; redo puts it back under the same ids. */
 export function createCardCommand(card: PlacementWithItem): UndoableCommand {
-  let current = card;
   return {
     label: 'New Note',
     async undo() {
-      await invokeSafe<DeleteEffect>('delete_placements', { ids: [current.placement.id] });
-      canvasStore.removePlacement(current.placement.id);
-      canvasStore.removeItem(current.item.id);
+      await invokeSafe<DeleteEffect>('delete_placements', { ids: [card.placement.id] });
+      canvasStore.removePlacement(card.placement.id);
+      canvasStore.removeItem(card.item.id);
     },
     async redo() {
       const restored = await invokeSafe<PlacementWithItem>('restore_card', {
-        canvasId: current.placement.canvas_id,
-        x: current.placement.x,
-        y: current.placement.y,
-        width: current.placement.width,
-        height: current.placement.height,
-        zOrder: current.placement.z_order,
-        kind: current.item.kind,
-        payload: current.item.payload,
+        canvasId: card.placement.canvas_id,
+        placementId: card.placement.id,
+        itemId: card.item.id,
+        x: card.placement.x,
+        y: card.placement.y,
+        width: card.placement.width,
+        height: card.placement.height,
+        zOrder: card.placement.z_order,
+        kind: card.item.kind,
+        payload: card.item.payload,
       });
-      current = restored;
       canvasStore.upsertCard(restored);
     },
   };
@@ -159,20 +145,20 @@ export function createCardCommand(card: PlacementWithItem): UndoableCommand {
  * carries bytes.
  */
 export function deleteCardsCommand(effect: DeleteEffect): UndoableCommand {
-  let current = effect;
   return {
-    label: current.placements.length > 1 ? 'Delete Cards' : 'Delete Card',
+    label: effect.placements.length > 1 ? 'Delete Cards' : 'Delete Card',
     async undo() {
-      // Adopt the restored rows: every id in them is new, and the next redo must delete
-      // the placements that now exist rather than the ones it originally removed.
-      current = await restoreCards(current.placements, current.items, current.connections);
+      await restoreCards(effect.placements, effect.items, effect.connections);
     },
     async redo() {
-      const ids = current.placements.map((p) => p.id);
-      current = await invokeSafe<DeleteEffect>('delete_placements', { ids });
-      for (const p of current.placements) canvasStore.removePlacement(p.id);
-      for (const i of current.items) canvasStore.removeItem(i.id);
-      for (const c of current.connections) canvasStore.removeConnection(c.id);
+      // `effect` still names live rows however many times this command is undone and redone,
+      // because a restore puts every id back. What the delete *reports* is still what leaves
+      // the store: the cascade decides which lines and orphaned items actually went.
+      const ids = effect.placements.map((p) => p.id);
+      const removed = await invokeSafe<DeleteEffect>('delete_placements', { ids });
+      for (const p of removed.placements) canvasStore.removePlacement(p.id);
+      for (const i of removed.items) canvasStore.removeItem(i.id);
+      for (const c of removed.connections) canvasStore.removeConnection(c.id);
     },
   };
 }
@@ -217,24 +203,24 @@ export function editItemCommand(
   };
 }
 
-/** Duplicating a selection. Undo removes the copies; redo re-creates them. */
+/** Duplicating a selection. Undo removes the copies; redo puts them back under the same ids. */
 export function duplicateCommand(copies: PlacementWithItem[]): UndoableCommand {
-  let current = copies;
   return {
     label: copies.length > 1 ? 'Duplicate Cards' : 'Duplicate Card',
     async undo() {
-      const ids = current.map((c) => c.placement.id);
+      const ids = copies.map((c) => c.placement.id);
       await invokeSafe<DeleteEffect>('delete_placements', { ids });
-      for (const c of current) {
+      for (const c of copies) {
         canvasStore.removePlacement(c.placement.id);
         canvasStore.removeItem(c.item.id);
       }
     },
     async redo() {
-      const restored: PlacementWithItem[] = [];
-      for (const c of current) {
+      for (const c of copies) {
         const card = await invokeSafe<PlacementWithItem>('restore_card', {
           canvasId: c.placement.canvas_id,
+          placementId: c.placement.id,
+          itemId: c.item.id,
           x: c.placement.x,
           y: c.placement.y,
           width: c.placement.width,
@@ -244,33 +230,23 @@ export function duplicateCommand(copies: PlacementWithItem[]): UndoableCommand {
           payload: c.item.payload,
         });
         canvasStore.upsertCard(card);
-        restored.push(card);
       }
-      current = restored;
     },
   };
 }
 
 // --- connections --------------------------------------------------------
 
-/** Drawing one line. Undo deletes it; redo re-creates it and adopts the new id. */
+/** Drawing one line. Undo deletes it; redo re-creates it under the same id. */
 export function createConnectionCommand(connection: Connection): UndoableCommand {
-  let current = connection;
   return {
     label: 'Connect Cards',
     async undo() {
-      await invokeSafe<Connection[]>('delete_connections', { ids: [current.id] });
-      canvasStore.removeConnection(current.id);
+      await invokeSafe<Connection[]>('delete_connections', { ids: [connection.id] });
+      canvasStore.removeConnection(connection.id);
     },
     async redo() {
-      const restored = await invokeSafe<Connection>('create_connection', {
-        canvasId: current.canvas_id,
-        fromPlacementId: current.from_placement_id,
-        toPlacementId: current.to_placement_id,
-        label: current.label,
-        directed: current.directed,
-      });
-      current = restored;
+      const restored = await invokeSafe<Connection>('restore_connection', { connection });
       canvasStore.upsertConnection(restored);
     },
   };
@@ -278,29 +254,19 @@ export function createConnectionCommand(connection: Connection): UndoableCommand
 
 /** Deleting connections directly, rather than as a side effect of deleting a card. */
 export function deleteConnectionsCommand(removed: Connection[]): UndoableCommand {
-  let current = removed;
   return {
     label: 'Delete Connection',
     async undo() {
-      const restored: Connection[] = [];
-      for (const c of current) {
+      for (const connection of removed) {
         // An endpoint that has since gone would fail the foreign key; skip it instead.
-        if (!canvasStore.placements.has(c.from_placement_id)) continue;
-        if (!canvasStore.placements.has(c.to_placement_id)) continue;
-        const row = await invokeSafe<Connection>('create_connection', {
-          canvasId: c.canvas_id,
-          fromPlacementId: c.from_placement_id,
-          toPlacementId: c.to_placement_id,
-          label: c.label,
-          directed: c.directed,
-        });
+        if (!canvasStore.placements.has(connection.from_placement_id)) continue;
+        if (!canvasStore.placements.has(connection.to_placement_id)) continue;
+        const row = await invokeSafe<Connection>('restore_connection', { connection });
         canvasStore.upsertConnection(row);
-        restored.push(row);
       }
-      current = restored;
     },
     async redo() {
-      const ids = current.map((c) => c.id);
+      const ids = removed.map((c) => c.id);
       await invokeSafe<Connection[]>('delete_connections', { ids });
       for (const id of ids) canvasStore.removeConnection(id);
     },
@@ -353,23 +319,29 @@ export interface CanvasCommandHooks {
  * a canvas that still exists — the same rule the delete follows.
  */
 export function createCanvasCommand(canvas: Canvas, hooks: CanvasCommandHooks): UndoableCommand {
-  let current = canvas;
+  // An empty effect: the canvas was only ever created, so it holds no cards of its own.
+  const effect: CanvasDeleteEffect = {
+    canvas,
+    placements: [],
+    items: [],
+    connections: [],
+    assets: [],
+  };
   return {
     label: 'New Canvas',
     async undo() {
-      const sibling = canvasStore.canvases.find((c) => c.id !== current.id);
-      if (sibling && current.id === canvasStore.activeCanvasId) await hooks.activate(sibling.id);
-      await invokeSafe<CanvasDeleteEffect>('delete_canvas', { canvasId: current.id });
+      const sibling = canvasStore.canvases.find((c) => c.id !== canvas.id);
+      if (sibling && canvas.id === canvasStore.activeCanvasId) await hooks.activate(sibling.id);
+      await invokeSafe<CanvasDeleteEffect>('delete_canvas', { canvasId: canvas.id });
       await hooks.refresh();
     },
     async redo() {
-      // A new row, with a new id: nothing may assume the old one came back.
-      current = await invokeSafe<Canvas>('create_canvas', {
-        projectId: current.project_id,
-        name: current.name,
-      });
+      // `restore_canvas`, not `create_canvas`: the row has to come back under its own id, or
+      // a rename or a delete of this canvas further up the stack would name a row that has
+      // gone.
+      await invokeSafe<Canvas>('restore_canvas', { effect });
       await hooks.refresh();
-      await hooks.activate(current.id);
+      await hooks.activate(canvas.id);
     },
   };
 }
@@ -397,30 +369,22 @@ export function renameCanvasCommand(
  * so `Ctrl+Z` brings all of it back together and the restored lines join the cards they were
  * drawn between.
  *
- * The `let current = effect` re-adoption is mandatory: every id in a restored effect is new,
- * so a redo against the original effect would name rows that no longer exist.
+ * Every row is restored under its own id, so the effect stays true however many times this
+ * command is undone and redone.
  */
 export function deleteCanvasCommand(
   effect: CanvasDeleteEffect,
   hooks: CanvasCommandHooks,
 ): UndoableCommand {
-  let current = effect;
   return {
     label: 'Delete Canvas',
     async undo() {
-      const restored = await invokeSafe<Canvas>('restore_canvas', { effect: current });
+      await invokeSafe<Canvas>('restore_canvas', { effect });
       await hooks.refresh();
-      await hooks.activate(restored.id);
-      // Re-read the effect against the restored ids, so a following redo deletes what exists.
-      current = {
-        ...current,
-        canvas: restored,
-      };
+      await hooks.activate(effect.canvas.id);
     },
     async redo() {
-      current = await invokeSafe<CanvasDeleteEffect>('delete_canvas', {
-        canvasId: current.canvas.id,
-      });
+      await invokeSafe<CanvasDeleteEffect>('delete_canvas', { canvasId: effect.canvas.id });
       await hooks.refresh();
     },
   };
