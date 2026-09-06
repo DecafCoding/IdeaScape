@@ -107,13 +107,26 @@ describe('NoteEditor', () => {
     expect(onChange).toHaveBeenCalledWith({ title: 'T', text: '- one' });
   });
 
-  it('noteEditor_blurringTheTextBox_commits', async () => {
+  // Commit follows focus leaving the *editor*, not one field. The editor holds two boxes,
+  // and moving between them is not the user finishing.
+  it('noteEditor_focusLeavingTheEditor_commits', async () => {
     const onCommit = vi.fn();
     const { getByLabelText } = render(NoteEditor, {
       props: { title: 'T', text: '', onChange: () => {}, onCommit },
     });
-    await fireEvent.blur(getByLabelText('Note Text'));
+    await fireEvent.focusOut(getByLabelText('Note Text'), { relatedTarget: document.body });
     expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it('noteEditor_focusMovingFromTheBodyToTheTitle_doesNotCommit', async () => {
+    const onCommit = vi.fn();
+    const { getByLabelText } = render(NoteEditor, {
+      props: { title: 'T', text: '', onChange: () => {}, onCommit },
+    });
+    await fireEvent.focusOut(getByLabelText('Note Text'), {
+      relatedTarget: getByLabelText('Note Title'),
+    });
+    expect(onCommit).not.toHaveBeenCalled();
   });
 
   it('noteEditor_theTextBar_offersExactlyTheFourMarks', () => {

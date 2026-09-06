@@ -207,6 +207,35 @@ describe('the Settings screen in the shell', () => {
     expect(canvasStore.activeCanvasId).toBe(canvases[0].id);
   });
 
+  // The canvas rows stay visible on the Settings page, so clicking one has to mean "show me
+  // that canvas". The row for the canvas already active is the ordinary case — a project
+  // starts with exactly one — and it used to do nothing, leaving no pointer route back.
+  it('shell_clickTheActiveCanvasRowFromSettings_returnsToTheCanvas', async () => {
+    const view = await mountAndOpen();
+    await canvasStore.loadCanvas(canvases[0].id);
+    await fireEvent.click(view.getByTestId('settings-row'));
+    await waitFor(() => expect(view.getByTestId('settings-page')).toBeTruthy());
+
+    await fireEvent.click(view.getByText('Canvas 1'));
+
+    await waitFor(() => expect(view.queryByTestId('settings-page')).toBeNull());
+    expect(view.getByTestId('canvas-surface')).toBeTruthy();
+    expect(canvasStore.activeCanvasId).toBe(canvases[0].id);
+  });
+
+  it('shell_clickAnotherCanvasRowFromSettings_returnsToThatCanvas', async () => {
+    makeCanvas('Canvas 2');
+    const view = await mountAndOpen();
+    await canvasStore.loadCanvas(canvases[0].id);
+    await fireEvent.click(view.getByTestId('settings-row'));
+    await waitFor(() => expect(view.getByTestId('settings-page')).toBeTruthy());
+
+    await fireEvent.click(view.getByText('Canvas 2'));
+
+    await waitFor(() => expect(view.queryByTestId('settings-page')).toBeNull());
+    expect(canvasStore.activeCanvasId).toBe(canvases[1].id);
+  });
+
   it('shell_escapeOnSettings_returnsToTheCanvas', async () => {
     const view = await mountAndOpen();
     await fireEvent.click(view.getByTestId('settings-row'));

@@ -459,9 +459,11 @@
    * statuses and restores the canvas's saved view, so none of that is repeated here.
    */
   async function switchCanvas(canvasId: number) {
-    if (canvasId === canvasStore.activeCanvasId) return;
-    // The canvas the user is being moved to has to be the thing on screen.
+    // The canvas the user is being moved to has to be the thing on screen. This runs before
+    // the early return below: choosing the canvas already active is still a request to look
+    // at it, and from the Settings page it is the only way back with the pointer.
     settingsOpen = false;
+    if (canvasId === canvasStore.activeCanvasId) return;
     await flushPlacements(saveHooks);
     persistView.flush();
     undoStack.clear();
@@ -981,6 +983,16 @@
   }
 
   /** The Alt text group, committed on blur. */
+  /** The panel's Title group. Keeps the body untouched — only the heading changes. */
+  async function commitNoteTitle(title: string) {
+    const item = selectedItem();
+    if (!item || item.kind !== 'note') return;
+    await guard(async () => {
+      const payload = parseNotePayload(item.payload);
+      await writeItemPayload(item, JSON.stringify({ ...payload, title }));
+    });
+  }
+
   async function commitAltText(alt: string) {
     const item = selectedItem();
     if (!item || item.kind !== 'image') return;
@@ -1460,6 +1472,7 @@
           onConnectionChange={(label, directed) => void changeConnection(label, directed)}
           onDeleteConnection={() => void deleteSelectedConnection()}
           onAltTextChange={(alt) => void commitAltText(alt)}
+          onNoteTitleChange={(title) => void commitNoteTitle(title)}
           onReplaceImage={() => void replaceImage()}
           onShowInFolder={() => void showAssetsFolder()}
           onRefetch={() => {

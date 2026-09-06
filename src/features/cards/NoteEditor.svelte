@@ -20,6 +20,20 @@
 
   let textarea: HTMLTextAreaElement | null = $state(null);
 
+  /**
+   * Commit when focus leaves the editor as a whole, not when it leaves one field. A blur
+   * handler on the body alone closed the editor the moment the title box was clicked, so
+   * the title could never be reached — `relatedTarget` is the element focus is moving to,
+   * and a move to a sibling field inside the editor is not the user finishing.
+   */
+  function onFocusOut(event: FocusEvent) {
+    const next = event.relatedTarget;
+    if (next instanceof Node && event.currentTarget instanceof Node) {
+      if (event.currentTarget.contains(next)) return;
+    }
+    onCommit();
+  }
+
   const MARKS: Array<{ mark: Mark; glyph: Glyph; label: string }> = [
     { mark: 'bold', glyph: 'text-b', label: 'Bold' },
     { mark: 'italic', glyph: 'text-italic', label: 'Italic' },
@@ -44,7 +58,8 @@
   });
 </script>
 
-<div class="editor" data-testid="note-editor">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="editor" data-testid="note-editor" onfocusout={onFocusOut}>
   <div class="text-bar" data-testid="text-bar">
     {#each MARKS as { mark, glyph, label } (mark)}
       <button
@@ -72,7 +87,6 @@
     aria-label="Note Text"
     value={text}
     oninput={(event) => onChange({ title, text: event.currentTarget.value })}
-    onblur={onCommit}
   ></textarea>
 </div>
 
@@ -124,25 +138,40 @@
     background: var(--tint-accent-press);
   }
 
-  .title-input {
-    border: none;
-    background: transparent;
+  /* Both fields carry the same 1px rule. Without it the title was indistinguishable from
+     the heading it replaces, so it read as plain text and nobody tried to click it. */
+  .title-input,
+  .body-input {
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-md);
+    background: var(--color-raised);
     color: inherit;
     font: inherit;
+    padding: 3px 5px;
+    transition: border-color var(--duration-90) var(--ease);
+  }
+
+  .title-input:hover,
+  .body-input:hover {
+    border-color: color-mix(in srgb, var(--color-text) 28%, transparent);
+  }
+
+  .title-input:focus,
+  .body-input:focus {
+    outline: 1px solid var(--color-accent);
+    outline-offset: -1px;
+    border-color: var(--color-accent);
+  }
+
+  .title-input {
     font-size: var(--text-13);
     font-weight: 600;
-    padding: 0;
   }
 
   .body-input {
     flex: 1;
-    border: none;
-    background: transparent;
-    color: inherit;
-    font: inherit;
     font-size: var(--text-12);
     line-height: 1.5;
-    padding: 0;
     resize: none;
   }
 </style>
