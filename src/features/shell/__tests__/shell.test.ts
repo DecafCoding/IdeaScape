@@ -33,6 +33,21 @@ describe('the shell measurements', () => {
     expect(getByTestId('title-bar')).toBeInTheDocument();
   });
 
+  it('titleBar_pickerMode_showsTheBrandWithNoBreadcrumbSaveStateOrCounts', () => {
+    canvasStore.closeProject();
+    const { getByTestId, getByText, queryByText, getByLabelText } = render(TitleBar, {
+      props: { pickerMode: true },
+    });
+
+    const bar = getByTestId('title-bar');
+    expect(getByText('IdeaScape')).toBeInTheDocument();
+    expect(getByLabelText('Close')).toBeInTheDocument();
+    expect(bar.querySelector('.breadcrumb')).toBeNull();
+    expect(bar.querySelector('.save-state')).toBeNull();
+    expect(bar.querySelector('.counts')).toBeNull();
+    expect(queryByText(/cards ·/)).toBeNull();
+  });
+
   it('leftColumn_isOneHundredAndSixtyEightPixelsWide', () => {
     expect(token('--size-left-column')).toBe('168px');
     const { getByTestId } = render(LeftColumn, { props: {} });

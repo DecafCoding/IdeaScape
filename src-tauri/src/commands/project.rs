@@ -273,12 +273,15 @@ pub fn current_project(state: tauri::State<'_, AppState>) -> AppResult<Option<Pr
 /// Make a new project folder under `parent_path` and open it. The name is a plain folder
 /// name, never a path: the front end builds no paths, and a separator or a `..` in the name
 /// is refused here rather than reaching the file system.
+/// Returns the folder it created, not the project row, so the front end never has to build
+/// `<parent>/<name>` itself — `ipc-contract` says the front end builds no file path, and the
+/// caller needs the path to open the project into its store.
 pub fn create_project_for(
     state: &AppState,
     parent_path: &str,
     name: &str,
     app: Option<&tauri::AppHandle>,
-) -> AppResult<Project> {
+) -> AppResult<String> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
         return Err(AppError::Invalid(String::from("a project needs a name")));
@@ -297,7 +300,8 @@ pub fn create_project_for(
     }
 
     std::fs::create_dir_all(&target)?;
-    open_project_at_with(state, &target, app)
+    open_project_at_with(state, &target, app)?;
+    Ok(display_path(&target))
 }
 
 #[tauri::command]
@@ -306,7 +310,7 @@ pub fn create_project(
     state: tauri::State<'_, AppState>,
     parent_path: String,
     name: String,
-) -> AppResult<Project> {
+) -> AppResult<String> {
     create_project_for(&state, &parent_path, &name, Some(&app))
 }
 
@@ -544,7 +548,7 @@ mod tests {
     fn create_project_fresh_folder_creates_the_folder_and_first_canvas() {
         let parent = tempfile::tempdir().unwrap();
         let state = AppState::default();
-        let project = create_project_for(
+        let created = create_project_for(
             &state,
             &parent.path().to_string_lossy(),
             "  Ship notes  ",
@@ -553,6 +557,19 @@ mod tests {
         .expect("create");
 
         let folder = parent.path().join("Ship notes");
+        assert!(
+            created.ends_with("Ship notes"),
+            "the created folder is returned: {created}"
+        );
+        let project = state
+            .with_db(|conn| {
+                Ok(conn.query_row(
+                    "SELECT * FROM project ORDER BY id LIMIT 1",
+                    [],
+                    row_to_project,
+                )?)
+            })
+            .unwrap();
         assert!(folder.join("ideascape.db").is_file());
         assert!(folder.join("assets").is_dir());
         let canvases = canvas::list_canvases_for(&state, project.id).unwrap();
@@ -631,9 +648,9 @@ mod tests {
         let state = AppState::default();
 
         // --- Two projects, recorded newest first with correct counts ------------------
-        let first_project =
-            create_project_for(&state, &parent.path().to_string_lossy(), "Alpha", None).unwrap();
+        create_project_for(&state, &parent.path().to_string_lossy(), "Alpha", None).unwrap();
         let alpha_folder = parent.path().join("Alpha");
+        let first_project = open_project_at(&state, &alpha_folder).unwrap();
 
         let alpha_canvas_1 = canvas::list_canvases_for(&state, first_project.id).unwrap()[0].id;
         canvas::rename_canvas_for(&state, alpha_canvas_1, "Chapter 3".into()).unwrap();
@@ -706,9 +723,9 @@ mod tests {
             })
             .unwrap();
 
-        let second_project =
-            create_project_for(&state, &parent.path().to_string_lossy(), "Beta", None).unwrap();
+        create_project_for(&state, &parent.path().to_string_lossy(), "Beta", None).unwrap();
         let beta_folder = parent.path().join("Beta");
+        let second_project = open_project_at(&state, &beta_folder).unwrap();
         state
             .with_db(|conn| {
                 note_recent_in(recents.path(), conn, &beta_folder, &second_project);

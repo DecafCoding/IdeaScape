@@ -61,6 +61,16 @@ describe('the token layer', () => {
     expect(lightNames.has('--shadow-textbar')).toBe(true);
   });
 
+  it('tokens_theDialogElevationAndScrim_areDeclaredOnceLightAndTwiceDark', () => {
+    // Phase 4's two additions. A token added to one of theme.css's two dark blocks and not
+    // the other makes the System theme disagree with the explicit one.
+    for (const name of ['--shadow-dialog', '--scrim']) {
+      expect(lightNames.has(name)).toBe(true);
+      expect(tokens.match(new RegExp(`${name}\\s*:`, 'g'))?.length).toBe(1);
+      expect(theme.match(new RegExp(`${name}\\s*:`, 'g'))?.length).toBe(2);
+    }
+  });
+
   it('tokens_darkBlock_appearsUnderBothTheAttributeAndThePreference', () => {
     expect(theme).toContain(":root[data-theme='dark']");
     expect(theme).toContain('@media (prefers-color-scheme: dark)');

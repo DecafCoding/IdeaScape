@@ -16,6 +16,7 @@
     onUndo?: () => void;
     onRedo?: () => void;
     onSelectCanvas?: (canvasId: number) => void;
+    onCloseProject?: () => void;
   }
 
   const {
@@ -25,6 +26,7 @@
     onUndo,
     onRedo,
     onSelectCanvas,
+    onCloseProject,
   }: Props = $props();
 
   /** Two cards is the threshold: with one there is nothing to connect (frame 14b). */
@@ -161,6 +163,10 @@
   </ul>
 
   <div class="pinned">
+    <button type="button" class="action-row" onclick={onCloseProject}>
+      <Icon glyph="arrow-left" size={13} />
+      Close Project
+    </button>
     <!-- The Settings screen is Phase 5. -->
     <button type="button" class="action-row is-unavailable" disabled>
       <Icon glyph="gear" size={13} />

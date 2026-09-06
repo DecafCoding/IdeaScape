@@ -21,6 +21,9 @@
     pickImages,
     IMAGE_EXTENSIONS,
   } from './features/cards/ingest.svelte';
+  import ProjectPicker from './features/projects/ProjectPicker.svelte';
+  import NewProjectDialog from './features/projects/NewProjectDialog.svelte';
+  import { projectsState } from './features/projects/projects.svelte';
   import ConnectionLayer from './features/connections/ConnectionLayer.svelte';
   import ConnectionLabels from './features/connections/ConnectionLabels.svelte';
   import {
@@ -103,6 +106,12 @@
   /** The item just pasted, which carries the §9.7 "Pasted here · Ctrl+V" caption. */
   let pastePendingItemId = $state<number | null>(null);
 
+  /** The New project dialog: whether it is open, where it will write, and its own failure. */
+  let newProjectOpen = $state(false);
+  let newProjectParent = $state('');
+  let newProjectFailure = $state<string | null>(null);
+  let newProjectBusy = $state(false);
+
   let canvas = $state<CanvasSurface | null>(null);
   let cards = $state<CardLayer | null>(null);
 
@@ -138,15 +147,91 @@
 
   // --- start up ---------------------------------------------------------
 
+  /**
+   * Boot loads the recents list and nothing else. There is no developer path any more and
+   * the application does not auto-open the last project: design-system §9.1 makes the picker
+   * the launch screen, and the Recent grid would be pointless if a project opened itself.
+   */
   $effect(() => {
     void guard(async () => {
-      folderPath = await invokeSafe<string>('dev_project_path');
-      await canvasStore.openProject(folderPath);
-      // The asset URL helper cannot build an <img src> until it knows the folder.
-      setAssetsFolder(await invokeSafe<string>('assets_folder'));
+      await projectsState.loadRecents();
       await maybeRunPerfGate();
     });
   });
+
+  /**
+   * Open a project and move every piece of session state onto it. The order matters: the
+   * assets folder is per project, so it is re-read on every open — read once at boot, the
+   * second project of a session would draw the first project's pictures, or none.
+   */
+  async function openProject(path: string) {
+    try {
+      await canvasStore.openProject(path);
+      setAssetsFolder(await invokeSafe<string>('assets_folder'));
+      folderPath = path;
+      // The stack holds ids from the project that is closing. `undo-model`: session only.
+      undoStack.clear();
+      clipboard = [];
+      projectsState.failure = null;
+      errorMessage = null;
+      newProjectOpen = false;
+      await projectsState.loadRecents();
+    } catch (error) {
+      const message = error instanceof IpcError ? error.message : 'Something went wrong.';
+      // Drawn where the user is looking: they are on the picker, so the strip goes there.
+      projectsState.failure = message;
+      errorMessage = message;
+      logError('a project could not be opened', error);
+    }
+  }
+
+  /** Let go of the project and return to the picker, losing nothing that was in flight. */
+  async function closeProject() {
+    await flushPlacements(saveHooks);
+    persistView.flush();
+    await guard(async () => {
+      await invokeSafe('close_project');
+      canvasStore.closeProject();
+      undoStack.clear();
+      setAssetsFolder(null);
+      clipboard = [];
+      folderPath = null;
+      openMenu = null;
+      // The just-closed project is now the first recent card.
+      await projectsState.loadRecents();
+    });
+  }
+
+  /** The New project dialog's Create. A rejected name draws inside the dialog. */
+  async function createProject(name: string) {
+    newProjectBusy = true;
+    try {
+      // Rust returns the folder it created, so the front end never builds a path.
+      const created = await invokeSafe<string>('create_project', {
+        parentPath: newProjectParent,
+        name,
+      });
+      logInfo(`created the project at ${created}`);
+      newProjectFailure = null;
+      await openProject(created);
+    } catch (error) {
+      newProjectFailure = error instanceof IpcError ? error.message : 'Something went wrong.';
+      logError('a project could not be created', error);
+    } finally {
+      newProjectBusy = false;
+    }
+  }
+
+  async function openNewProjectDialog() {
+    newProjectFailure = null;
+    newProjectParent = await projectsState.loadDefaultParent();
+    newProjectOpen = true;
+  }
+
+  async function chooseProjectFolder() {
+    const path = await projectsState.chooseFolder();
+    if (path) await openProject(path);
+  }
 
   /**
    * File drop. Tauri's `dragDropEnabled` is on by default and suppresses the webview's own
@@ -240,6 +325,11 @@
     if (wanted === null) return;
     isDevelopment = true;
     if (!wanted) return;
+
+    // The harness opens its own project from the debug-only `--project <path>` argument: the
+    // boot effect no longer opens one, because a release build's only route in is the picker.
+    const gatePath = await invokeSafe<string>('perf_gate_project_path');
+    await openProject(gatePath);
 
     const canvasId = canvasStore.activeCanvasId;
     if (canvasId === null) return;
@@ -815,47 +905,71 @@
 
   // --- keyboard ---------------------------------------------------------
 
-  $effect(() =>
-    registerShortcuts({
-      'new-note': () => void createNote(pointerWorld),
-      'new-image': () => void addFromPicker(),
-      edit: () => cards?.editSelected(),
-      connect: startLinkFromSelection,
-      cancel: () => {
-        // Esc is overloaded: cancel a link, close a menu, finish an edit, then clear.
-        if (canvasStore.pendingLink) {
-          cancelLink();
-          return;
-        }
-        if (openMenu) {
-          openMenu = null;
-          return;
-        }
-        if (cards?.cancelEdit()) return;
-        if (canvasStore.selectedConnectionId !== null) {
-          canvasStore.selectConnection(null);
-          return;
-        }
-        canvasStore.clearSelection();
-      },
-      delete: () => {
-        if (canvasStore.selection.size === 0 && canvasStore.selectedConnectionId !== null) {
-          void deleteSelectedConnection();
-          return;
-        }
-        void deleteSelection();
-      },
-      duplicate: () => void duplicateSelection(),
-      copy: () => void copySelection(),
-      paste: () => void paste(),
-      'select-all': () => canvasStore.selectAll(),
-      'zoom-to-fit': () => canvas?.zoomToFit(),
-      'bring-forward': () => void reorder('front'),
-      'send-back': () => void reorder('back'),
-      undo: () => void undoStack.undo(),
-      redo: () => void undoStack.redo(),
-    }),
-  );
+  /**
+   * The picker's own small map. A canvas shortcut must not fire when there is no canvas, so
+   * with no project open only the Recent grid's four keys are registered. The grid is not a
+   * text box, so the dispatcher's `result-up` / `result-down` serve it.
+   */
+  const pickerShortcuts = {
+    'result-up': () => projectsState.move(-1),
+    'result-down': () => projectsState.move(1),
+    edit: () => {
+      const path = projectsState.current();
+      if (path) void openProject(path);
+    },
+    cancel: () => {
+      if (newProjectOpen) {
+        newProjectOpen = false;
+        return;
+      }
+      projectsState.selectedIndex = -1;
+    },
+  };
+
+  $effect(() => {
+    if (canvasStore.project === null) return registerShortcuts(pickerShortcuts);
+    return registerShortcuts(shellShortcuts);
+  });
+
+  const shellShortcuts = $derived({
+    'new-note': () => void createNote(pointerWorld),
+    'new-image': () => void addFromPicker(),
+    edit: () => cards?.editSelected(),
+    connect: startLinkFromSelection,
+    cancel: () => {
+      // Esc is overloaded: cancel a link, close a menu, finish an edit, then clear.
+      if (canvasStore.pendingLink) {
+        cancelLink();
+        return;
+      }
+      if (openMenu) {
+        openMenu = null;
+        return;
+      }
+      if (cards?.cancelEdit()) return;
+      if (canvasStore.selectedConnectionId !== null) {
+        canvasStore.selectConnection(null);
+        return;
+      }
+      canvasStore.clearSelection();
+    },
+    delete: () => {
+      if (canvasStore.selection.size === 0 && canvasStore.selectedConnectionId !== null) {
+        void deleteSelectedConnection();
+        return;
+      }
+      void deleteSelection();
+    },
+    duplicate: () => void duplicateSelection(),
+    copy: () => void copySelection(),
+    paste: () => void paste(),
+    'select-all': () => canvasStore.selectAll(),
+    'zoom-to-fit': () => canvas?.zoomToFit(),
+    'bring-forward': () => void reorder('front'),
+    'send-back': () => void reorder('back'),
+    undo: () => void undoStack.undo(),
+    redo: () => void undoStack.redo(),
+  } satisfies Parameters<typeof registerShortcuts>[0]);
 
   // --- context menus ----------------------------------------------------
 
@@ -1005,80 +1119,108 @@
 <div class="app" onclickcapture={() => (openMenu = null)} role="presentation">
   <TitleBar
     {folderPath}
+    pickerMode={canvasStore.project === null}
     onMinimize={() => void windowAction('minimize')}
     onMaximize={() => void windowAction('toggleMaximize')}
     onClose={() => void windowAction('close')}
   />
 
-  <div class="body">
-    <LeftColumn
-      undoDepth={undoStack.undoDepth}
-      redoDepth={undoStack.redoDepth}
-      onNewNote={() => void createNote(pointerWorld)}
-      onUndo={() => void undoStack.undo()}
-      onRedo={() => void undoStack.redo()}
-      onSelectCanvas={(id) => void guard(() => canvasStore.loadCanvas(id))}
+  {#if canvasStore.project === null}
+    <ProjectPicker
+      recents={projectsState.recents}
+      selectedIndex={projectsState.selectedIndex}
+      failure={projectsState.failure}
+      onOpenPath={(path) => void openProject(path)}
+      onChooseFolder={() => void chooseProjectFolder()}
+      onNewProject={() => void openNewProjectDialog()}
+      onSelect={(index) => (projectsState.selectedIndex = index)}
     />
-
-    <CanvasSurface
-      bind:this={canvas}
-      onViewSettled={persistView}
-      onMarqueeEnd={applyMarquee}
-      onBackgroundClick={() => {
-        canvasStore.selectConnection(null);
-        canvasStore.clearSelection();
-      }}
-      onOpenBackgroundMenu={openBackgroundMenu}
-      onPointerWorld={(point) => {
-        pointerWorld = point;
-        trackLink(point);
-      }}
-    >
-      <!-- Before the card layer in DOM order, so cards always paint over lines. -->
-      <ConnectionLayer onSelect={(id) => canvasStore.selectConnection(id)} />
-      <ConnectionLabels />
-
-      <CardLayer
-        bind:this={cards}
-        onGeometryCommitted={(before, after, label) => void commitGeometry(before, after, label)}
-        onOpenElementMenu={openElementMenu}
-        onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
-        onSelect={selectCard}
-        onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
-        onImageDecoded={(itemId, width, height) => void recordImageSize(itemId, width, height)}
-        onRefetch={(itemId) => void fetchPreview(itemId, true)}
-        onOpenVideo={(itemId) => void openVideo(itemId)}
-        {pastePendingItemId}
+  {:else}
+    <div class="body">
+      <LeftColumn
+        undoDepth={undoStack.undoDepth}
+        redoDepth={undoStack.redoDepth}
+        onNewNote={() => void createNote(pointerWorld)}
+        onUndo={() => void undoStack.undo()}
+        onRedo={() => void undoStack.redo()}
+        onSelectCanvas={(id) => void guard(() => canvasStore.loadCanvas(id))}
+        onCloseProject={() => void closeProject()}
       />
-    </CanvasSurface>
 
-    {#if canvasStore.cardCount === 0 && !dragOver}
-      <EmptyCanvas onNewNote={() => void createNote(pointerWorld)} />
-    {/if}
+      <CanvasSurface
+        bind:this={canvas}
+        onViewSettled={persistView}
+        onMarqueeEnd={applyMarquee}
+        onBackgroundClick={() => {
+          canvasStore.selectConnection(null);
+          canvasStore.clearSelection();
+        }}
+        onOpenBackgroundMenu={openBackgroundMenu}
+        onPointerWorld={(point) => {
+          pointerWorld = point;
+          trackLink(point);
+        }}
+      >
+        <!-- Before the card layer in DOM order, so cards always paint over lines. -->
+        <ConnectionLayer onSelect={(id) => canvasStore.selectConnection(id)} />
+        <ConnectionLabels />
 
-    {#if dragOver}
-      <DropTarget />
-    {/if}
+        <CardLayer
+          bind:this={cards}
+          onGeometryCommitted={(before, after, label) => void commitGeometry(before, after, label)}
+          onOpenElementMenu={openElementMenu}
+          onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
+          onSelect={selectCard}
+          onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
+          onImageDecoded={(itemId, width, height) => void recordImageSize(itemId, width, height)}
+          onRefetch={(itemId) => void fetchPreview(itemId, true)}
+          onOpenVideo={(itemId) => void openVideo(itemId)}
+          {pastePendingItemId}
+        />
+      </CanvasSurface>
 
-    <PropertiesPanel
-      expanded={panelExpanded}
-      onToggle={() => (panelOpen = !panelOpen)}
-      onGeometryChange={changeGeometry}
-      onBringForward={() => void reorder('front')}
-      onSendBack={() => void reorder('back')}
-      onDuplicate={() => void duplicateSelection()}
-      onDelete={() => void deleteSelection()}
-      onConnectionChange={(label, directed) => void changeConnection(label, directed)}
-      onDeleteConnection={() => void deleteSelectedConnection()}
-      onAltTextChange={(alt) => void commitAltText(alt)}
-      onReplaceImage={() => void replaceImage()}
-      onShowInFolder={() => void showAssetsFolder()}
-      onRefetch={() => {
-        const item = selectedItem();
-        if (item) void fetchPreview(item.id, true);
+      {#if canvasStore.cardCount === 0 && !dragOver}
+        <EmptyCanvas onNewNote={() => void createNote(pointerWorld)} />
+      {/if}
+
+      {#if dragOver}
+        <DropTarget />
+      {/if}
+
+      <PropertiesPanel
+        expanded={panelExpanded}
+        onToggle={() => (panelOpen = !panelOpen)}
+        onGeometryChange={changeGeometry}
+        onBringForward={() => void reorder('front')}
+        onSendBack={() => void reorder('back')}
+        onDuplicate={() => void duplicateSelection()}
+        onDelete={() => void deleteSelection()}
+        onConnectionChange={(label, directed) => void changeConnection(label, directed)}
+        onDeleteConnection={() => void deleteSelectedConnection()}
+        onAltTextChange={(alt) => void commitAltText(alt)}
+        onReplaceImage={() => void replaceImage()}
+        onShowInFolder={() => void showAssetsFolder()}
+        onRefetch={() => {
+          const item = selectedItem();
+          if (item) void fetchPreview(item.id, true);
+        }}
+      />
+    </div>
+  {/if}
+
+  {#if newProjectOpen}
+    <NewProjectDialog
+      parentPath={newProjectParent}
+      failure={newProjectFailure}
+      busy={newProjectBusy}
+      onCreate={(name) => void createProject(name)}
+      onChooseParent={async () => {
+        const picked = await projectsState.chooseFolder(newProjectParent);
+        if (picked) newProjectParent = picked;
       }}
+      onCancel={() => (newProjectOpen = false)}
     />
-  </div>
+  {/if}
 
   {#if errorMessage}
     <p class="error" role="status">{errorMessage}</p>
