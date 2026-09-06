@@ -107,10 +107,28 @@
   </ul>
 </section>
 
-<section class="phase" data-phase="2" data-status="not-planned">
-  <h2>Phase 2: Connections <span class="badge">not planned</span></h2>
-  <p class="meta"><strong>Branch:</strong> <em>to be determined by <code>/dev-plan-phase 2</code></em></p>
-  <p class="meta"><strong>Phase doc:</strong> <em>none yet — run <code>/dev-plan-phase 2</code></em></p>
+<section class="phase" data-phase="2" data-status="not-started">
+  <h2>Phase 2: Connections <span class="badge">not started</span></h2>
+  <p class="meta"><strong>Branch:</strong> <code>phase-2-connections</code></p>
+  <p class="meta"><strong>Phase doc:</strong> <code>docs/phases/phase-2-connections.html</code></p>
+  <p class="meta"><strong>Depends on:</strong> Phase 1 (canvas core) — complete; the existing <code>connection</code> table in <code>src-tauri/migrations/0001_initial_schema.sql</code>; no new npm package and no new Rust crate</p>
+  <p class="meta"><strong>Summary:</strong> Phase 2 completes the core loop by joining cards with lines: a connection drawn from one card to another on the same canvas, carrying an arrow direction and an optional text label, following its cards when they move and leaving with them when they are deleted.</p>
+  <ul class="tasks">
+    <li class="task" data-task="1" data-status="todo">Task 1: Connection row model and the Rust command file</li>
+    <li class="task" data-task="2" data-status="todo">Task 2: A card delete reports the connections it removed</li>
+    <li class="task" data-task="3" data-status="todo">Task 3: Connections in the shared canvas store</li>
+    <li class="task" data-task="4" data-status="todo">Task 4: Endpoint, midpoint and culling maths as pure functions</li>
+    <li class="task" data-task="5" data-status="todo">Task 5: The SVG overlay and the arrowhead marker</li>
+    <li class="task" data-task="6" data-status="todo">Task 6: Label chips, and the 50 px rule</li>
+    <li class="task" data-task="7" data-status="todo">Task 7: The Connect tool — active, available and unavailable</li>
+    <li class="task" data-task="8" data-status="todo">Task 8: Drawing the line — the pending link and its commit</li>
+    <li class="task" data-task="9" data-status="todo">Task 9: Selecting a connection</li>
+    <li class="task" data-task="10" data-status="todo">Task 10: The properties panel's Connection state</li>
+    <li class="task" data-task="11" data-status="todo">Task 11: Lines follow, and leave with, their cards</li>
+    <li class="task" data-task="12" data-status="todo">Task 12: Undo and redo for connections</li>
+    <li class="task" data-task="13" data-status="todo">Task 13: Run the phase gate and record it</li>
+    <li class="task" data-task="14" data-status="todo">Task 14: Commit, push, and open PR</li>
+  </ul>
 </section>
 
 <section class="phase" data-phase="3" data-status="not-planned">

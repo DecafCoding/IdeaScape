@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 2: Connections</title>
+  <style>
+    :root { --fg:#1a1a1a; --muted:#666; --accent:#2563eb; --done:#16a34a; --warn:#dc2626; --rule:#e5e7eb; }
+    body { font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:62rem; margin:2rem auto; padding:0 1.25rem; }
+    h1 { font-size:2rem; border-bottom:2px solid var(--rule); padding-bottom:.3rem; }
+    h2 { font-size:1.5rem; margin-top:2.5rem; border-bottom:1px solid var(--rule); padding-bottom:.2rem; }
+    h3.milestone { font-size:1.25rem; margin-top:2rem; color:var(--accent); }
+    h4.task { font-size:1.1rem; margin-top:1.5rem; }
+    dl.phase-meta { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; }
+    dl.phase-meta dt { font-weight:600; color:var(--muted); }
+    code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    pre { background:#f6f8fa; padding:1rem; border-radius:6px; overflow:auto; }
+    code { background:#f6f8fa; padding:.1rem .3rem; border-radius:4px; }
+    pre code { background:none; padding:0; }
+    ul.checklist { list-style:none; padding-left:0; }
+    ul.checklist > li::before { content:"☐ "; color:var(--muted); }
+    ul.checklist > li[data-checked="true"]::before { content:"☑ "; color:var(--done); }
+    .validate { color:var(--done); font-weight:600; }
+  </style>
+</head>
+<body>
+
+<h1 data-phase="2">Phase 2: Connections</h1>
+
+<p>The following plan should be complete, but validate documentation, codebase patterns, and task
+sanity before implementing. Pay special attention to naming of existing utils, types, and models —
+import from the right files.</p>
+
+<h2>Phase Description</h2>
+
+<p>Phase 2 completes the core loop by joining cards with lines: a connection drawn from one card to
+another on the same canvas, carrying an arrow direction and an optional text label, following its
+cards when they move and leaving with them when they are deleted. Phase 1 shipped a canvas of note
+cards that move, resize, stack, duplicate, delete, save and undo, but nothing joins them. When this
+phase lands the application is usable for real thinking work with notes and lines alone — which is
+precisely the phase's stated gate.</p>
+
+<p>The PRD calls this the smallest phase, and the groundwork is already in place: the
+<code>connection</code> table and its index exist in <code>0001_initial_schema.sql</code>, the
+<code>Connection</code> interface already sits in <code>src/lib/types.ts</code>, the
+<code>--color-connection</code> / <code>--color-arrowhead</code> tokens and the
+<code>--z-connections</code> rung already exist in the token layer, <code>activeTool</code> already
+admits <code>'connect'</code>, the <code>connect</code> action already exists in the shortcut map,
+and the Connect tool row and the <em>Connect From Here</em> menu row are already drawn in their
+unavailable state. Phase 2 fills in behind all of it. <strong>No migration is added.</strong></p>
+
+<p>Work items bundled here:</p>
+<ul>
+  <li>Rust connection commands, and capturing the connections a card delete removes so undo can put
+      them back with the cards.</li>
+  <li>Connections in the shared canvas store, loaded with the canvas.</li>
+  <li>Endpoint geometry — a line ends on a card's <em>real</em> edge, derived from the placement
+      rectangle, never on an assumed one.</li>
+  <li>The SVG overlay, the arrowhead marker, and the HTML label chip with its 50 px rule.</li>
+  <li>The Connect tool, the <code>C</code> shortcut, the <em>Connect From Here</em> menu row, and
+      the mid-drag line.</li>
+  <li>Selecting a connection, and the properties panel's Connection state (label and direction).</li>
+  <li>Lines follow their cards, are deleted with them, and come back with them on undo.</li>
+  <li>The design pass on the two states <code>docs/design-system.html</code> §15.1 leaves undrawn:
+      a line mid-drag, and a connection selected in the panel.</li>
+</ul>
+
+<h2>User Stories</h2>
+
+<p>As a writer building a concept on the canvas<br>
+I want to draw a line from one note to another<br>
+So that the relationship between the two ideas is recorded, not just remembered.</p>
+
+<p>As a writer<br>
+I want the arrow on a line to point the way I mean it<br>
+So that "A causes B" does not read as "B causes A".</p>
+
+<p>As a writer<br>
+I want to name a line<br>
+So that the relationship carries meaning rather than being a bare stroke between two boxes.</p>
+
+<p>As a writer rearranging a canvas<br>
+I want lines to follow the cards I move, and to vanish with a card I delete<br>
+So that the picture is never wrong and never leaves stray strokes behind.</p>
+
+<p>As a writer who made a mistake<br>
+I want <code>Ctrl+Z</code> to bring a deleted card back <em>with</em> its lines<br>
+So that one undo restores one action and not half of one.</p>
+
+<h2>Problem Statement</h2>
+
+<p>The product's own positioning line is "a canvas where the connections between ideas are
+first-class content" (<code>docs/prd.html</code> §1). After Phase 1 the application has no
+connections at all. A board of unrelated boxes is a note pile, not a concept — and every one of the
+comparable applications in <code>docs/competitive-scan.html</code> joins cards with lines. Until
+this phase lands, the core loop the whole plan is built around is half-built and the product cannot
+be evaluated against its own purpose.</p>
+
+<p>There are also three concrete correctness traps waiting in the existing code. First,
+<code>delete_placements</code> relies on <code>ON DELETE CASCADE</code> to remove attached
+connection rows, so it silently destroys data that undo has no record of. Second,
+<code>restore_card</code> mints a <em>new</em> placement id, so a naive undo would restore cards
+whose connections point at ids that no longer exist. Third, the culled card set is not a safe basis
+for drawing lines: a line between two off-screen cards can still cross the middle of the viewport.
+Each has to be handled deliberately.</p>
+
+<h2>Solution Statement</h2>
+
+<p>Connections are stored in the existing <code>connection</code> table and reached through one new
+command file, <code>src-tauri/src/commands/connection.rs</code>, mirroring
+<code>placement.rs</code> exactly — a <code>*_for(state, …)</code> function holding the SQL and a
+thin <code>#[tauri::command]</code> wrapper over it, so the logic is unit-testable without a Tauri
+runtime. The front end reaches them only through <code>invokeSafe</code>.</p>
+
+<p><strong>Endpoints are never stored.</strong> They are derived at render time from the two
+placement rectangles by clipping the centre-to-centre line to each rectangle's edge. That is what
+<code>docs/design-system.html</code> §9.13 requires ("derive them from the placement rectangle, so a
+card that grows never leaves a line sprouting from its middle"), and it is also why moving or
+resizing a card writes nothing to the connection table: the lines simply re-derive.</p>
+
+<p>Drawing is one SVG overlay that is a sibling of the card layer, placed <em>before</em> it in DOM
+order and sitting on the <code>--z-connections</code> rung, so cards always paint over lines. It is
+<code>pointer-events: none</code> as a whole, with a wide transparent hit path per connection
+carrying <code>pointer-events: stroke</code>, so the overlay never steals a pan, a marquee or a card
+drag. Label chips are HTML, not SVG text, so they sit on an opaque ground.</p>
+
+<p>Deleting a card now returns the connections it removed inside the existing
+<code>DeleteEffect</code>, and the undo command re-creates them against the <em>new</em> placement
+ids by way of an old-id → new-id map built while the cards are restored. That is the mechanism
+<code>docs/architecture.html</code>'s <code>undo-model</code> describes when it says one command may
+carry several effects.</p>
+
+<h2>Phase Metadata</h2>
+
+<dl class="phase-meta">
+  <dt>Phase Type</dt><dd data-field="type">New Capability</dd>
+  <dt>Estimated Complexity</dt><dd data-field="complexity">Medium</dd>
+  <dt>Primary Systems Affected</dt><dd data-field="systems">Rust commands layer, the shared canvas store, the canvas render layer, the properties panel, the undo stack, the left column</dd>
+  <dt>Dependencies</dt><dd data-field="dependencies">Phase 1 (canvas core) — complete; the existing <code>connection</code> table in <code>src-tauri/migrations/0001_initial_schema.sql</code>; no new npm package and no new Rust crate</dd>
+</dl>
+
+<h2>Context References</h2>
+
+<h3>Relevant Codebase Files — READ THESE BEFORE IMPLEMENTING</h3>
+<ul>
+  <li><code>src-tauri/migrations/0001_initial_schema.sql</code> (lines 42–50, 55) — Why: the
+      <code>connection</code> table and <code>idx_connection_canvas</code> already exist with
+      <code>from_placement_id</code>/<code>to_placement_id</code> cascading on placement delete.
+      <strong>Never edit a shipped migration</strong>; this phase adds none.</li>
+  <li><code>src-tauri/src/commands/placement.rs</code> (lines 1–70, 143–200) — Why: the exact
+      pattern <code>connection.rs</code> must mirror — a <code>*_for(state, …)</code> function
+      holding the SQL, <code>state.with_db(|conn| …)</code>, a transaction for any multi-row change,
+      and a thin <code>#[tauri::command]</code> wrapper below.</li>
+  <li><code>src-tauri/src/commands/placement.rs</code> (lines 164–200) —
+      <code>delete_placements_for</code>. Why: this is the function that must capture attached
+      connections into <code>DeleteEffect</code> <em>before</em> the cascade removes them.</li>
+  <li><code>src-tauri/src/commands/placement.rs</code> (lines 318–470) — Why: the Rust test style
+      to copy: an <code>open()</code> helper over <code>tempfile::tempdir()</code> plus
+      <code>open_project_at</code>, and <code>fn name_condition_expected()</code> naming.</li>
+  <li><code>src-tauri/src/db/models.rs</code> (lines 36–72, 105–120) — Why: where the
+      <code>Connection</code> struct and <code>row_to_connection</code> go, and the
+      <code>DeleteEffect</code> struct that gains a <code>connections</code> field. Field names must
+      stay in step with <code>src/lib/types.ts</code>.</li>
+  <li><code>src-tauri/src/error.rs</code> (lines 1–51) — Why: <code>AppError</code>/
+      <code>AppResult</code>; <code>AppError::Invalid</code> is the variant for a rejected
+      self-connection.</li>
+  <li><code>src-tauri/src/lib.rs</code> (lines 12–58) — Why: the two <code>invoke_handler</code>
+      lists (debug and release). A new command must be added to <strong>both</strong> or it is
+      missing from the shipped build.</li>
+  <li><code>src/lib/types.ts</code> (lines 60–75) — Why: <code>Connection</code> and
+      <code>DeleteEffect</code> already exist here; <code>DeleteEffect</code> gains
+      <code>connections</code>.</li>
+  <li><code>src/lib/geometry.ts</code> (lines 1–60, 74–110) — Why: the pure-maths module the
+      endpoint functions join. <code>Point</code>, <code>Rect</code>, <code>View</code>,
+      <code>rectsIntersect</code>, <code>viewportWorldRect</code> are all already here.</li>
+  <li><code>src/lib/culling.ts</code> (lines 20–52) — Why: <code>visiblePlacements</code> is the
+      seam a connection cull must sit beside, not inside; and <code>viewportWorldRect</code> is how
+      the world window is obtained.</li>
+  <li><code>src/stores/canvasStore.svelte.ts</code> (lines 27–58, 106–135, 140–190) — Why: the one
+      shared state. <code>SvelteMap</code>/<code>SvelteSet</code> are used deliberately (mutate the
+      entry, not the container); <code>loadCanvas</code> is where connections must load;
+      <code>closeProject</code> is where they must clear.</li>
+  <li><code>src/features/canvas/CanvasSurface.svelte</code> (lines 235–260) — Why: the
+      <code>.world</code> div carrying the single CSS transform. The connection overlay goes
+      <em>inside</em> it, before the card layer.</li>
+  <li><code>src/features/cards/CardLayer.svelte</code> (lines 36–50, 168–200) — Why: how a layer
+      culls and renders, and the <code>.card-layer { z-index: var(--z-cards) }</code> rung the
+      overlay must sit below.</li>
+  <li><code>src/features/cards/CardShell.svelte</code> (lines 38–56) — Why: a card is absolutely
+      positioned from the placement rectangle in world units. The line endpoints are computed in the
+      same world space, so no conversion is needed inside the overlay.</li>
+  <li><code>src/features/shell/PropertiesPanel.svelte</code> (lines 34–75, 82–140) — Why: the panel
+      currently switches only on <code>hasSelection</code>. It gains a Connection branch. Copy the
+      <code>.group</code> / <code>.group-label</code> / <code>.input</code> / <code>.order-button</code>
+      shapes exactly rather than inventing new ones.</li>
+  <li><code>src/features/shell/LeftColumn.svelte</code> (lines 86–95) — Why: the Connect tool row is
+      already drawn with <code>class="action-row is-unavailable" disabled</code>. This phase makes
+      it live and conditions its availability.</li>
+  <li><code>src/features/undo/commands.ts</code> (lines 22–60, 63–110) — Why: the
+      <code>UndoableCommand</code> interface, and <code>restoreCards</code> — the function that must
+      build the old-id → new-id map.</li>
+  <li><code>src/features/undo/undoStack.svelte.ts</code> (lines 30–40) — Why: <code>push</code>
+      clears redo. Every new action must push exactly one command.</li>
+  <li><code>src/lib/save.ts</code> (lines 55–70) — Why: <code>writeNow</code> is the discrete-write
+      path. Connection changes are all discrete; none of them queue.</li>
+  <li><code>src/lib/shortcuts.ts</code> (lines 12–30, 110–120) — Why: <code>'connect'</code> is
+      already declared in <code>Action</code> and already mapped to <code>c</code> in
+      <code>matchAction</code>. Only the handler is missing.</li>
+  <li><code>src/lib/menu.ts</code> (lines 8–24) — Why: <code>MenuItem.available</code> is the flag
+      that currently holds <em>Connect From Here</em> inert.</li>
+  <li><code>src/app.svelte</code> (lines 380–420, 440–470, 495–530) — Why: the composition root. It
+      is the only module allowed to reach into several features at once; the shortcut registration,
+      the element menu and the layer wiring all live here.</li>
+  <li><code>src/lib/tokens.css</code> (lines 23–24, 140–149) — Why:
+      <code>--color-connection</code>, <code>--color-arrowhead</code> and
+      <code>--z-connections: 10</code> already exist. Do not invent new colour values.</li>
+  <li><code>src/lib/theme.css</code> (lines 23–24, 67–68) — Why: the dark values for the same two
+      tokens are already set, in both the <code>[data-theme="dark"]</code> and the
+      <code>prefers-color-scheme</code> block.</li>
+  <li><code>src/stores/__tests__/canvasStore.test.ts</code> (lines 1–20) — Why: the Vitest style —
+      <code>vi.mock('../../lib/ipc')</code>, a dynamic <code>await import</code> of the store, and
+      <code>methodName_condition_expectedResult</code> test names.</li>
+  <li><code>scripts/perf-gate.md</code> — Why: the recorded-artefact pattern this phase reuses for
+      its own gate.</li>
+</ul>
+
+<h3>New Files to Create</h3>
+<ul>
+  <li><code>src-tauri/src/commands/connection.rs</code> — list, create, update and delete
+      connections, with the <code>#[cfg(test)]</code> module.</li>
+  <li><code>src/features/connections/ConnectionLayer.svelte</code> — the SVG overlay, the arrowhead
+      marker, the hit paths and the mid-drag line.</li>
+  <li><code>src/features/connections/ConnectionLabels.svelte</code> — the HTML chip layer.</li>
+  <li><code>src/features/connections/connections.svelte.ts</code> — the feature's operations over
+      the store (start a link, complete it, set label, set direction, delete).</li>
+  <li><code>src/features/connections/__tests__/connections.test.ts</code> — feature operations and
+      the pending-link state machine.</li>
+  <li><code>src/lib/connectionGeometry.ts</code> — pure endpoint, midpoint, length, culling and
+      label-visibility maths. In <code>lib/</code> because the overlay, the label layer and the
+      panel all read it.</li>
+  <li><code>src/lib/__tests__/connectionGeometry.test.ts</code> — the pure-maths tests.</li>
+  <li><code>src/features/connections/__tests__/undoConnections.test.ts</code> — the connection undo
+      commands, including delete-a-card-with-lines.</li>
+  <li><code>scripts/phase-2-session.md</code> — the recorded scripted-session artefact for the
+      phase gate.</li>
+</ul>
+
+<h3>Relevant Documentation — READ BEFORE IMPLEMENTING</h3>
+<ul>
+  <li><a href="../design-system.html">docs/design-system.html</a> §9.13 Connections — the
+      authoritative SVG snippet, the marker box (<code>viewBox 0 0 9 9</code>, <code>refX 8</code>,
+      <code>refY 4.5</code>, 6×6, <code>orient="auto-start-reverse"</code>), stroke width 1.5 px,
+      the label chip spec, the 50 px rule and the six rules that matter. <strong>Copy the marker
+      definition verbatim.</strong></li>
+  <li><a href="../design-system.html">docs/design-system.html</a> §8.3 (left column tool rows:
+      active = accent fill + weight 600; available = opacity .85; unavailable = opacity .35), §8.5
+      (properties panel anatomy and the <code>.input</code> spec), §11.1–11.5 (tints, motion, focus
+      vs selection vs hover, and <code>crosshair</code> for the Connect tool), §15.1 (the two
+      undrawn states this phase must design), §16 (the P2 row of the screen→phase map).</li>
+  <li><a href="../prd.html">docs/prd.html</a> §6.3 Connections, §6.9 (the
+      <code>connection</code> entity and the lifecycle rules), §9.1–9.2 (the command seam and its
+      illustrative shape), §11 Phase 2.</li>
+  <li><a href="../architecture.html">docs/architecture.html</a> §5 (module layout and the import
+      direction rule), §6 (the Tauri command seam), §7 (<code>persistence-strategy</code>,
+      <code>undo-model</code>, <code>failure-surfaces</code>), §8 (<code>nfr-targets</code>).</li>
+  <li><a href="phase-1-canvas-core.html">docs/phases/phase-1-canvas-core.html</a> Notes — every
+      decision this phase inherits, including the z-index ladder, the motion resolution, the
+      zoom clamps and the Vitest/jsdom harness choice.</li>
+  <li><a href="https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Element/marker">MDN — SVG
+      <code>&lt;marker&gt;</code></a> — specifically <code>orient="auto-start-reverse"</code>, which
+      is what lets a single marker serve both <code>marker-start</code> and <code>marker-end</code>.
+      Why: the design system names this attribute explicitly and the direction model depends on it.</li>
+  <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/pointer-events">MDN —
+      <code>pointer-events</code></a>, the <code>stroke</code> value. Why: the overlay must be
+      transparent to the pan, marquee and card-drag gestures while its hit paths stay clickable.</li>
+  <li><a href="https://svelte.dev/docs/svelte/svg">Svelte 5 — SVG elements and
+      <code>{#each}</code> keying</a>. Why: the overlay must be keyed by connection id so Svelte
+      moves nodes instead of rebuilding them, the same reason <code>CardLayer</code> keys by
+      placement id.</li>
+  <li><a href="https://docs.rs/rusqlite/0.32.0/rusqlite/struct.Connection.html#method.transaction">rusqlite
+      0.32 — <code>Connection::transaction</code></a>. Why: capturing and deleting connections must
+      be one transaction, matching <code>delete_placements_for</code>.</li>
+</ul>
+
+<h3>Patterns to Follow</h3>
+
+<p><strong>Naming conventions.</strong> Rust: <code>snake_case</code> functions, a
+<code>*_for(state, …)</code> core plus a thin <code>#[tauri::command]</code> wrapper. TypeScript:
+<code>camelCase</code> functions, <code>PascalCase</code> types, row interfaces mirroring the SQL
+column names exactly (<code>from_placement_id</code>, not <code>fromPlacementId</code>) — the
+argument names crossing the IPC seam are camelCase, the row fields are snake_case. Svelte
+components are <code>PascalCase.svelte</code>; rune modules end <code>.svelte.ts</code>.</p>
+
+<p><strong>The Rust command shape</strong> — <code>src-tauri/src/commands/placement.rs</code>:52:</p>
+<pre><code>pub fn insert_placement(
+    conn: &amp;Connection,
+    canvas_id: i64,
+    /* … */
+) -&gt; AppResult&lt;Placement&gt; { /* … */ }
+
+#[tauri::command]
+pub fn list_placements(
+    state: tauri::State&lt;'_, AppState&gt;,
+    canvas_id: i64,
+) -&gt; AppResult&lt;Vec&lt;PlacementWithItem&gt;&gt; {
+    list_placements_for(&amp;state, canvas_id)
+}</code></pre>
+
+<p><strong>Error handling.</strong> Rust returns <code>AppResult&lt;T&gt;</code> only; a raw string
+never crosses the seam. The front end calls <code>invokeSafe</code> and nothing else, and
+<code>src/app.svelte</code> wraps every action in its local <code>guard()</code>, which draws the
+message in the shell rather than a dialog:</p>
+<pre><code>async function guard(work: () =&gt; Promise&lt;void&gt;) {
+  try { await work(); errorMessage = null; }
+  catch (error) {
+    errorMessage = error instanceof IpcError ? error.message : 'Something went wrong.';
+    logError('an action failed', error);
+  }
+}</code></pre>
+
+<p><strong>Logging.</strong> Front end through <code>src/lib/logger.ts</code>
+(<code>logError</code>, <code>logInfo</code>) — never <code>console.log</code>. Rust through
+<code>log</code> — never <code>println!</code>.</p>
+
+<p><strong>Store mutation.</strong> Never reassign a <code>SvelteMap</code>; set the entry:</p>
+<pre><code>patchPlacement(id: number, patch: Partial&lt;Placement&gt;): void {
+  const current = this.placements.get(id);
+  if (!current) return;
+  this.placements.set(id, { ...current, ...patch });
+}</code></pre>
+
+<p><strong>Undo command shape</strong> — <code>src/features/undo/commands.ts</code>:22:</p>
+<pre><code>export interface UndoableCommand {
+  /** Shown beside the History rows. Title Case. */
+  label: string;
+  undo(): Promise&lt;void&gt;;
+  redo(): Promise&lt;void&gt;;
+}</code></pre>
+
+<p><strong>Import direction (enforced by Level 5).</strong>
+<code>src/features/connections/</code> may import from <code>src/lib/</code> and
+<code>src/stores/</code> only. It may not import <code>features/cards</code>,
+<code>features/selection</code> or <code>features/undo</code>; anything shared moves to
+<code>lib/</code>, and anything that needs two features is wired in <code>src/app.svelte</code>.</p>
+
+<p><strong>Tokens only.</strong> No literal hex in a component (Level 5 greps for it). Use
+<code>--color-connection</code>, <code>--color-arrowhead</code>, <code>--color-accent</code>,
+<code>--color-surface</code>, <code>--radius-md</code>, <code>--z-connections</code>,
+<code>--duration-90</code>, <code>--ease</code>.</p>
+
+<h2>Implementation Plan</h2>
+
+<p><strong>Rendering:</strong> Milestones — see Step 6.</p>
+<p><strong>Rationale:</strong> Fourteen tasks over four genuine sub-layers (Rust and the store →
+pure geometry and drawing → the drawing gesture → selection, editing, deletion and undo). Each
+milestone has a compound assertion no single task's VALIDATE covers: a connection surviving a
+process restart, a line landing on a card's real edge under an arbitrary transform, a full
+draw-a-line gesture composing tool state with the store, and undo composing a delete across three
+tables. A flat fourteen-item list would hide those seams.</p>
+
+<h3 class="milestone" data-milestone="1">Milestone 1: The connection table reaches the front end</h3>
+<p>The Rust command file, the model changes that let undo see what a delete removed, and the shared
+store holding connections for the open canvas.</p>
+<p><strong>Validation checkpoint:</strong> a Rust integration test that opens a real project in a
+temp directory, creates two cards and a labelled connection between them, <em>drops the
+<code>AppState</code> and reopens the same folder</em>, and asserts the connection comes back with
+its label and direction intact and its endpoints still pointing at the two placements — proving the
+command layer, the schema, WAL durability and the row mapping agree across a process boundary, which
+no single task's VALIDATE spans.</p>
+
+<h4 class="task" data-task="1">Task 1: Connection row model and the Rust command file</h4>
+<p>Give the connection table a Rust struct, a row mapper and the four commands the front end needs.
+Mirror <code>placement.rs</code> exactly; add no migration.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/commands/connection.rs</code> with
+      <code>list_connections_for(state, canvas_id) -&gt; AppResult&lt;Vec&lt;Connection&gt;&gt;</code>,
+      <code>create_connection_for(state, canvas_id, from_placement_id, to_placement_id, label: Option&lt;String&gt;, directed: i64)</code>,
+      <code>update_connection_for(state, connection_id, label: Option&lt;String&gt;, directed: i64)</code>
+      and <code>delete_connections_for(state, ids: Vec&lt;i64&gt;) -&gt; AppResult&lt;Vec&lt;Connection&gt;&gt;</code>
+      (returning the rows removed, so undo can restore them), each with a thin
+      <code>#[tauri::command]</code> wrapper below it.</li>
+  <li><strong>ADD:</strong> to <code>src-tauri/src/db/models.rs</code>, a
+      <code>Connection</code> struct (<code>id, canvas_id, from_placement_id, to_placement_id,
+      label: Option&lt;String&gt;, directed: i64</code>) with
+      <code>#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]</code>, and
+      <code>row_to_connection</code> beside <code>row_to_placement</code>.</li>
+  <li><strong>IMPLEMENT:</strong> reject <code>from_placement_id == to_placement_id</code> with
+      <code>AppError::Invalid("a card cannot be connected to itself".into())</code>. Reject a second
+      connection with the same ordered pair on the same canvas the same way — the front end catches
+      this and selects the existing connection instead (Task 8).</li>
+  <li><strong>IMPLEMENT:</strong> an empty or whitespace-only label is stored as SQL
+      <code>NULL</code>, never as <code>''</code>, so "has a label" is one test everywhere.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/mod.rs</code> — add
+      <code>pub mod connection;</code>. <code>src-tauri/src/lib.rs</code> — add all four commands to
+      <strong>both</strong> the <code>#[cfg(debug_assertions)]</code> and
+      <code>#[cfg(not(debug_assertions))]</code> <code>invoke_handler</code> lists.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/placement.rs</code>:14–70 and 202–275
+      for the function/command split; <code>src-tauri/src/db/models.rs</code>:36–46 and 105–120 for
+      the struct and the mapper.</li>
+  <li><strong>IMPORTS:</strong> <code>crate::commands::project::AppState</code>,
+      <code>crate::db::models::{row_to_connection, Connection}</code>,
+      <code>crate::error::{AppError, AppResult}</code>, <code>rusqlite::Connection as SqlConnection</code>
+      (alias it — the row struct and rusqlite's type would otherwise collide).</li>
+  <li><strong>GOTCHA:</strong> the two <code>invoke_handler</code> lists in <code>lib.rs</code>
+      differ deliberately (the debug list carries the dev-only commands). A command added to only
+      one is missing from the shipped installer and nothing fails at compile time.</li>
+  <li><strong>GOTCHA:</strong> <code>label</code> is <code>TEXT</code> nullable, so it must be
+      <code>Option&lt;String&gt;</code> in Rust and <code>string | null</code> in TypeScript. A
+      non-optional <code>String</code> panics on a NULL row at read time.</li>
+  <li><strong>IMPLEMENT:</strong> a <code>#[cfg(test)]</code> module using the same
+      <code>open()</code> helper as <code>placement.rs</code>:323, with
+      <code>create_connection_round_trips_through_list_connections</code>,
+      <code>create_connection_rejects_a_card_connected_to_itself</code>,
+      <code>create_connection_rejects_a_duplicate_ordered_pair</code>,
+      <code>update_connection_empty_label_stores_null</code> and
+      <code>delete_connections_returns_the_rows_it_removed</code>.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>cargo test --manifest-path src-tauri/Cargo.toml connection</code> passes, and
+      <code>cargo build --manifest-path src-tauri/Cargo.toml</code> exits 0.</li>
+</ul>
+
+<h4 class="task" data-task="2">Task 2: A card delete reports the connections it removed</h4>
+<p><code>delete_placements</code> currently lets the foreign-key cascade destroy connection rows
+that nothing recorded. Capture them first, so one undo command can restore the cards
+<em>and</em> their lines together — the exact rule
+<code>docs/architecture.html</code> <code>undo-model</code> states.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/db/models.rs</code> — add
+      <code>pub connections: Vec&lt;Connection&gt;</code> to <code>DeleteEffect</code>. It already
+      derives <code>Default</code>, so nothing else changes.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/placement.rs</code>
+      <code>delete_placements_for</code> (line 164) — inside the existing transaction, before each
+      <code>DELETE FROM placement</code>, run
+      <code>SELECT * FROM connection WHERE from_placement_id = ?1 OR to_placement_id = ?1</code> and
+      push the rows onto <code>effect.connections</code>, de-duplicating by id (a connection between
+      two cards both being deleted is found twice).</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/types.ts</code> — add
+      <code>connections: Connection[]</code> to the <code>DeleteEffect</code> interface.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/placement.rs</code>:164–200 — stay
+      inside the one transaction that is already open; do not add a second.</li>
+  <li><strong>GOTCHA:</strong> capture <em>before</em> the delete. After
+      <code>DELETE FROM placement</code> the cascade has already removed the connection rows and the
+      select returns nothing.</li>
+  <li><strong>GOTCHA:</strong> the delete loop iterates ids one at a time. Collect into a
+      <code>std::collections::HashSet&lt;i64&gt;</code> of seen connection ids so a line whose two
+      endpoints are both in the deleted set is recorded once.</li>
+  <li><strong>IMPLEMENT:</strong> a Rust test
+      <code>delete_placements_reports_every_connection_it_removed</code> — three cards, two lines,
+      delete the middle card, assert both lines come back in the effect exactly once and that
+      <code>list_connections_for</code> then returns none.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>cargo test --manifest-path src-tauri/Cargo.toml delete_placements</code> passes,
+      including the new test and the two existing item-lifecycle tests
+      (<code>delete_placements_last_placement_of_an_item_removes_the_item</code>,
+      <code>delete_placements_one_of_two_leaves_the_item</code>), proving the change did not disturb
+      them.</li>
+</ul>
+
+<h4 class="task" data-task="3">Task 3: Connections in the shared canvas store</h4>
+<p>Cards, connections, selection, pan and zoom all read and write one store — that is the whole
+reason it is named up front in <code>docs/architecture.html</code> §4. Connections join it here.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/stores/canvasStore.svelte.ts</code> — add
+      <code>connections = new SvelteMap&lt;number, Connection&gt;()</code>,
+      <code>selectedConnectionId = $state&lt;number | null&gt;(null)</code>, and
+      <code>pendingLink = $state&lt;{ fromPlacementId: number; pointer: Point } | null&gt;(null)</code>
+      (the shape <code>docs/design-system.html</code> §13.1 names).</li>
+  <li><strong>ADD:</strong> mutators mirroring the placement ones —
+      <code>upsertConnection(c)</code>, <code>patchConnection(id, patch)</code>,
+      <code>removeConnection(id)</code>, <code>selectConnection(id | null)</code>, plus a derived
+      <code>selectedConnection</code>.</li>
+  <li><strong>IMPLEMENT:</strong> selection is mutually exclusive.
+      <code>selectConnection(id)</code> calls <code>clearSelection()</code> first;
+      <code>setSelection</code>, <code>toggleSelected</code> and <code>selectAll</code> each set
+      <code>selectedConnectionId = null</code>. <code>removeConnection</code> clears
+      <code>selectedConnectionId</code> when it matches, exactly as
+      <code>removePlacement</code> already drops an id from <code>selection</code>.</li>
+  <li><strong>ADD:</strong> a derived
+      <code>connectionsFor(placementId)</code> helper is <em>not</em> needed — the overlay iterates
+      <code>connections.values()</code> once per frame.</li>
+  <li><strong>UPDATE:</strong> <code>loadCanvas</code> — after the
+      <code>list_placements</code> call, <code>await invokeSafe&lt;Connection[]&gt;('list_connections', { canvasId })</code>,
+      clear the map and upsert each. <code>closeProject</code> — clear the map,
+      <code>selectedConnectionId</code> and <code>pendingLink</code>.</li>
+  <li><strong>PATTERN:</strong> <code>src/stores/canvasStore.svelte.ts</code>:74–100 for the mutator
+      shape and 140–166 for <code>loadCanvas</code>.</li>
+  <li><strong>GOTCHA:</strong> use <code>SvelteMap</code>, not <code>Map</code>. A plain Map inside
+      <code>$state</code> is not reactive on <code>set</code>, so a label edit would not repaint.
+      The module header says this; the rule is easy to break with a new collection.</li>
+  <li><strong>GOTCHA:</strong> the store imports from <code>lib/</code> only. Do not import anything
+      from <code>features/</code> here — Level 5 greps for it.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/stores</code> passes with new cases in
+      <code>src/stores/__tests__/canvasStore.test.ts</code>:
+      <code>selectConnection_aConnectionId_clearsThePlacementSelection</code>,
+      <code>setSelection_anyIds_clearsTheSelectedConnection</code>,
+      <code>removeConnection_theSelectedConnection_clearsTheSelection</code> and
+      <code>loadCanvas_aCanvasWithConnections_populatesTheConnectionMap</code> (with
+      <code>invokeSafe</code> mocked to return placements then connections).</li>
+</ul>
+
+<h3 class="milestone" data-milestone="2">Milestone 2: Geometry and drawing</h3>
+<p>The pure endpoint maths, the SVG overlay with its arrowhead marker, and the HTML label chip with
+its 50 px rule.</p>
+<p><strong>Validation checkpoint:</strong> a jsdom test that mounts the canvas with two placements
+and one connection under a non-identity view (pan <em>and</em> a zoom other than 1), and asserts the
+rendered <code>&lt;path d&gt;</code> endpoints lie exactly on the two card rectangles' borders — not
+at their centres and not at an assumed edge — while the label chip's computed left/top land on the
+line's midpoint. This is the cross-task assertion: the maths, the overlay and the world transform
+have to agree, and each task alone only proves its own half.</p>
+
+<h4 class="task" data-task="4">Task 4: Endpoint, midpoint and culling maths as pure functions</h4>
+<p>Every line-drawing bug in the prototype was an endpoint bug — <code>docs/design-system.html</code>
+§9.13 records that they were hand-computed and corrected twice. Put the maths in one pure module and
+test it before anything draws.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/connectionGeometry.ts</code> exporting:
+      <code>rectCentre(rect: Rect): Point</code>;
+      <code>rectEdgePoint(rect: Rect, toward: Point): Point</code> — the point where the ray from the
+      rectangle's centre toward <code>toward</code> crosses the rectangle's border;
+      <code>connectionEndpoints(from: Rect, to: Rect): { start: Point; end: Point } | null</code>;
+      <code>segmentMidpoint(a, b): Point</code>;
+      <code>segmentLength(a, b): number</code>;
+      <code>labelVisible(a: Point, b: Point, zoom: number): boolean</code>;
+      <code>connectionInView(a: Point, b: Point, view: View, viewportSize: Size, marginPx?: number): boolean</code>.</li>
+  <li><strong>IMPLEMENT:</strong> <code>rectEdgePoint</code> as the standard centre-ray clip —
+      given <code>dx, dy</code> from the centre, the scale is
+      <code>Math.min(halfWidth / Math.abs(dx), halfHeight / Math.abs(dy))</code>, guarding a zero
+      component with <code>Infinity</code>. Return the centre when both components are zero.</li>
+  <li><strong>IMPLEMENT:</strong> <code>connectionEndpoints</code> returns <code>null</code> when the
+      two rectangles overlap or share a centre — there is no sensible line, and the overlay skips it
+      rather than drawing a zero-length stroke with an arrowhead spike.</li>
+  <li><strong>IMPLEMENT:</strong> <code>LABEL_MIN_LENGTH_PX = 50</code>, and
+      <code>labelVisible</code> multiplying the world length by <code>zoom</code> before comparing —
+      the threshold is <strong>screen</strong> pixels. <code>docs/design-system.html</code> §9.13
+      says the chip "reappears the moment the cards move apart <em>or the canvas zooms in</em>",
+      which is only true in screen space.</li>
+  <li><strong>IMPLEMENT:</strong> <code>connectionInView</code> as
+      <code>rectsIntersect(viewportWorldRect(view, viewportSize, marginPx), rectFromCorners(a, b))</code>
+      — a line's own bounding box, not its cards'. Two off-screen cards can have a line crossing the
+      middle of the viewport, so culling on the visible <em>card</em> set would drop it wrongly.</li>
+  <li><strong>PATTERN:</strong> <code>src/lib/geometry.ts</code>:1–60 — same file header style, same
+      "pure function of its arguments" discipline, same reuse of <code>Rect</code>,
+      <code>Point</code>, <code>View</code>, <code>Size</code>.</li>
+  <li><strong>IMPORTS:</strong>
+      <code>import { rectFromCorners, rectsIntersect, viewportWorldRect, type Point, type Rect, type Size, type View } from './geometry';</code></li>
+  <li><strong>GOTCHA:</strong> do not add these to <code>geometry.ts</code> itself. That file is
+      shared by culling, marquee and resize and is already at 160 lines; a separate module keeps the
+      connection maths swappable and its tests readable.</li>
+  <li><strong>GOTCHA:</strong> everything here is world-space. Do not convert to screen coordinates —
+      the overlay lives inside the <code>.world</code> div and inherits the one CSS transform.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/lib/__tests__/connectionGeometry.test.ts</code> passes, covering
+      <code>rectEdgePoint_aPointDirectlyRight_landsOnTheRightBorder</code>,
+      <code>rectEdgePoint_aDiagonalTarget_landsOnTheNearerBorder</code>,
+      <code>connectionEndpoints_twoSeparatedRects_bothPointsSitOnTheirOwnBorder</code>,
+      <code>connectionEndpoints_overlappingRects_returnsNull</code>,
+      <code>labelVisible_a60pxLineAtHalfZoom_isFalse</code>,
+      <code>labelVisible_a60pxLineAt100Percent_isTrue</code> and
+      <code>connectionInView_bothCardsOffScreenButTheLineCrossing_isTrue</code>.</li>
+</ul>
+
+<h4 class="task" data-task="5">Task 5: The SVG overlay and the arrowhead marker</h4>
+<p>Draw the lines. One SVG sibling of the card layer, before it in DOM order, so cards always paint
+over lines.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/connections/ConnectionLayer.svelte</code> — an
+      absolutely positioned <code>&lt;svg&gt;</code> filling the world layer, holding the
+      <code>&lt;defs&gt;&lt;marker&gt;</code> and one <code>&lt;g&gt;</code> per connection, keyed
+      <code>(connection.id)</code>.</li>
+  <li><strong>IMPLEMENT:</strong> the marker exactly as <code>docs/design-system.html</code> §9.13
+      draws it — <code>viewBox="0 0 9 9"</code>, <code>refX="8"</code>, <code>refY="4.5"</code>,
+      <code>markerWidth="6"</code>, <code>markerHeight="6"</code>,
+      <code>orient="auto-start-reverse"</code>, path <code>M0.5,0.5 L8.5,4.5 L0.5,8.5 z</code>. Two
+      marker ids: <code>ideascape-arrow</code> filled <code>var(--color-arrowhead)</code> and
+      <code>ideascape-arrow-selected</code> filled <code>var(--color-accent)</code>.</li>
+  <li><strong>IMPLEMENT:</strong> the stroke group as
+      <code>stroke="var(--color-connection)" stroke-width="1.5" fill="none"</code>, and
+      <code>marker-end</code> / <code>marker-start</code> chosen from
+      <code>directed</code>: <code>0</code> none, <code>1</code> end only, <code>2</code> start only,
+      <code>3</code> both.</li>
+  <li><strong>IMPLEMENT:</strong> culling — iterate <code>canvasStore.connections.values()</code>,
+      resolve both placements from <code>canvasStore.placements</code>, skip a connection whose
+      placements are missing, compute endpoints, and skip it when
+      <code>connectionInView</code> is false. Expose the drawn/total counts on the root element as
+      <code>data-drawn</code> / <code>data-total</code>, mirroring
+      <code>CardLayer.svelte</code>:172.</li>
+  <li><strong>IMPLEMENT:</strong> per connection, two paths with the same <code>d</code>: the visible
+      stroke, and beneath it a hit path with
+      <code>stroke="transparent" stroke-width="12" pointer-events="stroke"</code>,
+      <code>tabindex="0"</code>, <code>role="button"</code> and an
+      <code>aria-label</code> naming both endpoints, so Tab reaches a connection and Enter or Space
+      selects it (<code>docs/design-system.html</code> §12: every action has a keyboard route).</li>
+  <li><strong>IMPLEMENT:</strong> the selected state — stroke width 2.5 at
+      <code>var(--color-text)</code>, the selected marker, and a 7 × 7 px accent square drawn at each
+      endpoint. The line itself never takes the accent (§10 contract 7); the square handles are the
+      selection signal, exactly as they are on a card (§11.4).</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — render
+      <code>&lt;ConnectionLayer /&gt;</code> inside <code>&lt;CanvasSurface&gt;</code>
+      <em>immediately before</em> <code>&lt;CardLayer /&gt;</code>.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/cards/CardLayer.svelte</code>:36–50 (the
+      <code>$derived</code> cull) and 168–200 (the keyed <code>{#each}</code>).</li>
+  <li><strong>GOTCHA:</strong> the root <code>&lt;svg&gt;</code> must carry
+      <code>pointer-events: none</code> and <code>z-index: var(--z-connections)</code>. Without the
+      first, the overlay swallows every background pan and marquee; without the second, lines paint
+      over cards.</li>
+  <li><strong>GOTCHA:</strong> the overlay sits inside <code>.world</code>, which is scaled. Give the
+      svg <code>overflow: visible</code> and a large fixed box (or
+      <code>width: 100%; height: 100%</code> with <code>overflow: visible</code>) — a line running to
+      negative world coordinates is otherwise clipped away.</li>
+  <li><strong>GOTCHA:</strong> stroke width is <em>not</em> counter-scaled. Everything on the canvas
+      scales with the transform; a line that kept a constant screen width would be the only element
+      that did not.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/features/connections</code> passes a new
+      <code>connectionLayer.test.ts</code> that renders the component with two placements and one
+      connection in the store and asserts: exactly one visible <code>path[marker-end]</code>, its
+      <code>d</code> endpoints equal <code>connectionEndpoints</code>' output, the
+      <code>&lt;marker&gt;</code> has <code>orient="auto-start-reverse"</code> and
+      <code>refX="8"</code>, and the root svg's computed <code>pointer-events</code> is
+      <code>none</code>.</li>
+</ul>
+
+<h4 class="task" data-task="6">Task 6: Label chips, and the 50 px rule</h4>
+<p>Labels are HTML chips, not SVG text, so they can sit on an opaque ground. Below 50 px of line
+length the chip is not drawn — and the label is kept, not lost.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/connections/ConnectionLabels.svelte</code> — an
+      absolutely positioned layer inside the world div, one <code>&lt;span class="chip"&gt;</code>
+      per connection that has a non-null label <em>and</em> passes
+      <code>labelVisible</code>, positioned at the segment midpoint with
+      <code>transform: translate(-50%, -50%)</code>.</li>
+  <li><strong>IMPLEMENT:</strong> the chip exactly as <code>docs/design-system.html</code> §9.13
+      specifies — background <code>var(--color-surface)</code>, <code>border-radius: var(--radius-md)</code>
+      (2 px), padding <code>1px 5px</code>, <code>font-size: var(--text-10)</code>,
+      <code>opacity: .62</code>, <code>white-space: nowrap</code>. A selected connection's chip adds
+      a <code>1px solid var(--color-accent)</code> border and goes to full opacity.</li>
+  <li><strong>IMPLEMENT:</strong> the chip layer sits above the connection layer and below the card
+      layer, and is <code>pointer-events: none</code>. §9.13 says an open menu occluding a chip is
+      correct behaviour — the z-ladder already produces that, since
+      <code>--z-context-menu</code> is 60.</li>
+  <li><strong>IMPLEMENT:</strong> hiding is hiding, not shrinking. Do not truncate the text, do not
+      reduce the font size, do not offset the chip off the line — the rule is explicit on all three.
+      The label stays on the row and reappears unchanged.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — render
+      <code>&lt;ConnectionLabels /&gt;</code> directly after <code>&lt;ConnectionLayer /&gt;</code>.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/cards/CardShell.svelte</code>:38–56 — absolute
+      positioning from world coordinates in an inline <code>style</code>.</li>
+  <li><strong>GOTCHA:</strong> the chip is inside the scaled world, so its 10 px text scales with the
+      canvas. That is intended and is why the 50 px threshold is measured in screen pixels
+      (<code>labelVisible</code> already takes <code>zoom</code>).</li>
+  <li><strong>GOTCHA:</strong> the label is user text. It goes in as a text node, never as
+      <code>{@html}</code>.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/features/connections</code> passes
+      <code>connectionLabels.test.ts</code>:
+      <code>chip_aLabelledConnectionOver50px_isRendered</code>,
+      <code>chip_theSameConnectionZoomedTo0Point4_isNotRendered</code>,
+      <code>chip_reZoomedTo1_returnsWithTheSameText</code> (proving the label was kept, not lost),
+      and <code>chip_aLabelContainingMarkup_isRenderedAsText</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="3">Milestone 3: Drawing a connection</h3>
+<p>The Connect tool, the <code>C</code> shortcut, the <em>Connect From Here</em> menu row, and the
+mid-drag line — the first of the two states the design system leaves undrawn.</p>
+<p><strong>Validation checkpoint:</strong> a jsdom test that drives the whole gesture end to end —
+choose the Connect tool, press on card A, move over empty space (assert the dashed pending line
+follows the pointer and no connection exists yet), move over card B (assert the line snaps to B's
+edge and goes solid), release (assert exactly one <code>create_connection</code> call, the store
+holds the new row, and <code>pendingLink</code> is null), then repeat and press <code>Esc</code>
+mid-drag and assert nothing was created. This composes the tool state, the store, the overlay and the
+command seam; the per-task validations each cover only one of the four.</p>
+
+<h4 class="task" data-task="7">Task 7: The Connect tool — active, available and unavailable</h4>
+<p>Make the drawn-but-inert Connect row live, and give it the availability rule the design system
+states.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/LeftColumn.svelte</code>:86–95 — replace the
+      hard-coded <code>is-unavailable disabled</code> Connect row with the same shape the Select and
+      Pan rows use: <code>class:active={canvasStore.activeTool === 'connect'}</code>,
+      <code>onclick={() =&gt; chooseTool('connect')}</code>, and
+      <code>disabled</code>/<code>is-unavailable</code> driven by
+      <code>canvasStore.cardCount &lt; 2</code>.</li>
+  <li><strong>IMPLEMENT:</strong> the availability rule is verbatim from
+      <code>docs/design-system.html</code> frame <code>14b</code>: with one card on the canvas
+      "Undo, Redo and Connect are all at opacity .35 — there is nothing to connect". Two cards is the
+      threshold.</li>
+  <li><strong>IMPLEMENT:</strong> when the tool becomes unavailable while it is active (the user
+      deletes down to one card), fall back to <code>'select'</code>, so the canvas is never stuck in
+      a tool that cannot act.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/canvas/CanvasSurface.svelte</code> — add
+      <code>cursor: crosshair</code> on the surface while
+      <code>canvasStore.activeTool === 'connect'</code>
+      (<code>docs/design-system.html</code> §11.5: "everywhere on the canvas while the Connect tool
+      is active"), and make <code>onPointerDown</code> ignore the marquee branch under that tool.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/shell/LeftColumn.svelte</code>:70–85 (the Select
+      and Pan rows) and 116–140 (the <code>class:is-unavailable</code> + <code>disabled</code> pair
+      the History rows already use).</li>
+  <li><strong>GOTCHA:</strong> colour is never the only signal
+      (<code>docs/design-system.html</code> §12). The active row already carries weight 600 plus the
+      accent fill through the existing <code>.action-row.active</code> rule — do not add a second
+      mechanism, and keep the real <code>disabled</code> attribute on the unavailable row.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/features/shell</code> passes new cases in
+      <code>shell.test.ts</code>:
+      <code>connectRow_aCanvasWithOneCard_isDisabled</code>,
+      <code>connectRow_aCanvasWithTwoCards_isEnabled</code>, and
+      <code>connectRow_clicked_setsTheActiveToolToConnect</code>. The existing
+      <code>src/lib/__tests__/tokens.test.ts</code> parity test must stay green — no new token is
+      added, so it should need no change.</li>
+</ul>
+
+<h4 class="task" data-task="8">Task 8: Drawing the line — the pending link and its commit</h4>
+<p>The gesture itself, and the design pass on the mid-drag state
+<code>docs/design-system.html</code> §15.1 leaves undrawn.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/connections/connections.svelte.ts</code> with
+      <code>beginLink(fromPlacementId: number, pointer: Point): void</code>,
+      <code>trackLink(pointer: Point): void</code>,
+      <code>cancelLink(): void</code>,
+      <code>completeLink(toPlacementId: number): Promise&lt;Connection | null&gt;</code> and
+      <code>hitPlacementAt(point: Point): number | null</code> (the topmost placement whose rectangle
+      contains the world point, by <code>z_order</code>).</li>
+  <li><strong>IMPLEMENT:</strong> <code>completeLink</code> writes through
+      <code>writeNow(() =&gt; invokeSafe&lt;Connection&gt;('create_connection', { canvasId, fromPlacementId, toPlacementId, label: null, directed: 1 }), saveHooks)</code>,
+      upserts the row, selects it, and clears <code>pendingLink</code>. A connection is a discrete
+      change — it never queues through <code>queuePlacementUpdate</code>
+      (<code>docs/architecture.html</code> <code>persistence-strategy</code>).</li>
+  <li><strong>IMPLEMENT:</strong> dropping on the source card, on empty space, or on a pair that
+      already has a connection cancels quietly. In the duplicate case, select the existing connection
+      instead of surfacing the Rust <code>Invalid</code> error — the user's intent is already
+      satisfied and a failure message would be wrong.</li>
+  <li><strong>UPDATE:</strong> <code>ConnectionLayer.svelte</code> — render the mid-drag line from
+      <code>pendingLink</code>: <strong>from the source card's real edge toward the pointer, 1.5 px,
+      <code>var(--color-connection)</code>, <code>stroke-dasharray="4 3"</code>, no arrowhead</strong>.
+      When the pointer is over a valid target, the line snaps to that card's edge, drops the dash and
+      shows the arrowhead. No transition — it follows the pointer
+      (<code>docs/design-system.html</code> §11.3, 0 ms).</li>
+  <li><strong>UPDATE:</strong> <code>src/features/cards/CardLayer.svelte</code> — under the Connect
+      tool a press on a card starts a link instead of a move. Raise it as a new prop
+      <code>onConnectFrom: (placementId: number, event: PointerEvent) =&gt; void</code>; the layer
+      must not import the connections feature (import direction rule), so
+      <code>src/app.svelte</code> wires it.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — track the pointer through the existing
+      <code>onPointerWorld</code> callback into <code>trackLink</code>; complete on
+      <code>pointerup</code> via <code>hitPlacementAt(pointerWorld)</code>; add the
+      <code>connect</code> handler to <code>registerShortcuts</code>; extend the existing
+      <code>cancel</code> handler so <code>Esc</code> cancels a pending link <em>before</em> it
+      closes a menu or clears the selection.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — make the <em>Connect From Here</em>
+      element-menu row live: <code>available: canvasStore.selection.size === 1 &amp;&amp; canvasStore.cardCount &gt;= 2</code>
+      with <code>run</code> calling <code>beginLink</code> from the selected card. The
+      <code>C</code> shortcut uses the same rule and is a no-op otherwise.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/canvas/CanvasSurface.svelte</code>:78–140 — the
+      gesture discriminated union and <code>setPointerCapture</code>;
+      <code>src/app.svelte</code>:380–400 — the shortcut registration block.</li>
+  <li><strong>IMPORTS:</strong> <code>connections.svelte.ts</code> imports only
+      <code>../../lib/ipc</code>, <code>../../lib/save</code>, <code>../../lib/types</code>,
+      <code>../../lib/connectionGeometry</code> and <code>../../stores/canvasStore.svelte</code>.</li>
+  <li><strong>GOTCHA:</strong> undo is pushed by <code>src/app.svelte</code>, not by the feature
+      module — every other action in the codebase does it that way, and a feature importing
+      <code>features/undo</code> breaks the import direction rule.</li>
+  <li><strong>GOTCHA:</strong> the mid-drag line must be excluded from
+      <code>connectionInView</code> culling. Its far end is the pointer, which is by definition on
+      screen.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/__tests__/contextMenu.test.ts</code> — the
+      existing test <code>elementMenu_connectFromHere_isUnavailableInThisPhase</code> (line 83) pins
+      the inert state and <em>will fail</em> once the row goes live. Replace it with
+      <code>elementMenu_connectFromHere_isAvailableWithOneCardSelected</code> and
+      <code>elementMenu_connectFromHere_isUnavailableWithNoSelection</code>; the label-order
+      assertion near line 51 stays unchanged because the row keeps its position.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/features/connections/__tests__/connections.test.ts</code> passes:
+      <code>beginLink_aSourceCard_setsPendingLink</code>,
+      <code>trackLink_aPointerMove_updatesThePendingPointerOnly</code>,
+      <code>completeLink_aDifferentCard_invokesCreateConnectionOnceAndClearsPending</code>,
+      <code>completeLink_theSourceCard_createsNothing</code>,
+      <code>completeLink_aPairThatAlreadyHasOne_selectsTheExistingConnection</code>,
+      <code>cancelLink_aPendingLink_clearsItWithoutWriting</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="4">Milestone 4: Selecting, editing, deleting and undoing</h3>
+<p>Selecting a line, the properties panel's Connection state (the second undrawn state), deletion
+following cards, and undo carrying all of it as one step.</p>
+<p><strong>Validation checkpoint:</strong> a scripted jsdom session asserting the composed
+lifecycle: create three cards and two connections; select the middle card; press <code>Del</code>
+(assert both connections leave the store and the effect carried them); press <code>Ctrl+Z</code>
+(assert the card is back <em>and</em> both connections are back, re-pointed at the card's <em>new</em>
+placement id, with their labels and directions intact); press <code>Ctrl+Y</code> (assert they are
+gone again). Undo depth returns to 0. This spans three tables and the id-remapping that no single
+task's VALIDATE exercises.</p>
+
+<h4 class="task" data-task="9">Task 9: Selecting a connection</h4>
+<p>Give a line a selected state, reachable by pointer and by keyboard, exclusive with the card
+selection.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>ConnectionLayer.svelte</code> — the hit path's
+      <code>onclick</code> and its Enter/Space <code>onkeydown</code> both call
+      <code>canvasStore.selectConnection(id)</code>. Clicking a line under the Select tool selects
+      it; under the Connect tool a line is not a valid link target and the press falls through to the
+      background.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — the existing
+      <code>onBackgroundClick</code> also clears <code>selectedConnectionId</code>; the
+      <code>cancel</code> (<code>Esc</code>) handler clears it after a pending link and a menu but
+      before the card selection; the <code>delete</code> handler deletes the selected connection when
+      one is selected and no cards are.</li>
+  <li><strong>IMPLEMENT:</strong> <code>:focus-visible</code> on the hit path draws the standard
+      2 px accent ring at 2 px offset (<code>docs/design-system.html</code> §11.4) — never the
+      browser default.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/cards/CardShell.svelte</code>:38–56 for the
+      <code>role</code>/<code>tabindex</code>/<code>aria-pressed</code> shape on a non-button
+      element.</li>
+  <li><strong>GOTCHA:</strong> the hit path is 12 px of transparent stroke <em>in world units</em>,
+      so it narrows on screen as the canvas zooms out. That is consistent with every other target on
+      the canvas and needs no counter-scaling.</li>
+  <li><strong>GOTCHA:</strong> a click on a line must not also reach the canvas background handler
+      and immediately clear the selection. Stop propagation on the hit path.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/features/connections</code> passes:
+      <code>hitPath_clicked_selectsTheConnectionAndClearsTheCardSelection</code>,
+      <code>hitPath_enterPressedWhileFocused_selectsTheConnection</code>,
+      <code>backgroundClick_aSelectedConnection_clearsIt</code>, and
+      <code>selectedConnection_rendered_drawsNoAccentOnTheStrokeItself</code> (the stroke stays
+      neutral ink; the accent appears only in the endpoint handles and the marker).</li>
+</ul>
+
+<h4 class="task" data-task="10">Task 10: The properties panel's Connection state</h4>
+<p>The second of the two undrawn states: the panel showing a selected connection's label and
+direction. Build it in the panel's existing visual grammar; invent no new measurement.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/PropertiesPanel.svelte</code> — add a
+      Connection branch ahead of the card branch, taken when
+      <code>canvasStore.selectedConnection !== null</code>.</li>
+  <li><strong>IMPLEMENT:</strong> header — kind <code>Connection</code> at
+      <code>--text-13</code> weight 600, with <code>connection-00N</code> below at
+      <code>--text-10-5</code> opacity .45, exactly matching the card header
+      (<code>PropertiesPanel.svelte</code>:56–72).</li>
+  <li><strong>IMPLEMENT:</strong> a <code>Label</code> group holding one full-width
+      <code>.input</code> (the same 11 px / <code>2px 4px</code> / <code>--radius-md</code> spec the
+      X/Y/W/H fields use), committing on <code>change</code> and on blur, with placeholder text in
+      sentence case. An empty value clears the label to null.</li>
+  <li><strong>IMPLEMENT:</strong> a <code>Direction</code> group as a 2 × 2 grid of
+      <code>.order-button</code>s — <code>None</code>, <code>Forward</code>, <code>Back</code>,
+      <code>Both</code> — mapping to <code>directed</code> 0, 1, 2, 3. The current one takes the
+      active treatment (accent fill plus weight 600), so colour is not the only signal. The grid
+      mirrors the existing <code>.pairs</code> grid; the buttons mirror the existing Order pair.</li>
+  <li><strong>IMPLEMENT:</strong> the footer keeps the existing
+      "<code>Edits here are undoable · …</code>" note, and its right-hand button becomes Delete only
+      — a connection has nothing to duplicate. Keep the same 30 × 26 box, the same
+      <code>--color-accent-2</code> <code>ph-trash</code>, and give it an accessible name.</li>
+  <li><strong>IMPLEMENT:</strong> a hidden label is still shown here. §9.13 is explicit: the label
+      "shows in the properties panel when the connection is selected" even when the chip is below the
+      50 px threshold.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — the panel expands when a connection is
+      selected as well as when cards are, so the existing
+      <code>panelOpen = canvasStore.selection.size &gt; 0</code> effect and the
+      <code>panelExpanded</code> derived both gain the connection case.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/shell/PropertiesPanel.svelte</code>:82–140 and
+      its <code>&lt;style&gt;</code> block. Reuse <code>.group</code>, <code>.group-label</code>,
+      <code>.pairs</code>, <code>.input</code>, <code>.order-button</code>, <code>.footer</code>
+      unchanged.</li>
+  <li><strong>GOTCHA:</strong> Title Case for the group labels and button text
+      (<code>Label</code>, <code>Direction</code>, <code>None</code>, <code>Forward</code>,
+      <code>Back</code>, <code>Both</code>); sentence case for the placeholder and the footer note.
+      This is a CLAUDE.md rule and a Phase 1 acceptance criterion.</li>
+  <li><strong>GOTCHA:</strong> the panel collapses whenever nothing is selected — including when a
+      connection is deselected. The existing effect covers cards only; extend it, do not duplicate
+      it.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/features/shell</code> passes:
+      <code>panel_aSelectedConnection_showsTheLabelAndDirectionGroups</code>,
+      <code>panel_aLabelTyped_invokesUpdateConnectionOnce</code>,
+      <code>panel_aDirectionButtonClicked_invokesUpdateConnectionWithTheNewValue</code>,
+      <code>panel_aConnectionWhoseChipIsHidden_stillShowsTheLabelText</code>, and
+      <code>panel_nothingSelected_isCollapsed</code>.</li>
+</ul>
+
+<h4 class="task" data-task="11">Task 11: Lines follow, and leave with, their cards</h4>
+<p>The two behaviours PRD §6.3 names last, and the front-end half of Task 2.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> "lines follow their cards" needs <em>no</em> code beyond what
+      Milestone 2 built — endpoints are derived from the live placement rectangles every render, so a
+      drag re-derives them automatically. Verify this rather than adding anything, and confirm no
+      connection row is written during a drag.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> <code>deleteSelection</code> — after
+      removing placements and items, also
+      <code>for (const c of effect.connections) canvasStore.removeConnection(c.id)</code>.</li>
+  <li><strong>ADD:</strong> a <code>deleteConnection</code> path in <code>src/app.svelte</code> for
+      the panel's Delete button and for <code>Del</code> with a connection selected:
+      <code>writeNow(() =&gt; invokeSafe&lt;Connection[]&gt;('delete_connections', { ids: [id] }), saveHooks)</code>,
+      then remove from the store and push the undo command from Task 12.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — deleting cards also clears
+      <code>selectedConnectionId</code> if the selected connection was among those removed
+      (<code>removeConnection</code> already does this; confirm the order of operations).</li>
+  <li><strong>PATTERN:</strong> <code>src/app.svelte</code>:176–192 — the existing
+      <code>deleteSelection</code> body.</li>
+  <li><strong>GOTCHA:</strong> do not delete connections from the front end before calling
+      <code>delete_placements</code>. The Rust side is the one that reports what it removed, and
+      pre-deleting would hide rows from the effect and break undo.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/features/connections</code> passes:
+      <code>deleteSelection_aCardWithTwoLines_removesBothFromTheStore</code>,
+      <code>drag_aConnectedCard_writesNoConnectionRow</code> (assert
+      <code>invokeSafe</code> is never called with <code>'update_connection'</code> or
+      <code>'create_connection'</code> during a move), and
+      <code>endpoints_afterMovingACard_followTheNewRectangle</code>.</li>
+</ul>
+
+<h4 class="task" data-task="12">Task 12: Undo and redo for connections</h4>
+<p>Every action in this phase must be one undoable step, and undoing a card delete must restore its
+lines with it — the rule <code>docs/architecture.html</code>'s <code>undo-model</code> states
+outright.</p>
+<ul>
+  <li><strong>ADD:</strong> to <code>src/features/undo/commands.ts</code>:
+      <code>createConnectionCommand(connection)</code> (label <code>Connect Cards</code>),
+      <code>deleteConnectionsCommand(removed: Connection[])</code> (label
+      <code>Delete Connection</code>), and
+      <code>editConnectionCommand(id, before, after)</code> carrying
+      <code>{ label, directed }</code> on each side (label <code>Edit Connection</code>). Each writes
+      through the same commands the forward action used, so an undone change is genuinely back on
+      disk.</li>
+  <li><strong>IMPLEMENT:</strong> a re-created connection takes a <strong>new id</strong>, exactly as
+      <code>createCardCommand</code> already adopts a new placement id — hold the current row in a
+      closure variable and reassign it on each redo.</li>
+  <li><strong>UPDATE:</strong> <code>restoreCards</code> in
+      <code>src/features/undo/commands.ts</code>:41 — accept the effect's
+      <code>connections</code>, build an <code>oldPlacementId → newPlacementId</code> map while
+      restoring the cards, then re-create each connection whose <em>both</em> endpoints are in the
+      map (or already live in the store), preserving <code>label</code> and <code>directed</code>.
+      Upsert each new row into the store.</li>
+  <li><strong>UPDATE:</strong> <code>deleteCardsCommand</code> — its <code>redo</code> must also drop
+      the returned <code>effect.connections</code> from the store, and its <code>undo</code> must go
+      through the extended <code>restoreCards</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — push exactly one command from each of
+      the four new actions (create, delete a connection, edit its label, change its direction). A
+      label edit pushes on commit, not per keystroke.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/undo/commands.ts</code>:63–110
+      (<code>createCardCommand</code> holding <code>let current</code> and adopting the new row) and
+      113–133 (<code>deleteCardsCommand</code>).</li>
+  <li><strong>GOTCHA:</strong> a connection whose endpoint card is <em>not</em> being restored (it
+      was deleted separately and stayed deleted) must be skipped, not re-created against a stale id —
+      the Rust foreign key would reject it and the whole undo step would fail.</li>
+  <li><strong>GOTCHA:</strong> <code>undoStack.push</code> clears the redo stack. Push once per user
+      action; a create that also selects the new connection is still one push.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>npx vitest run src/features/connections/__tests__/undoConnections.test.ts</code> passes:
+      <code>createConnectionCommand_undone_deletesTheRowAndRedoneRecreatesIt</code>,
+      <code>editConnectionCommand_undone_restoresTheEarlierLabelAndDirection</code>,
+      <code>deleteCardsCommand_undone_restoresTheCardAndItsConnectionsRemappedToTheNewPlacementIds</code>,
+      and
+      <code>restoreCards_aConnectionWithOneEndpointStillDeleted_isSkipped</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="5">Milestone 5: Proving the phase, and shipping it</h3>
+<p>The full validation sweep, the recorded gate, and the pull request.</p>
+<p><strong>Validation checkpoint:</strong> Levels 1 through 5 all exit 0 on a clean tree, the
+installer still builds under 20 MB, and <code>scripts/phase-2-session.md</code> records a real
+session driven in the running application.</p>
+
+<h4 class="task" data-task="13">Task 13: Run the phase gate and record it</h4>
+<p>The phase's stated gate is a judgement — "usable for real thinking work, with notes and lines
+only". Turn it into a recorded artefact the way Phase 1 recorded the frame-rate gate, and confirm
+connections did not cost the speed target.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/placement.rs</code>
+      <code>seed_note_cards</code> (debug build only) — after seeding, also insert one connection per
+      adjacent pair, so the harness measures a realistic mixed canvas. Keep it behind
+      <code>#[cfg(debug_assertions)]</code>.</li>
+  <li><strong>IMPLEMENT:</strong> run <code>npm run tauri dev -- -- --perf-gate</code> (the existing
+      harness in <code>src/lib/perfGate.ts</code>, unchanged) against 250 cards and their
+      connections, at 100% and at 40% zoom.</li>
+  <li><strong>CREATE:</strong> <code>scripts/phase-2-session.md</code> recording, in the same shape
+      as <code>scripts/perf-gate.md</code>: the machine and date; the median and 5th-percentile fps
+      with 250 cards <em>and</em> connections at both zooms; the drawn/total counts for both cards
+      and connections; and a numbered walk-through of a real session actually performed — create
+      several notes, connect them, label three lines, flip a direction, move a connected card, zoom
+      out past the 50 px threshold and back, delete a connected card, undo it, redo it, close and
+      reopen the project — each step marked pass or fail. Add a line
+      <code>Gate: usable for real thinking work with notes and lines — PASS</code> when every step
+      passes.</li>
+  <li><strong>PATTERN:</strong> <code>scripts/perf-gate.md</code> — the same headings and the same
+      <code>median … fps</code> phrasing, so the Level 4 grep works on both.</li>
+  <li><strong>GOTCHA:</strong> if the drawn connection count is close to the total, the connection
+      cull is broken and the fps beside it means nothing — check that first, exactly as the card
+      cull's drawn count is checked first.</li>
+  <li><strong>GOTCHA:</strong> a release build does not register <code>seed_note_cards</code> or
+      <code>perf_gate_requested</code>. Run the harness on the dev/debug build.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>node -e "const s=require('fs').readFileSync('scripts/phase-2-session.md','utf8'); const m=s.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i); if(!m||parseFloat(m[1])&lt;60){console.error('no passing fps recorded');process.exit(1)} if(!/Gate:.*PASS/.test(s)){console.error('session gate not recorded as PASS');process.exit(1)} if(/FAIL/.test(s)){console.error('a session step failed');process.exit(1)} console.log('phase 2 gate ok:',m[1],'fps')"</code>
+      exits 0.</li>
+</ul>
+
+<h4 class="task" data-task="14">Task 14: Commit, push, and open PR</h4>
+<p>After every prior validation checkpoint has passed:</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> stage and commit uncommitted changes with a descriptive message
+      summarizing the phase; push with <code>git push -u origin phase-2-connections</code>; open a PR
+      with <code>gh pr create --head phase-2-connections --title "Phase 2: Connections" --body "&lt;body&gt;"</code>
+      (omitting <code>--base</code> targets the repo's default branch; pass <code>--base main</code>
+      explicitly if needed).</li>
+  <li><strong>PR title format:</strong> <code>Phase 2: Connections</code>.</li>
+  <li><strong>PR body format:</strong> copy the Acceptance Criteria as a checklist with each box
+      checked off, followed by a <code>Notes</code> section listing assumptions and trade-offs
+      decided during execution. Include explicitly: the two undrawn states this phase designed (the
+      mid-drag line and the panel's Connection state), so a later <code>dev-ui-update</code> run can
+      fold them into <code>docs/design-system.html</code> §9.13 and §15.1; and the four-value
+      <code>directed</code> enum.</li>
+  <li><strong>GOTCHA:</strong> pushing to origin on this machine requires
+      <code>git -c credential.helper= -c credential.helper='!gh auth git-credential' push -u origin phase-2-connections</code>
+      — the Windows credential manager otherwise opens a blocking GUI dialog and the run hangs.</li>
+  <li><strong>GOTCHA:</strong> commits and the PR body carry <strong>no</strong> AI attribution of any
+      kind — no <code>Co-Authored-By</code>, no session trailer, no generated-with footer. This is a
+      CLAUDE.md rule and it overrides any default.</li>
+  <li><strong>GOTCHA:</strong> if <code>gh</code> is not installed or authenticated this step fails.
+      It is already in use in this repository, so it is a precondition, not a new dependency.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+      <code>gh pr view --json number,title,state,headRefName</code> returns the new PR with
+      <code>"state": "OPEN"</code> and <code>"headRefName": "phase-2-connections"</code>.</li>
+</ul>
+
+<h2>Testing Strategy</h2>
+
+<h3>Unit Tests</h3>
+<ul>
+  <li><strong>Vitest, jsdom, <code>@testing-library/svelte</code></strong> — the harness Phase 1
+      established. Test names are <code>methodName_condition_expectedResult</code>.</li>
+  <li><code>src/lib/__tests__/connectionGeometry.test.ts</code> — the pure maths: edge points on all
+      four borders and the diagonal case, overlapping rectangles, the midpoint, the screen-space
+      50 px threshold at several zooms, and line-bounding-box culling including the
+      "both cards off screen, line crossing" case.</li>
+  <li><code>src/stores/__tests__/canvasStore.test.ts</code> — the connection map, the mutually
+      exclusive selection, and <code>loadCanvas</code>/<code>closeProject</code>.</li>
+  <li><code>src/features/connections/__tests__/connections.test.ts</code> — the pending-link state
+      machine and <code>hitPlacementAt</code>'s topmost-wins rule.</li>
+  <li><code>src/features/connections/__tests__/undoConnections.test.ts</code> — the three new undo
+      commands and the id remapping inside <code>restoreCards</code>.</li>
+  <li><strong>Rust, <code>#[cfg(test)]</code> per area</strong>, using a real SQLite file in a
+      <code>tempfile::tempdir()</code> — the same engine that ships, so migrations and WAL behave the
+      same. <code>src-tauri/src/commands/connection.rs</code> covers the round trip, the
+      self-connection rejection, the duplicate-pair rejection, the NULL-label rule and the delete
+      return value.</li>
+</ul>
+
+<h3>Integration Tests</h3>
+<ul>
+  <li><strong>Rust durability</strong> — create cards and a labelled connection, drop the
+      <code>AppState</code>, reopen the same folder, assert the row and its label and direction
+      survive. This is Milestone 1's checkpoint and is the only test that crosses a process
+      boundary.</li>
+  <li><strong>Rust cascade capture</strong> — <code>delete_placements</code> reports every attached
+      connection exactly once, and leaves none behind in the table.</li>
+  <li><strong>Front-end composed session</strong> — extend
+      <code>src/features/cards/__tests__/session.test.ts</code> (or add a sibling
+      <code>connectionSession.test.ts</code>) with the Milestone 4 script: three cards, two
+      connections, delete the middle card, undo, redo, and assert the store and the mocked
+      <code>invokeSafe</code> call log at each step.</li>
+  <li><strong>The full gesture</strong> — Milestone 3's checkpoint, driven through
+      <code>@testing-library/svelte</code>'s <code>fireEvent</code> pointer events.</li>
+</ul>
+
+<h3>Edge Cases</h3>
+<ul>
+  <li>A card connected to itself — rejected in Rust and never offered in the UI.</li>
+  <li>A second connection between the same ordered pair — rejected in Rust; the front end selects the
+      existing one rather than showing an error.</li>
+  <li>The reverse pair (B→A when A→B exists) — a genuinely different connection, allowed.</li>
+  <li>Two cards overlapping, or sharing a centre — <code>connectionEndpoints</code> returns null and
+      nothing is drawn; the row still exists and reappears when they separate.</li>
+  <li>A line shorter than 50 px on screen — the chip is hidden, the label is kept, the panel still
+      shows it, and it returns unchanged on zoom-in.</li>
+  <li>Both endpoint cards off screen with the line crossing the viewport — the line is drawn.</li>
+  <li>Deleting both endpoint cards at once — the connection is captured once, not twice, and undo
+      restores it against two freshly minted placement ids.</li>
+  <li>Undoing a card delete when one endpoint's other card is still deleted — the connection is
+      skipped rather than re-created against a dead id.</li>
+  <li>Escape mid-drag, and a pointer release on empty space — both cancel with no write.</li>
+  <li>The Connect tool active when the canvas drops to one card — the tool falls back to Select.</li>
+  <li>A label containing Markdown or HTML — rendered as text; a connection can never run script.</li>
+  <li>A whitespace-only label — stored as NULL, so no empty chip is ever drawn.</li>
+  <li>The dark theme — lines and arrowheads read from the same two tokens, which
+      <code>theme.css</code> already redefines; nothing moves between themes.</li>
+</ul>
+
+<h2>Validation Commands</h2>
+
+<h3>Level 1: Syntax &amp; Style</h3>
+<pre><code>npm run check
+npx prettier --check .
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings</code></pre>
+<p>Expected: exit code 0 from each.</p>
+
+<h3>Level 2: Unit Tests</h3>
+<pre><code>npm test -- --run
+cargo test --manifest-path src-tauri/Cargo.toml</code></pre>
+
+<h3>Level 3: Integration Tests</h3>
+<pre><code>cargo test --manifest-path src-tauri/Cargo.toml -- --include-ignored
+npx vitest run src/features src/stores src/lib</code></pre>
+
+<h3>Level 4: Manual Validation</h3>
+<p>One non-interactive block. It builds the application, asserts the bundle is still self-contained
+and within budget, and asserts the recorded phase-gate artefact. Exits 0 on success, non-zero on
+failure.</p>
+<pre><code>set -e
+npm run build
+npm run tauri build
+node -e "
+const fs=require('fs'), p=require('path');
+const walk=d=&gt;fs.readdirSync(d,{withFileTypes:true}).flatMap(e=&gt;e.isDirectory()?walk(p.join(d,e.name)):[p.join(d,e.name)]);
+const files=walk('dist');
+const css=files.filter(f=&gt;f.endsWith('.css')).map(f=&gt;fs.readFileSync(f,'utf8')).join('');
+if(/url\(\s*['\"]?https?:/.test(css)) { console.error('external asset reference in bundle'); process.exit(1); }
+const d='src-tauri/target/release/bundle/nsis';
+const exe=fs.readdirSync(d).find(x=&gt;x.endsWith('.exe'));
+if(!exe) { console.error('no NSIS installer'); process.exit(1); }
+const size=fs.statSync(p.join(d,exe)).size;
+console.log('installer', exe, size, 'bytes');
+if(size &gt; 20*1024*1024) { console.error('installer over 20 MB'); process.exit(1); }
+const s=fs.readFileSync('scripts/phase-2-session.md','utf8');
+const m=s.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i);
+if(!m || parseFloat(m[1]) &lt; 60) { console.error('no passing fps recorded for the mixed canvas'); process.exit(1); }
+if(!/Gate:.*PASS/.test(s)) { console.error('session gate not recorded as PASS'); process.exit(1); }
+if(/FAIL/.test(s)) { console.error('a recorded session step failed'); process.exit(1); }
+console.log('phase 2 gate ok:', m[1], 'fps');
+"</code></pre>
+
+<h3>Level 5: Additional Validation (Optional)</h3>
+<pre><code># Every new command is registered in BOTH invoke_handler lists
+node -e "
+const fs=require('fs');
+const s=fs.readFileSync('src-tauri/src/lib.rs','utf8');
+for (const c of ['list_connections','create_connection','update_connection','delete_connections']) {
+  const n=(s.match(new RegExp('connection::'+c+'\\\\b','g'))||[]).length;
+  if (n &lt; 2) { console.error('command not registered in both handlers: '+c); process.exit(1); }
+}
+console.log('all connection commands registered twice');
+"
+
+# No forbidden logging reached shipped source
+! grep -rn "console\.log" src --include=*.ts --include=*.svelte | grep -v "logger.ts"
+! grep -rn "println!" src-tauri/src
+
+# The import direction rule holds: no feature imports another feature
+! grep -rn "from '\.\./\.\./features/" src/features
+! grep -rn "features/" src/lib src/stores
+
+# No literal hex colours outside the token layer
+! grep -rniE "#[0-9a-f]{6}\b" src --include=*.svelte
+
+# The front end never calls invoke() directly
+! grep -rn "@tauri-apps/api/core" src --include=*.ts --include=*.svelte | grep -v "lib/ipc.ts"
+
+# No new migration was added
+test "$(ls src-tauri/migrations | wc -l)" -eq 1</code></pre>
+
+<h2>Acceptance Criteria</h2>
+<ul class="checklist">
+  <li data-checked="false">Dragging from one card to another with the Connect tool creates a line, and the line is written to the <code>connection</code> table immediately</li>
+  <li data-checked="false">No migration was added — the existing <code>connection</code> table in <code>0001_initial_schema.sql</code> is used unchanged</li>
+  <li data-checked="false">Line endpoints sit on each card's real rectangle edge at every zoom, and follow a card that is moved or resized without any connection row being written</li>
+  <li data-checked="false">The line is a 1.5 px stroke in <code>--color-connection</code>, with the arrowhead marker drawn exactly as <code>docs/design-system.html</code> §9.13 specifies (<code>viewBox 0 0 9 9</code>, <code>refX 8</code>, <code>refY 4.5</code>, 6 × 6, <code>orient="auto-start-reverse"</code>)</li>
+  <li data-checked="false">The SVG overlay is a sibling of the card layer, before it in DOM order, on the <code>--z-connections</code> rung, so cards always paint over lines</li>
+  <li data-checked="false">The overlay never steals a pan, a marquee or a card drag — it is <code>pointer-events: none</code> with hit paths only</li>
+  <li data-checked="false">Arrow direction is settable to None, Forward, Back or Both from the properties panel, and Back and Both use <code>marker-start</code> with the same single marker</li>
+  <li data-checked="false">A connection carries an optional text label shown in an HTML chip on the line's midpoint, with the drawn chip spec: <code>--color-surface</code> ground, 2 px radius, <code>1px 5px</code> padding, 10 px, opacity .62, <code>white-space: nowrap</code></li>
+  <li data-checked="false">Below 50 px of on-screen line length the chip is not drawn — not truncated, not shrunk, not offset — and the label is kept: it still shows in the properties panel and returns unchanged when the cards move apart or the canvas zooms in</li>
+  <li data-checked="false">Lines are neutral ink at rest and never take the accent; a selected connection is shown by 7 × 7 px accent square handles at its endpoints and a heavier neutral stroke</li>
+  <li data-checked="false">Clicking a line selects it and clears the card selection; selecting cards clears the connection selection; <code>Esc</code> clears either</li>
+  <li data-checked="false">A connection is reachable by keyboard: Tab focuses its hit path with the standard 2 px accent ring at 2 px offset, and Enter or Space selects it</li>
+  <li data-checked="false">The properties panel shows a Connection state with a header, a Label field and a Direction group, built entirely from the panel's existing measurements and classes</li>
+  <li data-checked="false">The Connect tool row in the left column is active, available or unavailable per <code>docs/design-system.html</code> §8.3, and is unavailable when the canvas holds fewer than two cards</li>
+  <li data-checked="false">The canvas shows the <code>crosshair</code> cursor everywhere while the Connect tool is active</li>
+  <li data-checked="false">The <code>C</code> shortcut and the <em>Connect From Here</em> element-menu row both start a link from the single selected card, and both are unavailable otherwise</li>
+  <li data-checked="false">A line mid-drag runs from the source card's real edge to the pointer, dashed with no arrowhead, snapping solid with an arrowhead when a valid target is under the pointer; <code>Esc</code> or a release on empty space cancels it with no write</li>
+  <li data-checked="false">A card cannot be connected to itself, and a second connection between the same ordered pair is not created — the existing one is selected instead</li>
+  <li data-checked="false">Deleting a card deletes its lines, and <code>delete_placements</code> reports every removed connection exactly once</li>
+  <li data-checked="false">Undoing a card delete restores the card <em>and</em> its connections together as one step, re-pointed at the new placement ids, with labels and directions intact; redo removes all of it again</li>
+  <li data-checked="false">Creating, deleting, labelling and re-directing a connection are each one undoable step, and a label edit pushes on commit, not per keystroke</li>
+  <li data-checked="false">A connection whose endpoint card is still deleted is skipped on undo rather than re-created against a dead id</li>
+  <li data-checked="false">Every connection change reaches SQLite immediately and survives closing and reopening the project</li>
+  <li data-checked="false">Both connection failure paths draw in the shell's existing message strip, never in a dialog</li>
+  <li data-checked="false">Connections are culled on the line's own bounding box, so a line between two off-screen cards still draws when it crosses the viewport, and the drawn/total counts are instrumented</li>
+  <li data-checked="false">All Phase 1 acceptance criteria still hold — no regression in culling, saving, undo, the shortcuts or the context menus</li>
+  <li data-checked="false">Every screen renders correctly in the dark theme with nothing moving between the two, using the existing <code>--color-connection</code> and <code>--color-arrowhead</code> dark values</li>
+  <li data-checked="false">A label containing markup is rendered as text; no connection can run script</li>
+  <li data-checked="false">No feature imports another feature; <code>lib/</code> and <code>stores/</code> import no feature; the front end calls no <code>invoke()</code> outside <code>src/lib/ipc.ts</code></li>
+  <li data-checked="false">All new UI labels and button text are Title Case; placeholder, helper and log text is sentence case</li>
+  <li data-checked="false">Only the 34 glyphs in the closed Phosphor set are used — the Connect row's <code>ph-flow-arrow</code> and the panel's <code>ph-trash</code>, both already in the set</li>
+  <li data-checked="false">No literal hex colour appears in any component; every value comes from the token layer</li>
+  <li data-checked="false"><strong>Gate:</strong> the application is usable for real thinking work with notes and lines only, proved by the scripted session recorded in <code>scripts/phase-2-session.md</code></li>
+  <li data-checked="false">The 250-card canvas still holds a median 60 fps with connections drawn, and the installer is still under 20 MB</li>
+</ul>
+
+<h2>Completion Checklist</h2>
+<ul class="checklist">
+  <li data-checked="false">Level 1 passes — <code>npm run check</code>, <code>prettier --check</code>, <code>cargo fmt --check</code>, <code>cargo clippy -D warnings</code> all exit 0</li>
+  <li data-checked="false">Level 2 passes — <code>npm test -- --run</code> and <code>cargo test</code> both green</li>
+  <li data-checked="false">Level 3 passes — the Rust durability and cascade-capture tests and the front-end feature, store and lib specs are green</li>
+  <li data-checked="false">Level 4 passes — the build block exits 0: bundle self-contained, installer under 20 MB, the session gate recorded as PASS with a passing fps</li>
+  <li data-checked="false">Level 5 passes — every connection command registered twice, no forbidden logging, no cross-feature import, no direct <code>invoke()</code>, no literal hex, no new migration</li>
+  <li data-checked="false">All five milestone validation checkpoints have been run and passed</li>
+  <li data-checked="false"><code>scripts/phase-2-session.md</code> records the machine, date, both fps passes with drawn/total counts, and the numbered session walk-through</li>
+  <li data-checked="false"><code>README.md</code> mentions the Connect tool and the <code>C</code> shortcut alongside the Phase 1 commands</li>
+  <li data-checked="false">Every acceptance criterion above is checked</li>
+  <li data-checked="false">The branch is pushed and the pull request is open against <code>main</code></li>
+</ul>
+
+<h2>Notes</h2>
+
+<h3>Architecture decisions this phase conforms to</h3>
+<p>Read from <code>docs/architecture.html</code>. All twenty decisions are
+<code>data-status="settled"</code>; none is <code>open</code>, so the phase is plannable within the
+architecture and no hand-back to <code>dev-architecture</code> is needed. Slugs this phase touches:
+<code>rendering-approach</code> (the overlay is page elements inside the one CSS transform, culled),
+<code>frontend-framework</code> (Svelte 5 runes, keyed <code>{#each}</code>),
+<code>storage-engine</code> and <code>db-access-layer</code> (the existing <code>connection</code>
+table, <code>rusqlite</code>, no new migration),
+<code>architecture-pattern</code> and <code>module-layout</code> (a new
+<code>src/features/connections/</code> folder and a new
+<code>src-tauri/src/commands/connection.rs</code> — both are named in the settled directory tree),
+<code>import-direction</code>, <code>ipc-contract</code> (four new named commands, one wrapper, one
+error type), <code>persistence-strategy</code> (connection changes are discrete writes),
+<code>undo-model</code> (one command carrying several effects — the card, its item and its lines),
+<code>failure-surfaces</code> (a rejected connection is a quiet no-op or the shell's message strip,
+never a dialog), <code>nfr-targets</code> (the 60 fps / 250-card target must survive the new draw
+work), <code>deployment-target</code> (the installer budget is re-checked). Not touched:
+<code>search-method</code> (Phase 4), <code>asset-storage</code> and <code>network-boundary</code>
+(Phase 3), <code>note-text-format</code>, <code>settings-storage</code> (Phase 5),
+<code>boundary-table</code> (no new outside dependency), <code>runtime-shell</code>.</p>
+
+<h3>Assumptions and decisions made at plan time</h3>
+<p>This was an unattended planning run. No requirements question was put to the user; each was
+decided in the authority order <code>docs/architecture.html</code> → <code>docs/prd.html</code> →
+<code>CLAUDE.md</code> → <code>docs/phases/phase-1-canvas-core.html</code>'s Notes → the codebase's
+dominant pattern → the smallest reversible option.</p>
+
+<p><strong>ASSUMPTION:</strong> No migration is added; the existing <code>connection</code> table is
+used as shipped. Authority: <code>CLAUDE.md</code> — "never edit a migration that has shipped" — and
+<code>src-tauri/migrations/0001_initial_schema.sql</code> lines 42–50 already create the table with
+every field PRD §6.9 names, plus <code>idx_connection_canvas</code> and the cascading foreign keys.
+Level 5 asserts the migration count stays at one.</p>
+
+<p><strong>ASSUMPTION:</strong> Endpoints are derived at render time from the two placement
+rectangles by clipping the centre-to-centre ray to each rectangle's border, and are never stored.
+Authority: <code>docs/design-system.html</code> §9.13 — "endpoints sit on the card's real edge, not
+on an assumed one. Derive them from the placement rectangle, so a card that grows never leaves a line
+sprouting from its middle." This is also what makes "lines follow their cards" free.</p>
+
+<p><strong>ASSUMPTION:</strong> <code>directed</code> is a four-value integer — 0 none, 1 arrow at
+the <code>to</code> end, 2 arrow at the <code>from</code> end, 3 both. Authority:
+<code>docs/design-system.html</code> §9.13 says "direction comes from the arrowhead" and names
+<code>orient="auto-start-reverse"</code> specifically because it "lets one marker serve either end",
+which only matters if <code>marker-start</code> is used; the schema types the column
+<code>INTEGER NOT NULL DEFAULT 1</code>, not a boolean, and PRD §6.3 asks for "arrow direction"
+without constraining it. The alternative — keeping 0/1 and flipping by swapping
+<code>from_placement_id</code> and <code>to_placement_id</code> — was rejected because it makes
+<code>auto-start-reverse</code> dead weight and hides a user-visible change inside the identity of
+the row. Reversible: one enum in one file, and every existing row already reads as 1.</p>
+
+<p><strong>ASSUMPTION:</strong> Connection selection is a separate
+<code>selectedConnectionId: number | null</code> on the store, mutually exclusive with the placement
+selection. Authority: <code>docs/design-system.html</code> §13.1 declares
+<code>selection Set&lt;placementId&gt;</code> — placements only — and §13.2 gives the properties
+panel one selected thing at a time; §15.1 names "a connection selected" as a distinct panel state.
+There is no drawn state for a mixed card-and-connection selection, so it is not built. Smallest
+reversible option.</p>
+
+<p><strong>ASSUMPTION:</strong> A selected connection is drawn as a heavier (2.5 px) stroke in
+<code>--color-text</code> plus 7 × 7 px accent square handles at both endpoints; the line itself
+never takes the accent. Authority: this resolves an apparent conflict between two rules that both
+hold. §9.13 and §10 contract 7 say connection lines are neutral ink and never take the accent; §11.4
+says the square corner handles are <em>the</em> selection signal and that nothing else in the
+interface has them. Putting the accent only in the handles satisfies both, and reuses a signal the
+user has already learned from cards. <strong>This is one of the two undrawn states the phase was
+asked to design</strong> (§15.1 item 2, its panel half is below).</p>
+
+<p><strong>ASSUMPTION:</strong> A line mid-drag runs from the source card's real edge to the pointer
+at 1.5 px in <code>--color-connection</code> with <code>stroke-dasharray="4 3"</code> and no
+arrowhead; over a valid target it snaps to that card's edge, goes solid and shows the arrowhead. No
+transition at any point. Authority: <strong>this is the other undrawn state</strong> (§15.1 item 1).
+Dashed-for-provisional is the language the design system already uses for the missing-asset marker
+(§9.4, "a dashed inset border"); the solid snap is the only affordance that tells the user the drop
+will land; §11.3 puts anything tracking the pointer at 0 ms. No new token is introduced.</p>
+
+<p><strong>ASSUMPTION:</strong> The properties panel's Connection state is a header, a
+<code>Label</code> group holding one full-width <code>.input</code>, a <code>Direction</code> group
+of four <code>.order-button</code>s in a 2 × 2 grid, and a footer whose single icon button is
+Delete. Authority: <code>docs/design-system.html</code> §8.5 gives the panel's whole anatomy and
+every measurement; §15.1 asks only that this state be designed, not that new components be invented.
+Every class and value is one the panel already ships. The segmented control was rejected: it is
+specified for the Settings screen and belongs to Phase 5, and pulling it forward would build a P5
+component early.</p>
+
+<p><strong>ASSUMPTION:</strong> The 50 px label threshold is measured in <strong>screen</strong>
+pixels — world line length multiplied by zoom. Authority: <code>docs/design-system.html</code> §9.13
+says the chip "reappears the moment the cards move apart <em>or the canvas zooms in</em>", which is
+only true if zoom is part of the measurement, and its stated reason ("no room for a 10 px chip with
+<code>1px 5px</code> padding") is a physical-space argument.</p>
+
+<p><strong>ASSUMPTION:</strong> Label chips live inside the transformed world layer and scale with
+the canvas. Authority: everything else on the canvas scales with the one CSS transform
+(<code>rendering-approach</code>); a counter-scaled chip would be the only element that did not, and
+the 50 px rule already handles the case where the chip becomes too small to read.</p>
+
+<p><strong>ASSUMPTION:</strong> Connections are culled on the line's own bounding rectangle, not on
+the culled card set. Authority: correctness — a line between two off-screen cards can cross the
+middle of the viewport, and culling on the visible card set would drop it. It reuses
+<code>rectsIntersect</code> and <code>viewportWorldRect</code> from <code>src/lib/geometry.ts</code>,
+so it costs one function.</p>
+
+<p><strong>ASSUMPTION:</strong> Each connection draws a 12 px transparent hit path with
+<code>pointer-events: stroke</code> beneath its visible 1.5 px stroke, and the overlay as a whole is
+<code>pointer-events: none</code>. Authority: §9.13's SVG snippet sets
+<code>pointer-events: none</code> on the <code>&lt;svg&gt;</code> and says nothing about hit testing;
+a 1.5 px target is not clickable, and 12 px is just under the 13 px icon size the chrome already
+uses. Anything wider would start swallowing card presses.</p>
+
+<p><strong>ASSUMPTION:</strong> A connection's hit path is focusable (<code>tabindex="0"</code>,
+<code>role="button"</code>, an <code>aria-label</code> naming both endpoints) and Enter or Space
+selects it. Authority: <code>docs/design-system.html</code> §12 — "every action has a keyboard route.
+The map in 11.6 is the contract" — and 11.6 contains no key for selecting a connection. Tab order is
+the route that satisfies the rule without inventing a shortcut the design system has not seen.</p>
+
+<p><strong>ASSUMPTION:</strong> The Connect tool is unavailable when the canvas holds fewer than two
+cards. Authority: <code>docs/design-system.html</code> §9 frame <code>14b</code>, verbatim — "Undo,
+Redo and <b>Connect</b> are all at opacity .35 — there is nothing to connect" — on a canvas holding
+one card.</p>
+
+<p><strong>ASSUMPTION:</strong> The <code>C</code> shortcut and the <em>Connect From Here</em> menu
+row require exactly one selected card and are inert otherwise. Authority: the menu row is drawn on
+the element menu, which §9.9 says opens on a single right-clicked card ("right-clicking a card
+selects it first"); a multi-card source has no drawn behaviour. Smallest reversible option.</p>
+
+<p><strong>ASSUMPTION:</strong> A card may not connect to itself, and a second connection between the
+same <em>ordered</em> pair is rejected in Rust and treated in the front end by selecting the existing
+connection rather than showing an error. The reverse pair is a distinct connection and is allowed.
+Authority: nothing states either rule; <code>failure-surfaces</code> requires that a failure be a
+normal state rather than a dialog, and selecting the row the user was trying to create satisfies
+their intent exactly. Reversible: one guard in one SQL function.</p>
+
+<p><strong>ASSUMPTION:</strong> An empty or whitespace-only label is stored as SQL <code>NULL</code>.
+Authority: the column is nullable and the design system draws no empty chip; one representation for
+"no label" keeps the chip test to a single condition.</p>
+
+<p><strong>ASSUMPTION:</strong> Connection writes are discrete — they go through
+<code>writeNow</code>, never through <code>queuePlacementUpdate</code>. Authority:
+<code>docs/architecture.html</code> <code>persistence-strategy</code> groups only <em>rapid</em>
+changes such as a drag; a connection has no continuous geometry of its own, because its endpoints are
+derived.</p>
+
+<p><strong>ASSUMPTION:</strong> Undo restores connections by re-creating them against the new
+placement ids that <code>restore_card</code> mints, using an old-id → new-id map built during the
+restore; a connection with an endpoint that stays deleted is skipped. Authority:
+<code>docs/architecture.html</code> <code>undo-model</code> — "undo restores a deleted item, its
+placement, its connections and its asset files together" — combined with the existing behaviour of
+<code>restore_card</code>, which the Phase 1 Notes already record as minting a new id the undo command
+adopts.</p>
+
+<p><strong>ASSUMPTION:</strong> Undo commands are pushed from <code>src/app.svelte</code>, not from
+the connections feature. Authority: the codebase's dominant pattern — every Phase 1 action does this
+— and the import direction rule, which forbids
+<code>features/connections</code> from importing <code>features/undo</code>.</p>
+
+<p><strong>ASSUMPTION:</strong> The phase gate — "usable for real thinking work, with notes and lines
+only" — is recorded as a scripted session in <code>scripts/phase-2-session.md</code>, alongside a
+re-run of the existing performance harness over 250 cards <em>with</em> connections. Authority:
+<code>CLAUDE.md</code> requires the gate be measured in the running app, not in a unit test, and the
+Phase 1 Notes establish a recorded artefact as the only way an automated check can assert on a
+measurement taken by hand. Re-running the frame gate is not demanded until Phase 3, but connections
+are new per-frame work and <code>nfr-targets</code> is continuous — measuring now is cheap and
+de-risks Phase 3.</p>
+
+<p><strong>ASSUMPTION:</strong> <code>docs/design-system.html</code> is not edited by this phase. The
+two states designed here are recorded in these Notes and flagged in the PR body for a later
+<code>dev-ui-update</code> run to fold in. Authority: the design system states it is written by
+<code>dev-ui-update</code> from <code>docs/handoff/</code>, and §15.1's own framing ("each needs a
+design pass before the phase that builds it") assigns the pass to the phase but not the document to
+the phase.</p>
+
+<p><strong>ASSUMPTION:</strong> No new npm package and no new Rust crate is added. Authority: the
+20 MB installer budget in <code>nfr-targets</code>, and PRD §14.2 which lists every external
+dependency the MVP is allowed. SVG and CSS cover everything this phase draws.</p>
+
+<p><strong>ASSUMPTION:</strong> No new Phosphor glyph is introduced. Authority:
+<code>docs/design-system.html</code> §7.1 declares the set closed at 34;
+<code>ph-flow-arrow</code> (Connect) and <code>ph-trash</code> (Delete) are both already in
+<code>src/lib/glyphs.ts</code>, and the Direction buttons carry text labels rather than arrow
+glyphs.</p>
+
+<p><strong>DECISION:</strong> Rendering is Milestones rather than Flat, at four substantive
+milestones plus the shipping milestone. Fourteen tasks over four genuine sub-layers is well past the
+~6-task threshold where a flat list stops being scannable, and each checkpoint asserts something
+cross-task — durability across a process boundary, endpoint agreement under an arbitrary transform,
+a full gesture composing tool state with the seam, and undo composing across three tables — that no
+individual task's VALIDATE covers.</p>
+
+<p><strong>DECISION:</strong> The Rust command file (Task 1) and the <code>DeleteEffect</code> change
+(Task 2) come before any drawing, and the pure geometry module (Task 4) before the overlay (Task 5).
+Both orderings are deliberate: a delete that silently destroys unrecorded rows is a data bug that
+gets harder to find once the UI exists, and every endpoint bug the prototype had was a maths bug the
+design system says was corrected twice by hand.</p>
+
+<p><strong>DECISION:</strong> <code>delete_connections</code> returns the rows it removed rather than
+<code>()</code>, mirroring <code>delete_placements</code>'s <code>DeleteEffect</code>. The undo
+command needs the label and direction to put the row back, and asking the front end to remember them
+would put the truth in two places.</p>
+
+<p><strong>DECISION:</strong> The connection maths lives in <code>src/lib/connectionGeometry.ts</code>
+rather than being appended to <code>src/lib/geometry.ts</code>. <code>geometry.ts</code> is already
+shared by culling, marquee and resize at 160 lines; a separate module keeps the connection maths
+swappable behind a signature and its tests readable, the same reasoning
+<code>src/lib/culling.ts</code> applies to <code>visiblePlacements</code>.</p>
+
+<h3>Conflicts found between documents</h3>
+<p>One apparent conflict, resolved above rather than escalated:
+<code>docs/design-system.html</code> §10 contract 7 says connection lines "never" take the accent,
+while §11.4 makes the 2 px accent outline and the square handles the universal selection signal. A
+selected connection needs a signal and cannot use the accent on its stroke. Resolved by putting the
+accent only in the endpoint handles and the arrowhead marker, leaving the stroke neutral ink — both
+rules hold as written.</p>
+<p>No conflict was found between <code>docs/architecture.html</code>,
+<code>docs/prd.html</code> and <code>docs/design-system.html</code> on any other point this phase
+touches. The PRD's Phase 2 deliverable list, the design system's §16 P2 row and the architecture's
+module tree agree.</p>
+<p>Two questions the design system counts as still open — the four undrawn dark shadows and the
+<code>--color-accent-2-400</code> contrast check — are assigned to Phase 5 and do not touch this
+phase: connections use only <code>--color-connection</code>, <code>--color-arrowhead</code>,
+<code>--color-accent</code>, <code>--color-text</code> and <code>--color-surface</code>, all of which
+have measured dark values already in <code>src/lib/theme.css</code>.</p>
+
+<h3>Risks carried into execution</h3>
+<p><strong>The overlay stealing pointer events</strong> is the single most likely way this phase
+breaks Phase 1. A full-size SVG over the canvas that is not <code>pointer-events: none</code> kills
+panning, marquee selection and card dragging at once, and the symptom looks like a canvas bug rather
+than a connections bug. Task 5's VALIDATE asserts the computed value directly for exactly this
+reason.</p>
+<p><strong>The undo id-remapping</strong> is the subtlest correctness risk. <code>restore_card</code>
+mints new placement ids, so a connection restored against the old ids either fails on the foreign key
+or — worse, if the ids happen to be reused — attaches to the wrong cards. Task 12's test asserts the
+remapping explicitly, and Milestone 4's checkpoint exercises it through the real command path.</p>
+<p><strong>The frame gate</strong> is not re-demanded until Phase 3, but connections add per-frame
+work inside the transformed layer. If the mixed-canvas measurement in Task 13 comes in under 60 fps,
+the ladder is: check the connection drawn/total counts first (a broken line cull makes the number
+meaningless), then drop label chips below the low-zoom threshold the note cards already use
+(<code>LOW_ZOOM</code> in <code>src/lib/geometry.ts</code>), then batch every unselected line into a
+single <code>&lt;path&gt;</code> with one <code>d</code> string instead of one element per
+connection. Only after all three would <code>rendering-approach</code> come back into question.</p>
+<p><strong>Rust remains unfamiliar to the repository owner</strong>, which
+<code>docs/mvp-plan.html</code> records as a risk. This phase adds four commands over one table and
+one field to an existing struct — deliberately the smallest Rust surface of any phase.</p>
+
+</body>
+</html>
