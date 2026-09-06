@@ -12,6 +12,7 @@
 import { invokeSafe } from '../../lib/ipc';
 import { canvasStore } from '../../stores/canvasStore.svelte';
 import type {
+  Connection,
   DeleteEffect,
   Item,
   Placement,
@@ -36,9 +37,28 @@ async function writePlacements(updates: PlacementUpdate[]): Promise<void> {
   for (const u of updates) canvasStore.patchPlacement(u.id, u);
 }
 
-/** Re-create a set of cards from the rows a delete removed, and adopt the new ids. */
-async function restoreCards(placements: Placement[], items: Item[]): Promise<void> {
+/**
+ * Re-create a set of cards from the rows a delete removed, and adopt the new ids.
+ *
+ * `restore_card` mints a *new* placement id, so a connection restored against the old id
+ * would either fail the foreign key or attach to the wrong card. The old-id → new-id map
+ * built here is what keeps the lines pointing at the cards they were drawn between. A
+ * connection whose endpoint card stayed deleted is skipped rather than re-created against
+ * a dead id.
+ *
+ * It returns the rows it actually created, because every id in them is new: a caller that
+ * kept the original effect and redid the delete against it would be naming rows that no
+ * longer exist, and the redo would silently do nothing.
+ */
+async function restoreCards(
+  placements: Placement[],
+  items: Item[],
+  connections: Connection[] = [],
+): Promise<DeleteEffect> {
   const itemById = new Map(items.map((i) => [i.id, i]));
+  const idMap = new Map<number, number>();
+  const restoredEffect: DeleteEffect = { placements: [], items: [], connections: [] };
+
   for (const placement of placements) {
     const item = itemById.get(placement.item_id) ?? canvasStore.items.get(placement.item_id);
     if (!item) continue;
@@ -53,7 +73,34 @@ async function restoreCards(placements: Placement[], items: Item[]): Promise<voi
       payload: item.payload,
     });
     canvasStore.upsertCard(restored);
+    idMap.set(placement.id, restored.placement.id);
+    restoredEffect.placements.push(restored.placement);
+    restoredEffect.items.push(restored.item);
   }
+
+  for (const connection of connections) {
+    const from = resolveEndpoint(connection.from_placement_id, idMap);
+    const to = resolveEndpoint(connection.to_placement_id, idMap);
+    if (from === null || to === null) continue;
+    const restored = await invokeSafe<Connection>('create_connection', {
+      canvasId: connection.canvas_id,
+      fromPlacementId: from,
+      toPlacementId: to,
+      label: connection.label,
+      directed: connection.directed,
+    });
+    canvasStore.upsertConnection(restored);
+    restoredEffect.connections.push(restored);
+  }
+
+  return restoredEffect;
+}
+
+/** The live placement id for an endpoint: the one just restored, or one still on the canvas. */
+function resolveEndpoint(oldId: number, idMap: Map<number, number>): number | null {
+  const remapped = idMap.get(oldId);
+  if (remapped !== undefined) return remapped;
+  return canvasStore.placements.has(oldId) ? oldId : null;
 }
 
 /** Creating one card. Undo deletes it; redo puts it back. */
@@ -92,13 +139,16 @@ export function deleteCardsCommand(effect: DeleteEffect): UndoableCommand {
   return {
     label: current.placements.length > 1 ? 'Delete Cards' : 'Delete Card',
     async undo() {
-      await restoreCards(current.placements, current.items);
+      // Adopt the restored rows: every id in them is new, and the next redo must delete
+      // the placements that now exist rather than the ones it originally removed.
+      current = await restoreCards(current.placements, current.items, current.connections);
     },
     async redo() {
       const ids = current.placements.map((p) => p.id);
       current = await invokeSafe<DeleteEffect>('delete_placements', { ids });
       for (const p of current.placements) canvasStore.removePlacement(p.id);
       for (const i of current.items) canvasStore.removeItem(i.id);
+      for (const c of current.connections) canvasStore.removeConnection(c.id);
     },
   };
 }
@@ -174,5 +224,82 @@ export function duplicateCommand(copies: PlacementWithItem[]): UndoableCommand {
       }
       current = restored;
     },
+  };
+}
+
+// --- connections --------------------------------------------------------
+
+/** Drawing one line. Undo deletes it; redo re-creates it and adopts the new id. */
+export function createConnectionCommand(connection: Connection): UndoableCommand {
+  let current = connection;
+  return {
+    label: 'Connect Cards',
+    async undo() {
+      await invokeSafe<Connection[]>('delete_connections', { ids: [current.id] });
+      canvasStore.removeConnection(current.id);
+    },
+    async redo() {
+      const restored = await invokeSafe<Connection>('create_connection', {
+        canvasId: current.canvas_id,
+        fromPlacementId: current.from_placement_id,
+        toPlacementId: current.to_placement_id,
+        label: current.label,
+        directed: current.directed,
+      });
+      current = restored;
+      canvasStore.upsertConnection(restored);
+    },
+  };
+}
+
+/** Deleting connections directly, rather than as a side effect of deleting a card. */
+export function deleteConnectionsCommand(removed: Connection[]): UndoableCommand {
+  let current = removed;
+  return {
+    label: 'Delete Connection',
+    async undo() {
+      const restored: Connection[] = [];
+      for (const c of current) {
+        // An endpoint that has since gone would fail the foreign key; skip it instead.
+        if (!canvasStore.placements.has(c.from_placement_id)) continue;
+        if (!canvasStore.placements.has(c.to_placement_id)) continue;
+        const row = await invokeSafe<Connection>('create_connection', {
+          canvasId: c.canvas_id,
+          fromPlacementId: c.from_placement_id,
+          toPlacementId: c.to_placement_id,
+          label: c.label,
+          directed: c.directed,
+        });
+        canvasStore.upsertConnection(row);
+        restored.push(row);
+      }
+      current = restored;
+    },
+    async redo() {
+      const ids = current.map((c) => c.id);
+      await invokeSafe<Connection[]>('delete_connections', { ids });
+      for (const id of ids) canvasStore.removeConnection(id);
+    },
+  };
+}
+
+/** Changing a connection's label or its arrow direction. Pushed on commit, not per keystroke. */
+export function editConnectionCommand(
+  connectionId: number,
+  before: { label: string | null; directed: number },
+  after: { label: string | null; directed: number },
+): UndoableCommand {
+  async function write(state: { label: string | null; directed: number }) {
+    const row = await invokeSafe<Connection>('update_connection', {
+      connectionId,
+      label: state.label,
+      directed: state.directed,
+    });
+    canvasStore.upsertConnection(row);
+  }
+  return {
+    label: 'Edit Connection',
+    undo: () => write(before),
+    redo: () => write(after),
   };
 }

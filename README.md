@@ -59,20 +59,39 @@ Drag the background to pan, scroll to zoom, and drag on empty space to marquee-s
 Every change is written to SQLite as you make it — there is no Save button; the title bar
 shows the save state.
 
-| Key                 | Action                                                  |
-| ------------------- | ------------------------------------------------------- |
-| `N`                 | New note at the pointer                                 |
-| `Enter`             | Edit the selected card                                  |
-| `Esc`               | Close the menu, finish the edit, or clear the selection |
-| `Del`               | Delete the selection                                    |
-| `Ctrl+D`            | Duplicate                                               |
-| `Ctrl+C` / `Ctrl+V` | Copy and paste                                          |
-| `Ctrl+A`            | Select all                                              |
-| `Ctrl+]` / `Ctrl+[` | Bring to front / send to back                           |
-| `Ctrl+0`            | Zoom to fit                                             |
-| `Ctrl+Z` / `Ctrl+Y` | Undo and redo, within the session                       |
+| Key                 | Action                                                   |
+| ------------------- | -------------------------------------------------------- |
+| `N`                 | New note at the pointer                                  |
+| `C`                 | Start a connection from the selected card                |
+| `Enter`             | Edit the selected card                                   |
+| `Esc`               | Cancel a link, close the menu, finish the edit, or clear |
+| `Del`               | Delete the selection, or the selected connection         |
+| `Ctrl+D`            | Duplicate                                                |
+| `Ctrl+C` / `Ctrl+V` | Copy and paste                                           |
+| `Ctrl+A`            | Select all                                               |
+| `Ctrl+]` / `Ctrl+[` | Bring to front / send to back                            |
+| `Ctrl+0`            | Zoom to fit                                              |
+| `Ctrl+Z` / `Ctrl+Y` | Undo and redo, within the session                        |
 
 Right-click a card or the background for the same actions as a menu.
+
+## Connecting Cards
+
+Pick **Connect** in the left column — or press `C` with one card selected, or use _Connect
+From Here_ on a card's right-click menu — then drag from one card to another. The line
+follows the pointer while you draw it and snaps to the target card's edge when the drop will
+land; `Esc` or a release on empty space cancels it. The Connect tool is unavailable until
+the canvas holds two cards, because there is nothing to connect.
+
+A line's endpoints are never stored: they are derived from the two cards' rectangles every
+frame, so moving or resizing a card re-derives the line rather than writing anything. Delete
+a card and its lines go with it; `Ctrl+Z` brings the card _and_ its lines back as one step.
+
+Click a line to select it. The properties panel then shows the connection's **Label** and
+its **Direction** — None, Forward, Back or Both. A label is drawn as a small chip on the
+line's midpoint, and is hidden below 50 screen pixels of line length; the label itself is
+kept and reappears when the cards move apart or you zoom in. A connection is also reachable
+with `Tab`, and `Enter` or `Space` selects the focused one.
 
 ## Settings
 
@@ -88,3 +107,8 @@ The project's one hard gate is 250 note cards panning at 60 frames per second. I
 measured in the running application, not in a unit test — `scripts/perf-gate.md` records
 the result, the machine and the installer size. A debug build launched with `--perf-gate`
 re-runs that measurement and writes `perf-gate-result.json`.
+
+`scripts/phase-2-session.md` records the same measurement over a mixed canvas — 250 cards
+_and_ 249 connections — alongside the scripted session that proves the canvas is usable with
+notes and lines alone. Both cards and connections are culled, and both drawn counts are
+instrumented; in a debug build the development overlay shows them.

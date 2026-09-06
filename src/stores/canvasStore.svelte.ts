@@ -14,8 +14,8 @@
  */
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import { invokeSafe } from '../lib/ipc';
-import { clampZoom, type Size, type View } from '../lib/geometry';
-import type { Canvas, Item, Placement, PlacementWithItem, Project } from '../lib/types';
+import { clampZoom, type Point, type Size, type View } from '../lib/geometry';
+import type { Canvas, Connection, Item, Placement, PlacementWithItem, Project } from '../lib/types';
 
 export type Tool = 'select' | 'pan' | 'connect';
 export type SaveState = 'idle' | 'saving' | 'saved';
@@ -27,8 +27,13 @@ class CanvasStore {
 
   placements = new SvelteMap<number, Placement>();
   items = new SvelteMap<number, Item>();
+  connections = new SvelteMap<number, Connection>();
 
   selection = new SvelteSet<number>();
+  /** Exclusive with `selection` — the panel shows one selected thing at a time. */
+  selectedConnectionId = $state<number | null>(null);
+  /** The line being drawn: its source card, and where the pointer is now, in world units. */
+  pendingLink = $state<{ fromPlacementId: number; pointer: Point } | null>(null);
   activeTool = $state<Tool>('select');
 
   view = $state<View>({ x: 0, y: 0, zoom: 1 });
@@ -45,6 +50,11 @@ class CanvasStore {
     [...this.selection]
       .map((id) => this.placements.get(id))
       .filter((p): p is Placement => p !== undefined),
+  );
+  readonly selectedConnection = $derived(
+    this.selectedConnectionId === null
+      ? null
+      : (this.connections.get(this.selectedConnectionId) ?? null),
   );
   readonly maxZOrder = $derived(
     this.placements.size === 0
@@ -108,17 +118,42 @@ class CanvasStore {
     return this.items.get(placement.item_id) ?? null;
   }
 
+  // --- connections ------------------------------------------------------
+
+  upsertConnection(connection: Connection): void {
+    this.connections.set(connection.id, { ...connection });
+  }
+
+  patchConnection(id: number, patch: Partial<Connection>): void {
+    const current = this.connections.get(id);
+    if (!current) return;
+    this.connections.set(id, { ...current, ...patch });
+  }
+
+  removeConnection(id: number): void {
+    this.connections.delete(id);
+    if (this.selectedConnectionId === id) this.selectedConnectionId = null;
+  }
+
+  /** Selecting a line clears the card selection: the two are mutually exclusive. */
+  selectConnection(id: number | null): void {
+    if (id !== null) this.clearSelection();
+    this.selectedConnectionId = id;
+  }
+
   // --- selection --------------------------------------------------------
 
   setSelection(ids: Iterable<number>): void {
     const next = new Set(ids);
     for (const id of [...this.selection]) if (!next.has(id)) this.selection.delete(id);
     for (const id of next) this.selection.add(id);
+    this.selectedConnectionId = null;
   }
 
   toggleSelected(id: number): void {
     if (this.selection.has(id)) this.selection.delete(id);
     else this.selection.add(id);
+    this.selectedConnectionId = null;
   }
 
   clearSelection(): void {
@@ -152,12 +187,19 @@ class CanvasStore {
       canvasId,
     });
 
+    const connections = await invokeSafe<Connection[]>('list_connections', { canvasId });
+
     this.placements.clear();
     this.items.clear();
     for (const card of cards) this.upsertCard(card);
 
+    this.connections.clear();
+    for (const connection of connections) this.upsertConnection(connection);
+
     this.activeCanvasId = canvasId;
     this.clearSelection();
+    this.selectedConnectionId = null;
+    this.pendingLink = null;
     this.editingPlacementId = null;
 
     const canvas = this.canvases.find((c) => c.id === canvasId);
@@ -182,7 +224,10 @@ class CanvasStore {
     this.activeCanvasId = null;
     this.placements.clear();
     this.items.clear();
+    this.connections.clear();
     this.selection.clear();
+    this.selectedConnectionId = null;
+    this.pendingLink = null;
     this.editingPlacementId = null;
     this.view = { x: 0, y: 0, zoom: 1 };
     this.saveState = 'idle';

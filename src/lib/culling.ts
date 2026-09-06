@@ -72,3 +72,15 @@ export function recordCullCounts(total: number, drawn: number): void {
   cullCounts.total = total;
   cullCounts.drawn = drawn;
 }
+
+/**
+ * The same instrumentation for the connection overlay. Connections are culled on the
+ * line's own bounding box rather than on the visible card set, so they need their own
+ * counter: a line between two culled cards can still be drawn.
+ */
+export const connectionCullCounts = { total: 0, drawn: 0 };
+
+export function recordConnectionCullCounts(total: number, drawn: number): void {
+  connectionCullCounts.total = total;
+  connectionCullCounts.drawn = drawn;
+}

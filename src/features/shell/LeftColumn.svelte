@@ -27,6 +27,14 @@
     onSelectCanvas,
   }: Props = $props();
 
+  /** Two cards is the threshold: with one there is nothing to connect (frame 14b). */
+  const canConnect = $derived(canvasStore.cardCount >= 2);
+
+  // Deleting down to one card must not leave the canvas stuck in a tool that cannot act.
+  $effect(() => {
+    if (!canConnect && canvasStore.activeTool === 'connect') canvasStore.activeTool = 'select';
+  });
+
   function chooseTool(tool: Tool) {
     canvasStore.activeTool = tool;
   }
@@ -90,8 +98,15 @@
       </button>
     </li>
     <li>
-      <!-- Connections are Phase 2. -->
-      <button type="button" class="action-row is-unavailable" disabled>
+      <!-- Unavailable below two cards: frame 14b, "there is nothing to connect". -->
+      <button
+        type="button"
+        class="action-row"
+        class:active={canvasStore.activeTool === 'connect'}
+        class:is-unavailable={!canConnect}
+        disabled={!canConnect}
+        onclick={() => chooseTool('connect')}
+      >
         <Icon glyph="flow-arrow" size={13} />
         Connect
       </button>

@@ -97,6 +97,13 @@
       return;
     }
 
+    // Under the Connect tool a background press is a link that will miss, never a marquee.
+    if (canvasStore.activeTool === 'connect') {
+      gesture = null;
+      band = null;
+      return;
+    }
+
     // A drag on the empty background draws the selection band.
     gesture = {
       kind: 'marquee',
@@ -236,6 +243,7 @@
   bind:this={surface}
   class="surface"
   class:panning={canvasStore.activeTool === 'pan'}
+  class:connecting={canvasStore.activeTool === 'connect'}
   data-testid="canvas-surface"
   role="application"
   aria-label="Canvas"
@@ -287,6 +295,12 @@
 
   .surface:active {
     cursor: grabbing;
+  }
+
+  /* Everywhere on the canvas while the Connect tool is active (design-system §11.5). */
+  .surface.connecting,
+  .surface.connecting:active {
+    cursor: crosshair;
   }
 
   .world {

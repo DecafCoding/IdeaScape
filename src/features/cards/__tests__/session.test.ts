@@ -78,7 +78,7 @@ function fakeBackend() {
     }
 
     if (name === 'delete_placements') {
-      const effect: DeleteEffect = { placements: [], items: [] };
+      const effect: DeleteEffect = { placements: [], items: [], connections: [] };
       for (const id of args.ids as number[]) {
         const row = rows.get(id);
         if (!row) continue;
@@ -90,6 +90,7 @@ function fakeBackend() {
     }
 
     if (name === 'list_placements') return [...rows.values()];
+    if (name === 'list_connections') return [];
     return undefined;
   });
 

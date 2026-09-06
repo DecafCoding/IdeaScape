@@ -65,12 +65,26 @@ pub struct PlacementUpdate {
     pub z_order: i64,
 }
 
+/// One line joining two cards on a canvas. Endpoints are derived from the two placement
+/// rectangles at render time and are never stored, so a card that moves or grows writes
+/// nothing here. `directed` is 0 none, 1 arrow at the `to` end, 2 at the `from` end, 3 both.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Connection {
+    pub id: i64,
+    pub canvas_id: i64,
+    pub from_placement_id: i64,
+    pub to_placement_id: i64,
+    pub label: Option<String>,
+    pub directed: i64,
+}
+
 /// Everything `delete_placements` actually removed, so one undo command can restore the
-/// placements and any orphaned items together.
+/// placements, any orphaned items and the connections the cascade took with them together.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct DeleteEffect {
     pub placements: Vec<Placement>,
     pub items: Vec<Item>,
+    pub connections: Vec<Connection>,
 }
 
 pub fn row_to_project(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
@@ -117,5 +131,16 @@ pub fn row_to_placement(row: &rusqlite::Row<'_>) -> rusqlite::Result<Placement> 
         width: row.get("width")?,
         height: row.get("height")?,
         z_order: row.get("z_order")?,
+    })
+}
+
+pub fn row_to_connection(row: &rusqlite::Row<'_>) -> rusqlite::Result<Connection> {
+    Ok(Connection {
+        id: row.get("id")?,
+        canvas_id: row.get("canvas_id")?,
+        from_placement_id: row.get("from_placement_id")?,
+        to_placement_id: row.get("to_placement_id")?,
+        label: row.get("label")?,
+        directed: row.get("directed")?,
     })
 }

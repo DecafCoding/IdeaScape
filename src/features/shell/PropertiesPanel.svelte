@@ -10,7 +10,14 @@
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import { autoSaveFooterText } from '../../lib/settings';
   import { MIN_CARD_SIZE } from '../../lib/geometry';
-  import { parseNotePayload, type Placement } from '../../lib/types';
+  import {
+    DIRECTED_BACK,
+    DIRECTED_BOTH,
+    DIRECTED_FORWARD,
+    DIRECTED_NONE,
+    parseNotePayload,
+    type Placement,
+  } from '../../lib/types';
 
   interface Props {
     expanded: boolean;
@@ -20,6 +27,9 @@
     onSendBack?: () => void;
     onDuplicate?: () => void;
     onDelete?: () => void;
+    /** Commit a connection's label and direction together. */
+    onConnectionChange?: (label: string | null, directed: number) => void;
+    onDeleteConnection?: () => void;
   }
 
   const {
@@ -30,7 +40,30 @@
     onSendBack,
     onDuplicate,
     onDelete,
+    onConnectionChange,
+    onDeleteConnection,
   }: Props = $props();
+
+  const connection = $derived(canvasStore.selectedConnection);
+
+  const DIRECTIONS = [
+    { value: DIRECTED_NONE, label: 'None' },
+    { value: DIRECTED_FORWARD, label: 'Forward' },
+    { value: DIRECTED_BACK, label: 'Back' },
+    { value: DIRECTED_BOTH, label: 'Both' },
+  ] as const;
+
+  function commitLabel(raw: string) {
+    if (!connection) return;
+    const next = raw.trim() === '' ? null : raw;
+    if (next === connection.label) return;
+    onConnectionChange?.(next, connection.directed);
+  }
+
+  function commitDirection(directed: number) {
+    if (!connection || connection.directed === directed) return;
+    onConnectionChange?.(connection.label, directed);
+  }
 
   const selected = $derived(canvasStore.selectedPlacements);
   const hasSelection = $derived(selected.length > 0);
@@ -78,7 +111,53 @@
 
 {#if expanded}
   <aside class="panel scroll-thin" data-testid="properties-panel" aria-label="Properties">
-    {#if hasSelection}
+    {#if connection}
+      <header class="header">
+        <span class="kind">Connection</span>
+        <span class="item-id">connection-{String(connection.id).padStart(3, '0')}</span>
+      </header>
+
+      <section class="group">
+        <p class="group-label">Label</p>
+        <!-- A hidden chip still shows its label here: §9.13 is explicit about that. -->
+        <input
+          class="input"
+          type="text"
+          value={connection.label ?? ''}
+          aria-label="Connection Label"
+          placeholder="name this relationship"
+          onchange={(e) => commitLabel(e.currentTarget.value)}
+          onblur={(e) => commitLabel(e.currentTarget.value)}
+        />
+      </section>
+
+      <section class="group">
+        <p class="group-label">Direction</p>
+        <div class="pairs">
+          {#each DIRECTIONS as direction (direction.value)}
+            <button
+              type="button"
+              class="order-button"
+              class:active={connection.directed === direction.value}
+              aria-pressed={connection.directed === direction.value}
+              onclick={() => commitDirection(direction.value)}
+            >
+              {direction.label}
+            </button>
+          {/each}
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div class="footer-row">
+          <span></span>
+          <button type="button" class="icon-button delete" onclick={onDeleteConnection}>
+            <Icon glyph="trash" size={13} label="Delete Connection" />
+          </button>
+        </div>
+        <p class="footer-note">Edits here are undoable · {autoSaveFooterText().split('· ')[1]}</p>
+      </footer>
+    {:else if hasSelection}
       <header class="header">
         <span class="kind">{headerKind}</span>
         <span class="item-id">{headerId}</span>
@@ -261,6 +340,14 @@
 
   .order-button:active {
     background: var(--tint-neutral-press);
+  }
+
+  /* Weight as well as fill, so colour is never the only signal (§12). */
+  .order-button.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-surface);
+    font-weight: 600;
   }
 
   .footer {
