@@ -1,0 +1,412 @@
+//! Connections — the lines joining two cards on one canvas. Endpoints are never stored as
+//! coordinates: a row names two placements and the front end derives the geometry, so
+//! moving or resizing a card writes nothing here.
+//!
+//! The table and its index already ship in `0001_initial_schema.sql`; this phase adds no
+//! migration.
+
+use crate::commands::project::AppState;
+use crate::db::models::{row_to_connection, Connection};
+use crate::error::{AppError, AppResult};
+use rusqlite::Connection as SqlConnection;
+
+/// An empty or whitespace-only label is stored as SQL NULL, so "has a label" is one test
+/// everywhere and no empty chip is ever drawn.
+fn normalise_label(label: Option<String>) -> Option<String> {
+    label
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Every connection on a canvas, oldest first.
+pub fn list_connections_for(state: &AppState, canvas_id: i64) -> AppResult<Vec<Connection>> {
+    state.with_db(|conn| {
+        let mut stmt = conn.prepare("SELECT * FROM connection WHERE canvas_id = ?1 ORDER BY id")?;
+        let rows = stmt
+            .query_map([canvas_id], row_to_connection)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    })
+}
+
+/// The rows attached to one placement, in either direction. Used by `delete_placements_for`
+/// to record what the foreign-key cascade is about to destroy.
+pub fn connections_touching(
+    conn: &SqlConnection,
+    placement_id: i64,
+) -> rusqlite::Result<Vec<Connection>> {
+    let mut stmt = conn.prepare(
+        "SELECT * FROM connection
+         WHERE from_placement_id = ?1 OR to_placement_id = ?1
+         ORDER BY id",
+    )?;
+    let rows = stmt
+        .query_map([placement_id], row_to_connection)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// Join two cards. A card may not connect to itself, and the same ordered pair may not be
+/// connected twice — the front end catches the second case and selects the row that exists
+/// rather than surfacing an error. The reverse pair is a genuinely different connection.
+pub fn create_connection_for(
+    state: &AppState,
+    canvas_id: i64,
+    from_placement_id: i64,
+    to_placement_id: i64,
+    label: Option<String>,
+    directed: i64,
+) -> AppResult<Connection> {
+    if from_placement_id == to_placement_id {
+        return Err(AppError::Invalid(
+            "a card cannot be connected to itself".into(),
+        ));
+    }
+    let label = normalise_label(label);
+
+    state.with_db(|conn| {
+        let existing: i64 = conn.query_row(
+            "SELECT count(*) FROM connection
+             WHERE canvas_id = ?1 AND from_placement_id = ?2 AND to_placement_id = ?3",
+            rusqlite::params![canvas_id, from_placement_id, to_placement_id],
+            |r| r.get(0),
+        )?;
+        if existing > 0 {
+            return Err(AppError::Invalid(
+                "those two cards are already connected".into(),
+            ));
+        }
+
+        conn.execute(
+            "INSERT INTO connection (canvas_id, from_placement_id, to_placement_id, label, directed)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                canvas_id,
+                from_placement_id,
+                to_placement_id,
+                label,
+                directed
+            ],
+        )?;
+        let id = conn.last_insert_rowid();
+        Ok(conn.query_row(
+            "SELECT * FROM connection WHERE id = ?1",
+            [id],
+            row_to_connection,
+        )?)
+    })
+}
+
+/// Change a connection's label and arrow direction. Both are always sent together, because
+/// the properties panel holds both and a partial update would need a second command.
+pub fn update_connection_for(
+    state: &AppState,
+    connection_id: i64,
+    label: Option<String>,
+    directed: i64,
+) -> AppResult<Connection> {
+    let label = normalise_label(label);
+    state.with_db(|conn| {
+        let changed = conn.execute(
+            "UPDATE connection SET label = ?2, directed = ?3 WHERE id = ?1",
+            rusqlite::params![connection_id, label, directed],
+        )?;
+        if changed == 0 {
+            return Err(AppError::NotFound(format!("connection {connection_id}")));
+        }
+        Ok(conn.query_row(
+            "SELECT * FROM connection WHERE id = ?1",
+            [connection_id],
+            row_to_connection,
+        )?)
+    })
+}
+
+/// Delete connections, returning the rows removed so one undo command can put them back
+/// with their labels and directions intact.
+pub fn delete_connections_for(state: &AppState, ids: Vec<i64>) -> AppResult<Vec<Connection>> {
+    state.with_db(|conn| {
+        let tx = conn.transaction()?;
+        let mut removed = Vec::new();
+        for id in &ids {
+            let row = tx
+                .query_row(
+                    "SELECT * FROM connection WHERE id = ?1",
+                    [id],
+                    row_to_connection,
+                )
+                .ok();
+            let Some(row) = row else { continue };
+            tx.execute("DELETE FROM connection WHERE id = ?1", [id])?;
+            removed.push(row);
+        }
+        tx.commit()?;
+        Ok(removed)
+    })
+}
+
+#[tauri::command]
+pub fn list_connections(
+    state: tauri::State<'_, AppState>,
+    canvas_id: i64,
+) -> AppResult<Vec<Connection>> {
+    list_connections_for(&state, canvas_id)
+}
+
+#[tauri::command]
+pub fn create_connection(
+    state: tauri::State<'_, AppState>,
+    canvas_id: i64,
+    from_placement_id: i64,
+    to_placement_id: i64,
+    label: Option<String>,
+    directed: i64,
+) -> AppResult<Connection> {
+    create_connection_for(
+        &state,
+        canvas_id,
+        from_placement_id,
+        to_placement_id,
+        label,
+        directed,
+    )
+}
+
+#[tauri::command]
+pub fn update_connection(
+    state: tauri::State<'_, AppState>,
+    connection_id: i64,
+    label: Option<String>,
+    directed: i64,
+) -> AppResult<Connection> {
+    update_connection_for(&state, connection_id, label, directed)
+}
+
+#[tauri::command]
+pub fn delete_connections(
+    state: tauri::State<'_, AppState>,
+    ids: Vec<i64>,
+) -> AppResult<Vec<Connection>> {
+    delete_connections_for(&state, ids)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::canvas::list_canvases_for;
+    use crate::commands::placement::create_note_card_for;
+    use crate::commands::project::open_project_at;
+
+    fn open() -> (tempfile::TempDir, AppState, i64) {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let project = open_project_at(&state, dir.path()).unwrap();
+        let canvas_id = list_canvases_for(&state, project.id).unwrap()[0].id;
+        (dir, state, canvas_id)
+    }
+
+    fn card(state: &AppState, canvas_id: i64, x: f64) -> i64 {
+        create_note_card_for(
+            state,
+            canvas_id,
+            x,
+            0.0,
+            236.0,
+            150.0,
+            "T".into(),
+            String::new(),
+        )
+        .unwrap()
+        .placement
+        .id
+    }
+
+    #[test]
+    fn create_connection_round_trips_through_list_connections() {
+        let (_dir, state, canvas_id) = open();
+        let a = card(&state, canvas_id, 0.0);
+        let b = card(&state, canvas_id, 400.0);
+
+        let made =
+            create_connection_for(&state, canvas_id, a, b, Some("causes".into()), 1).unwrap();
+
+        let rows = list_connections_for(&state, canvas_id).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0], made);
+        assert_eq!(rows[0].label.as_deref(), Some("causes"));
+        assert_eq!(rows[0].directed, 1);
+        assert_eq!(rows[0].from_placement_id, a);
+        assert_eq!(rows[0].to_placement_id, b);
+    }
+
+    #[test]
+    fn create_connection_rejects_a_card_connected_to_itself() {
+        let (_dir, state, canvas_id) = open();
+        let a = card(&state, canvas_id, 0.0);
+
+        assert!(create_connection_for(&state, canvas_id, a, a, None, 1).is_err());
+        assert!(list_connections_for(&state, canvas_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn create_connection_rejects_a_duplicate_ordered_pair() {
+        let (_dir, state, canvas_id) = open();
+        let a = card(&state, canvas_id, 0.0);
+        let b = card(&state, canvas_id, 400.0);
+
+        create_connection_for(&state, canvas_id, a, b, None, 1).unwrap();
+        assert!(create_connection_for(&state, canvas_id, a, b, None, 1).is_err());
+        // The reverse pair is a different connection and is allowed.
+        create_connection_for(&state, canvas_id, b, a, None, 1).unwrap();
+        assert_eq!(list_connections_for(&state, canvas_id).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn update_connection_empty_label_stores_null() {
+        let (_dir, state, canvas_id) = open();
+        let a = card(&state, canvas_id, 0.0);
+        let b = card(&state, canvas_id, 400.0);
+        let made = create_connection_for(&state, canvas_id, a, b, Some("x".into()), 1).unwrap();
+
+        let updated = update_connection_for(&state, made.id, Some("   ".into()), 3).unwrap();
+        assert_eq!(updated.label, None);
+        assert_eq!(updated.directed, 3);
+        assert_eq!(
+            list_connections_for(&state, canvas_id).unwrap()[0].label,
+            None
+        );
+    }
+
+    #[test]
+    fn delete_connections_returns_the_rows_it_removed() {
+        let (_dir, state, canvas_id) = open();
+        let a = card(&state, canvas_id, 0.0);
+        let b = card(&state, canvas_id, 400.0);
+        let made = create_connection_for(&state, canvas_id, a, b, Some("why".into()), 2).unwrap();
+
+        let removed = delete_connections_for(&state, vec![made.id, 9999]).unwrap();
+        assert_eq!(removed, vec![made]);
+        assert!(list_connections_for(&state, canvas_id).unwrap().is_empty());
+    }
+
+    /// The data half of the phase gate, walked against real SQLite in a temp folder:
+    /// the numbered session `scripts/phase-2-session.md` records, in the engine that ships.
+    #[test]
+    fn gate_session_notes_lines_labels_directions_deletes_and_a_reopen() {
+        use crate::commands::placement::{delete_placements_for, restore_card_for};
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let project = open_project_at(&state, dir.path()).unwrap();
+        let canvas_id = list_canvases_for(&state, project.id).unwrap()[0].id;
+
+        // Steps 1–2: four notes, three lines between them.
+        let cards: Vec<i64> = (0..4)
+            .map(|n| card(&state, canvas_id, n as f64 * 400.0))
+            .collect();
+        let mut made = Vec::new();
+        for pair in cards.windows(2) {
+            made.push(create_connection_for(&state, canvas_id, pair[0], pair[1], None, 1).unwrap());
+        }
+        assert_eq!(list_connections_for(&state, canvas_id).unwrap().len(), 3);
+
+        // Step 3: label all three. Step 4: flip one direction.
+        for (i, row) in made.iter().enumerate() {
+            update_connection_for(&state, row.id, Some(format!("edge {}", i + 1)), 1).unwrap();
+        }
+        update_connection_for(&state, made[0].id, Some("edge 1".into()), 2).unwrap();
+        let rows = list_connections_for(&state, canvas_id).unwrap();
+        assert_eq!(rows[0].directed, 2);
+        assert_eq!(rows[2].label.as_deref(), Some("edge 3"));
+
+        // Step 7: delete a connected card; both its lines are reported and gone.
+        let effect = delete_placements_for(&state, vec![cards[1]]).unwrap();
+        assert_eq!(effect.connections.len(), 2);
+        assert_eq!(list_connections_for(&state, canvas_id).unwrap().len(), 1);
+
+        // Step 8: undo — the card comes back under a NEW id and the lines are re-pointed.
+        let restored = restore_card_for(
+            &state,
+            canvas_id,
+            400.0,
+            0.0,
+            236.0,
+            150.0,
+            1,
+            "note".into(),
+            "{\"title\":\"T\",\"text\":\"\"}".into(),
+        )
+        .unwrap();
+        let new_id = restored.placement.id;
+        assert_ne!(
+            new_id, cards[1],
+            "restore_card must mint a new placement id"
+        );
+        for old in &effect.connections {
+            let from = if old.from_placement_id == cards[1] {
+                new_id
+            } else {
+                old.from_placement_id
+            };
+            let to = if old.to_placement_id == cards[1] {
+                new_id
+            } else {
+                old.to_placement_id
+            };
+            create_connection_for(&state, canvas_id, from, to, old.label.clone(), old.directed)
+                .unwrap();
+        }
+        let rows = list_connections_for(&state, canvas_id).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert!(rows
+            .iter()
+            .any(|r| r.label.as_deref() == Some("edge 1") && r.directed == 2));
+
+        // Step 10: close and reopen — every line, label and direction survives.
+        drop(state);
+        let state = AppState::default();
+        open_project_at(&state, dir.path()).unwrap();
+        let rows = list_connections_for(&state, canvas_id).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert!(rows
+            .iter()
+            .any(|r| r.label.as_deref() == Some("edge 1") && r.directed == 2));
+        assert!(rows
+            .iter()
+            .any(|r| r.from_placement_id == new_id || r.to_placement_id == new_id));
+
+        // Step 12: delete a line on its own — it goes, the cards stay.
+        let removed = delete_connections_for(&state, vec![rows[0].id]).unwrap();
+        assert_eq!(removed.len(), 1);
+        assert_eq!(list_connections_for(&state, canvas_id).unwrap().len(), 2);
+        assert_eq!(
+            crate::commands::placement::list_placements_for(&state, canvas_id)
+                .unwrap()
+                .len(),
+            4
+        );
+    }
+
+    #[test]
+    fn connection_survives_closing_and_reopening_the_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let (canvas_id, from_id, to_id) = {
+            let state = AppState::default();
+            let project = open_project_at(&state, dir.path()).unwrap();
+            let canvas_id = list_canvases_for(&state, project.id).unwrap()[0].id;
+            let a = card(&state, canvas_id, 0.0);
+            let b = card(&state, canvas_id, 400.0);
+            create_connection_for(&state, canvas_id, a, b, Some("leads to".into()), 3).unwrap();
+            (canvas_id, a, b)
+        };
+        // The connection is dropped without a clean close — WAL must still hold the commit.
+
+        let state = AppState::default();
+        open_project_at(&state, dir.path()).unwrap();
+        let rows = list_connections_for(&state, canvas_id).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].label.as_deref(), Some("leads to"));
+        assert_eq!(rows[0].directed, 3);
+        assert_eq!(rows[0].from_placement_id, from_id);
+        assert_eq!(rows[0].to_placement_id, to_id);
+    }
+}

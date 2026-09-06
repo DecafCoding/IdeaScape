@@ -28,9 +28,15 @@
      * press means and this layer only reports it.
      */
     onSelect: (placementId: number, toggle: boolean) => void;
+    /**
+     * A press on a card under the Connect tool. Drawing the line belongs to the connections
+     * feature, which this layer may not import, so the composition root wires it.
+     */
+    onConnectFrom: (placementId: number, event: PointerEvent) => void;
   }
 
-  const { onGeometryCommitted, onOpenElementMenu, onCommitEdit, onSelect }: Props = $props();
+  const { onGeometryCommitted, onOpenElementMenu, onCommitEdit, onSelect, onConnectFrom }: Props =
+    $props();
 
   const alwaysVisible = $derived(
     new Set(canvasStore.editingPlacementId === null ? [] : [canvasStore.editingPlacementId]),
@@ -70,6 +76,13 @@
   function beginMove(event: PointerEvent, placement: Placement) {
     if (event.button !== 0) return;
     if (canvasStore.editingPlacementId === placement.id) return;
+
+    // Under the Connect tool a press on a card starts a link, never a move.
+    if (canvasStore.activeTool === 'connect') {
+      event.stopPropagation();
+      onConnectFrom(placement.id, event);
+      return;
+    }
 
     onSelect(placement.id, event.ctrlKey || event.shiftKey || event.metaKey);
     if (!canvasStore.isSelected(placement.id)) return;

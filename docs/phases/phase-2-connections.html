@@ -1156,54 +1156,54 @@ test "$(ls src-tauri/migrations | wc -l)" -eq 1</code></pre>
 
 <h2>Acceptance Criteria</h2>
 <ul class="checklist">
-  <li data-checked="false">Dragging from one card to another with the Connect tool creates a line, and the line is written to the <code>connection</code> table immediately</li>
-  <li data-checked="false">No migration was added — the existing <code>connection</code> table in <code>0001_initial_schema.sql</code> is used unchanged</li>
-  <li data-checked="false">Line endpoints sit on each card's real rectangle edge at every zoom, and follow a card that is moved or resized without any connection row being written</li>
-  <li data-checked="false">The line is a 1.5 px stroke in <code>--color-connection</code>, with the arrowhead marker drawn exactly as <code>docs/design-system.html</code> §9.13 specifies (<code>viewBox 0 0 9 9</code>, <code>refX 8</code>, <code>refY 4.5</code>, 6 × 6, <code>orient="auto-start-reverse"</code>)</li>
-  <li data-checked="false">The SVG overlay is a sibling of the card layer, before it in DOM order, on the <code>--z-connections</code> rung, so cards always paint over lines</li>
-  <li data-checked="false">The overlay never steals a pan, a marquee or a card drag — it is <code>pointer-events: none</code> with hit paths only</li>
-  <li data-checked="false">Arrow direction is settable to None, Forward, Back or Both from the properties panel, and Back and Both use <code>marker-start</code> with the same single marker</li>
-  <li data-checked="false">A connection carries an optional text label shown in an HTML chip on the line's midpoint, with the drawn chip spec: <code>--color-surface</code> ground, 2 px radius, <code>1px 5px</code> padding, 10 px, opacity .62, <code>white-space: nowrap</code></li>
-  <li data-checked="false">Below 50 px of on-screen line length the chip is not drawn — not truncated, not shrunk, not offset — and the label is kept: it still shows in the properties panel and returns unchanged when the cards move apart or the canvas zooms in</li>
-  <li data-checked="false">Lines are neutral ink at rest and never take the accent; a selected connection is shown by 7 × 7 px accent square handles at its endpoints and a heavier neutral stroke</li>
-  <li data-checked="false">Clicking a line selects it and clears the card selection; selecting cards clears the connection selection; <code>Esc</code> clears either</li>
-  <li data-checked="false">A connection is reachable by keyboard: Tab focuses its hit path with the standard 2 px accent ring at 2 px offset, and Enter or Space selects it</li>
-  <li data-checked="false">The properties panel shows a Connection state with a header, a Label field and a Direction group, built entirely from the panel's existing measurements and classes</li>
-  <li data-checked="false">The Connect tool row in the left column is active, available or unavailable per <code>docs/design-system.html</code> §8.3, and is unavailable when the canvas holds fewer than two cards</li>
-  <li data-checked="false">The canvas shows the <code>crosshair</code> cursor everywhere while the Connect tool is active</li>
-  <li data-checked="false">The <code>C</code> shortcut and the <em>Connect From Here</em> element-menu row both start a link from the single selected card, and both are unavailable otherwise</li>
-  <li data-checked="false">A line mid-drag runs from the source card's real edge to the pointer, dashed with no arrowhead, snapping solid with an arrowhead when a valid target is under the pointer; <code>Esc</code> or a release on empty space cancels it with no write</li>
-  <li data-checked="false">A card cannot be connected to itself, and a second connection between the same ordered pair is not created — the existing one is selected instead</li>
-  <li data-checked="false">Deleting a card deletes its lines, and <code>delete_placements</code> reports every removed connection exactly once</li>
-  <li data-checked="false">Undoing a card delete restores the card <em>and</em> its connections together as one step, re-pointed at the new placement ids, with labels and directions intact; redo removes all of it again</li>
-  <li data-checked="false">Creating, deleting, labelling and re-directing a connection are each one undoable step, and a label edit pushes on commit, not per keystroke</li>
-  <li data-checked="false">A connection whose endpoint card is still deleted is skipped on undo rather than re-created against a dead id</li>
-  <li data-checked="false">Every connection change reaches SQLite immediately and survives closing and reopening the project</li>
-  <li data-checked="false">Both connection failure paths draw in the shell's existing message strip, never in a dialog</li>
-  <li data-checked="false">Connections are culled on the line's own bounding box, so a line between two off-screen cards still draws when it crosses the viewport, and the drawn/total counts are instrumented</li>
-  <li data-checked="false">All Phase 1 acceptance criteria still hold — no regression in culling, saving, undo, the shortcuts or the context menus</li>
-  <li data-checked="false">Every screen renders correctly in the dark theme with nothing moving between the two, using the existing <code>--color-connection</code> and <code>--color-arrowhead</code> dark values</li>
-  <li data-checked="false">A label containing markup is rendered as text; no connection can run script</li>
-  <li data-checked="false">No feature imports another feature; <code>lib/</code> and <code>stores/</code> import no feature; the front end calls no <code>invoke()</code> outside <code>src/lib/ipc.ts</code></li>
-  <li data-checked="false">All new UI labels and button text are Title Case; placeholder, helper and log text is sentence case</li>
-  <li data-checked="false">Only the 34 glyphs in the closed Phosphor set are used — the Connect row's <code>ph-flow-arrow</code> and the panel's <code>ph-trash</code>, both already in the set</li>
-  <li data-checked="false">No literal hex colour appears in any component; every value comes from the token layer</li>
-  <li data-checked="false"><strong>Gate:</strong> the application is usable for real thinking work with notes and lines only, proved by the scripted session recorded in <code>scripts/phase-2-session.md</code></li>
-  <li data-checked="false">The 250-card canvas still holds a median 60 fps with connections drawn, and the installer is still under 20 MB</li>
+  <li data-checked="true">Dragging from one card to another with the Connect tool creates a line, and the line is written to the <code>connection</code> table immediately</li>
+  <li data-checked="true">No migration was added — the existing <code>connection</code> table in <code>0001_initial_schema.sql</code> is used unchanged</li>
+  <li data-checked="true">Line endpoints sit on each card's real rectangle edge at every zoom, and follow a card that is moved or resized without any connection row being written</li>
+  <li data-checked="true">The line is a 1.5 px stroke in <code>--color-connection</code>, with the arrowhead marker drawn exactly as <code>docs/design-system.html</code> §9.13 specifies (<code>viewBox 0 0 9 9</code>, <code>refX 8</code>, <code>refY 4.5</code>, 6 × 6, <code>orient="auto-start-reverse"</code>)</li>
+  <li data-checked="true">The SVG overlay is a sibling of the card layer, before it in DOM order, on the <code>--z-connections</code> rung, so cards always paint over lines</li>
+  <li data-checked="true">The overlay never steals a pan, a marquee or a card drag — it is <code>pointer-events: none</code> with hit paths only</li>
+  <li data-checked="true">Arrow direction is settable to None, Forward, Back or Both from the properties panel, and Back and Both use <code>marker-start</code> with the same single marker</li>
+  <li data-checked="true">A connection carries an optional text label shown in an HTML chip on the line's midpoint, with the drawn chip spec: <code>--color-surface</code> ground, 2 px radius, <code>1px 5px</code> padding, 10 px, opacity .62, <code>white-space: nowrap</code></li>
+  <li data-checked="true">Below 50 px of on-screen line length the chip is not drawn — not truncated, not shrunk, not offset — and the label is kept: it still shows in the properties panel and returns unchanged when the cards move apart or the canvas zooms in</li>
+  <li data-checked="true">Lines are neutral ink at rest and never take the accent; a selected connection is shown by 7 × 7 px accent square handles at its endpoints and a heavier neutral stroke</li>
+  <li data-checked="true">Clicking a line selects it and clears the card selection; selecting cards clears the connection selection; <code>Esc</code> clears either</li>
+  <li data-checked="true">A connection is reachable by keyboard: Tab focuses its hit path with the standard 2 px accent ring at 2 px offset, and Enter or Space selects it</li>
+  <li data-checked="true">The properties panel shows a Connection state with a header, a Label field and a Direction group, built entirely from the panel's existing measurements and classes</li>
+  <li data-checked="true">The Connect tool row in the left column is active, available or unavailable per <code>docs/design-system.html</code> §8.3, and is unavailable when the canvas holds fewer than two cards</li>
+  <li data-checked="true">The canvas shows the <code>crosshair</code> cursor everywhere while the Connect tool is active</li>
+  <li data-checked="true">The <code>C</code> shortcut and the <em>Connect From Here</em> element-menu row both start a link from the single selected card, and both are unavailable otherwise</li>
+  <li data-checked="true">A line mid-drag runs from the source card's real edge to the pointer, dashed with no arrowhead, snapping solid with an arrowhead when a valid target is under the pointer; <code>Esc</code> or a release on empty space cancels it with no write</li>
+  <li data-checked="true">A card cannot be connected to itself, and a second connection between the same ordered pair is not created — the existing one is selected instead</li>
+  <li data-checked="true">Deleting a card deletes its lines, and <code>delete_placements</code> reports every removed connection exactly once</li>
+  <li data-checked="true">Undoing a card delete restores the card <em>and</em> its connections together as one step, re-pointed at the new placement ids, with labels and directions intact; redo removes all of it again</li>
+  <li data-checked="true">Creating, deleting, labelling and re-directing a connection are each one undoable step, and a label edit pushes on commit, not per keystroke</li>
+  <li data-checked="true">A connection whose endpoint card is still deleted is skipped on undo rather than re-created against a dead id</li>
+  <li data-checked="true">Every connection change reaches SQLite immediately and survives closing and reopening the project</li>
+  <li data-checked="true">Both connection failure paths draw in the shell's existing message strip, never in a dialog</li>
+  <li data-checked="true">Connections are culled on the line's own bounding box, so a line between two off-screen cards still draws when it crosses the viewport, and the drawn/total counts are instrumented</li>
+  <li data-checked="true">All Phase 1 acceptance criteria still hold — no regression in culling, saving, undo, the shortcuts or the context menus</li>
+  <li data-checked="true">Every screen renders correctly in the dark theme with nothing moving between the two, using the existing <code>--color-connection</code> and <code>--color-arrowhead</code> dark values</li>
+  <li data-checked="true">A label containing markup is rendered as text; no connection can run script</li>
+  <li data-checked="true">No feature imports another feature; <code>lib/</code> and <code>stores/</code> import no feature; the front end calls no <code>invoke()</code> outside <code>src/lib/ipc.ts</code></li>
+  <li data-checked="true">All new UI labels and button text are Title Case; placeholder, helper and log text is sentence case</li>
+  <li data-checked="true">Only the 34 glyphs in the closed Phosphor set are used — the Connect row's <code>ph-flow-arrow</code> and the panel's <code>ph-trash</code>, both already in the set</li>
+  <li data-checked="true">No literal hex colour appears in any component; every value comes from the token layer</li>
+  <li data-checked="true"><strong>Gate:</strong> the application is usable for real thinking work with notes and lines only, proved by the scripted session recorded in <code>scripts/phase-2-session.md</code></li>
+  <li data-checked="true">The 250-card canvas still holds a median 60 fps with connections drawn, and the installer is still under 20 MB</li>
 </ul>
 
 <h2>Completion Checklist</h2>
 <ul class="checklist">
-  <li data-checked="false">Level 1 passes — <code>npm run check</code>, <code>prettier --check</code>, <code>cargo fmt --check</code>, <code>cargo clippy -D warnings</code> all exit 0</li>
-  <li data-checked="false">Level 2 passes — <code>npm test -- --run</code> and <code>cargo test</code> both green</li>
-  <li data-checked="false">Level 3 passes — the Rust durability and cascade-capture tests and the front-end feature, store and lib specs are green</li>
-  <li data-checked="false">Level 4 passes — the build block exits 0: bundle self-contained, installer under 20 MB, the session gate recorded as PASS with a passing fps</li>
-  <li data-checked="false">Level 5 passes — every connection command registered twice, no forbidden logging, no cross-feature import, no direct <code>invoke()</code>, no literal hex, no new migration</li>
-  <li data-checked="false">All five milestone validation checkpoints have been run and passed</li>
-  <li data-checked="false"><code>scripts/phase-2-session.md</code> records the machine, date, both fps passes with drawn/total counts, and the numbered session walk-through</li>
-  <li data-checked="false"><code>README.md</code> mentions the Connect tool and the <code>C</code> shortcut alongside the Phase 1 commands</li>
-  <li data-checked="false">Every acceptance criterion above is checked</li>
-  <li data-checked="false">The branch is pushed and the pull request is open against <code>main</code></li>
+  <li data-checked="true">Level 1 passes — <code>npm run check</code>, <code>prettier --check</code>, <code>cargo fmt --check</code>, <code>cargo clippy -D warnings</code> all exit 0</li>
+  <li data-checked="true">Level 2 passes — <code>npm test -- --run</code> and <code>cargo test</code> both green</li>
+  <li data-checked="true">Level 3 passes — the Rust durability and cascade-capture tests and the front-end feature, store and lib specs are green</li>
+  <li data-checked="true">Level 4 passes — the build block exits 0: bundle self-contained, installer under 20 MB, the session gate recorded as PASS with a passing fps</li>
+  <li data-checked="true">Level 5 passes — every connection command registered twice, no forbidden logging, no cross-feature import, no direct <code>invoke()</code>, no literal hex, no new migration</li>
+  <li data-checked="true">All five milestone validation checkpoints have been run and passed</li>
+  <li data-checked="true"><code>scripts/phase-2-session.md</code> records the machine, date, both fps passes with drawn/total counts, and the numbered session walk-through</li>
+  <li data-checked="true"><code>README.md</code> mentions the Connect tool and the <code>C</code> shortcut alongside the Phase 1 commands</li>
+  <li data-checked="true">Every acceptance criterion above is checked</li>
+  <li data-checked="true">The branch is pushed and the pull request is open against <code>main</code></li>
 </ul>
 
 <h2>Notes</h2>

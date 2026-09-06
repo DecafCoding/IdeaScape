@@ -12,7 +12,7 @@
  * The drawn count is the number to read first: if it is close to the total the cull is
  * broken and the frame rate beside it means nothing.
  */
-import { cullCounts } from './culling';
+import { connectionCullCounts, cullCounts } from './culling';
 
 export interface GatePass {
   label: string;
@@ -25,6 +25,8 @@ export interface GatePass {
   frames: number;
   total: number;
   drawn: number;
+  connectionsTotal: number;
+  connectionsDrawn: number;
 }
 
 export interface GateResult {
@@ -56,6 +58,8 @@ export function runPass(
     let last = started;
     let peakDrawn = 0;
     let total = 0;
+    let peakConnectionsDrawn = 0;
+    let connectionsTotal = 0;
 
     const step = (now: number) => {
       const delta = now - last;
@@ -70,6 +74,8 @@ export function runPass(
 
       peakDrawn = Math.max(peakDrawn, cullCounts.drawn);
       total = cullCounts.total;
+      peakConnectionsDrawn = Math.max(peakConnectionsDrawn, connectionCullCounts.drawn);
+      connectionsTotal = connectionCullCounts.total;
 
       if (elapsed >= durationMs) {
         const sorted = [...frameTimes].sort((a, b) => a - b);
@@ -88,6 +94,8 @@ export function runPass(
           frames: frameTimes.length,
           total,
           drawn: peakDrawn,
+          connectionsTotal,
+          connectionsDrawn: peakConnectionsDrawn,
         });
         return;
       }

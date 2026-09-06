@@ -80,11 +80,25 @@ describe('the element context menu', () => {
     expect(row?.className).toContain('destructive');
   });
 
-  it('elementMenu_connectFromHere_isUnavailableInThisPhase', () => {
+  it('elementMenu_connectFromHere_isUnavailableWithNoSelection', () => {
     const { getByText } = open(elementEntries, ELEMENT_MENU_WIDTH);
     const row = getByText('Connect From Here').closest('button');
     expect(row).toBeDisabled();
     expect(row?.className).toContain('is-unavailable');
+  });
+
+  it('elementMenu_connectFromHere_isAvailableWithOneCardSelected', () => {
+    // The row goes live from Phase 2: `available` is set from the same rule the C
+    // shortcut uses — exactly one card selected on a canvas of two or more.
+    const live = elementEntries.map((entry) =>
+      entry.kind === 'item' && entry.action === 'connect'
+        ? { ...entry, available: true, run: () => {} }
+        : entry,
+    );
+    const { getByText } = open(live, ELEMENT_MENU_WIDTH);
+    const row = getByText('Connect From Here').closest('button');
+    expect(row).not.toBeDisabled();
+    expect(row?.className).not.toContain('is-unavailable');
   });
 
   it('elementMenu_clickingARow_runsItAndClosesTheMenu', async () => {

@@ -4,7 +4,7 @@
  * task and the chrome task at once.
  */
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
-import { render, cleanup } from '@testing-library/svelte';
+import { render, cleanup, fireEvent } from '@testing-library/svelte';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -163,5 +163,148 @@ describe('theme parity', () => {
     const { getByTestId } = render(TitleBar, { props: {} });
     expect(getByTestId('title-bar')).toBeInTheDocument();
     expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+});
+
+describe('the Connect tool row', () => {
+  beforeEach(() => {
+    canvasStore.closeProject();
+  });
+
+  afterEach(cleanup);
+
+  function seed(count: number) {
+    for (let id = 1; id <= count; id += 1) {
+      canvasStore.upsertPlacement({
+        id,
+        canvas_id: 1,
+        item_id: id,
+        x: id * 400,
+        y: 0,
+        width: 236,
+        height: 150,
+        z_order: id,
+      });
+    }
+  }
+
+  function connectRow(container: HTMLElement): HTMLButtonElement {
+    const row = [...container.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Connect',
+    );
+    if (!row) throw new Error('the Connect row is not rendered');
+    return row as HTMLButtonElement;
+  }
+
+  it('connectRow_aCanvasWithOneCard_isDisabled', () => {
+    seed(1);
+    const { container } = render(LeftColumn, { props: {} });
+    const row = connectRow(container as HTMLElement);
+    expect(row).toBeDisabled();
+    expect(row.className).toContain('is-unavailable');
+  });
+
+  it('connectRow_aCanvasWithTwoCards_isEnabled', () => {
+    seed(2);
+    const { container } = render(LeftColumn, { props: {} });
+    expect(connectRow(container as HTMLElement)).not.toBeDisabled();
+  });
+
+  it('connectRow_clicked_setsTheActiveToolToConnect', async () => {
+    seed(2);
+    const { container } = render(LeftColumn, { props: {} });
+    await fireEvent.click(connectRow(container as HTMLElement));
+    expect(canvasStore.activeTool).toBe('connect');
+  });
+});
+
+describe('the properties panel Connection state', () => {
+  beforeEach(() => {
+    canvasStore.closeProject();
+    for (const id of [1, 2]) {
+      canvasStore.upsertPlacement({
+        id,
+        canvas_id: 1,
+        item_id: id,
+        x: id * 400,
+        y: 0,
+        width: 236,
+        height: 150,
+        z_order: id,
+      });
+    }
+    canvasStore.upsertConnection({
+      id: 7,
+      canvas_id: 1,
+      from_placement_id: 1,
+      to_placement_id: 2,
+      label: 'causes',
+      directed: 1,
+    });
+    canvasStore.selectConnection(7);
+  });
+
+  afterEach(cleanup);
+
+  it('panel_aSelectedConnection_showsTheLabelAndDirectionGroups', () => {
+    const { getByText, getByLabelText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {} },
+    });
+    expect(getByText('Connection')).toBeInTheDocument();
+    expect(getByText('connection-007')).toBeInTheDocument();
+    expect(getByText('Label')).toBeInTheDocument();
+    expect(getByText('Direction')).toBeInTheDocument();
+    for (const name of ['None', 'Forward', 'Back', 'Both']) {
+      expect(getByText(name)).toBeInTheDocument();
+    }
+    expect((getByLabelText('Connection Label') as HTMLInputElement).value).toBe('causes');
+  });
+
+  it('panel_aLabelTyped_invokesUpdateConnectionOnce', async () => {
+    const onConnectionChange = vi.fn();
+    const { getByLabelText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {}, onConnectionChange },
+    });
+    const input = getByLabelText('Connection Label') as HTMLInputElement;
+    input.value = 'blocks';
+    await fireEvent.change(input);
+    expect(onConnectionChange).toHaveBeenCalledTimes(1);
+    expect(onConnectionChange).toHaveBeenCalledWith('blocks', 1);
+  });
+
+  it('panel_aDirectionButtonClicked_invokesUpdateConnectionWithTheNewValue', async () => {
+    const onConnectionChange = vi.fn();
+    const { getByText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {}, onConnectionChange },
+    });
+    await fireEvent.click(getByText('Both'));
+    expect(onConnectionChange).toHaveBeenCalledWith('causes', 3);
+  });
+
+  it('panel_theCurrentDirection_carriesWeightAsWellAsFill', () => {
+    const { getByText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {} },
+    });
+    const forward = getByText('Forward').closest('button');
+    expect(forward?.className).toContain('active');
+    expect(forward?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('panel_aConnectionWhoseChipIsHidden_stillShowsTheLabelText', () => {
+    // The 50 px rule hides the chip on the canvas; the panel is unaffected by zoom.
+    canvasStore.setView({ zoom: 0.1 });
+    const { getByLabelText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {} },
+    });
+    expect((getByLabelText('Connection Label') as HTMLInputElement).value).toBe('causes');
+  });
+
+  it('panel_nothingSelected_isCollapsed', () => {
+    canvasStore.selectConnection(null);
+    canvasStore.clearSelection();
+    const { getByTestId } = render(PropertiesPanel, {
+      props: { expanded: false, onToggle: () => {} },
+    });
+    expect(getByTestId('properties-panel').className).toContain('collapsed');
   });
 });

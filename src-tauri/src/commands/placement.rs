@@ -1,6 +1,7 @@
 //! Placements — where a card sits on one canvas, and how it stacks. A multi-row change
 //! (a drag, a reorder, a delete) is written in exactly one transaction.
 
+use crate::commands::connection::connections_touching;
 use crate::commands::item::insert_item;
 use crate::commands::project::AppState;
 use crate::db::models::{
@@ -9,6 +10,7 @@ use crate::db::models::{
 };
 use crate::error::{AppError, AppResult};
 use rusqlite::Connection;
+use std::collections::HashSet;
 
 /// Every card on a canvas, placement joined to item, bottom of the stack first.
 pub fn list_placements_for(state: &AppState, canvas_id: i64) -> AppResult<Vec<PlacementWithItem>> {
@@ -165,6 +167,7 @@ pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<Delet
     state.with_db(|conn| {
         let tx = conn.transaction()?;
         let mut effect = DeleteEffect::default();
+        let mut seen_connections: HashSet<i64> = HashSet::new();
 
         for id in &ids {
             let placement = tx
@@ -175,6 +178,16 @@ pub fn delete_placements_for(state: &AppState, ids: Vec<i64>) -> AppResult<Delet
                 )
                 .ok();
             let Some(placement) = placement else { continue };
+
+            // Capture the attached connections *before* the delete: the foreign-key cascade
+            // removes them, and after it the select returns nothing. Deduplicated by id,
+            // because a line whose two endpoints are both in `ids` is found twice.
+            for row in connections_touching(&tx, placement.id)? {
+                if seen_connections.insert(row.id) {
+                    effect.connections.push(row);
+                }
+            }
+
             tx.execute("DELETE FROM placement WHERE id = ?1", [id])?;
 
             let remaining: i64 = tx.query_row(
@@ -288,6 +301,7 @@ pub fn seed_note_cards(
         )?;
         let first_z = next_z_order(&tx, canvas_id)?;
         let columns = 20;
+        let mut seeded: Vec<i64> = Vec::new();
         for (z, n) in (first_z..).zip(0..count) {
             let col = n % columns;
             let row = n / columns;
@@ -308,7 +322,19 @@ pub fn seed_note_cards(
                     z
                 ],
             )?;
+            seeded.push(tx.last_insert_rowid());
         }
+
+        // One connection per adjacent pair, so the harness measures a realistic mixed
+        // canvas rather than cards alone.
+        for pair in seeded.windows(2) {
+            tx.execute(
+                "INSERT INTO connection (canvas_id, from_placement_id, to_placement_id, label, directed)
+                 VALUES (?1, ?2, ?3, NULL, 1)",
+                rusqlite::params![canvas_id, pair[0], pair[1]],
+            )?;
+        }
+
         tx.commit()?;
         Ok(count)
     })
@@ -440,6 +466,79 @@ mod tests {
         assert_eq!(effect.placements.len(), 1);
         assert!(effect.items.is_empty(), "the item still has a placement");
         assert_eq!(list_placements_for(&state, canvas_id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn delete_placements_reports_every_connection_it_removed() {
+        use crate::commands::connection::{create_connection_for, list_connections_for};
+        let (_dir, state, canvas_id) = open();
+        let mut ids = Vec::new();
+        for n in 0..3 {
+            ids.push(
+                create_note_card_for(
+                    &state,
+                    canvas_id,
+                    n as f64 * 400.0,
+                    0.0,
+                    236.0,
+                    150.0,
+                    "T".into(),
+                    String::new(),
+                )
+                .unwrap()
+                .placement
+                .id,
+            );
+        }
+        create_connection_for(&state, canvas_id, ids[0], ids[1], Some("a".into()), 1).unwrap();
+        create_connection_for(&state, canvas_id, ids[1], ids[2], Some("b".into()), 2).unwrap();
+
+        // Deleting the middle card takes both lines with it, and each is reported once.
+        let effect = delete_placements_for(&state, vec![ids[1]]).unwrap();
+        assert_eq!(effect.connections.len(), 2);
+        let labels: Vec<_> = effect
+            .connections
+            .iter()
+            .map(|c| c.label.as_deref().unwrap_or(""))
+            .collect();
+        assert!(labels.contains(&"a") && labels.contains(&"b"));
+        assert!(list_connections_for(&state, canvas_id).unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_placements_a_line_between_two_deleted_cards_is_reported_once() {
+        use crate::commands::connection::create_connection_for;
+        let (_dir, state, canvas_id) = open();
+        let a = create_note_card_for(
+            &state,
+            canvas_id,
+            0.0,
+            0.0,
+            236.0,
+            150.0,
+            "T".into(),
+            String::new(),
+        )
+        .unwrap()
+        .placement
+        .id;
+        let b = create_note_card_for(
+            &state,
+            canvas_id,
+            400.0,
+            0.0,
+            236.0,
+            150.0,
+            "T".into(),
+            String::new(),
+        )
+        .unwrap()
+        .placement
+        .id;
+        create_connection_for(&state, canvas_id, a, b, None, 1).unwrap();
+
+        let effect = delete_placements_for(&state, vec![a, b]).unwrap();
+        assert_eq!(effect.connections.len(), 1);
     }
 
     #[test]

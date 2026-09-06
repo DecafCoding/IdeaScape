@@ -3,6 +3,7 @@
 //! `db/` never calls back.
 
 pub mod canvas;
+pub mod connection;
 pub mod item;
 pub mod placement;
 pub mod project;

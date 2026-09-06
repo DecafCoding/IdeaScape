@@ -64,8 +64,13 @@ export interface PlacementUpdate {
 export interface DeleteEffect {
   placements: Placement[];
   items: Item[];
+  connections: Connection[];
 }
 
+/**
+ * One line joining two cards. Endpoints are derived from the two placement rectangles at
+ * render time and never stored, so a card that moves or grows writes no connection row.
+ */
 export interface Connection {
   id: number;
   canvas_id: number;
@@ -74,6 +79,12 @@ export interface Connection {
   label: string | null;
   directed: number;
 }
+
+/** Arrow direction: none, an arrow at the `to` end, at the `from` end, or both. */
+export const DIRECTED_NONE = 0;
+export const DIRECTED_FORWARD = 1;
+export const DIRECTED_BACK = 2;
+export const DIRECTED_BOTH = 3;
 
 // The four typed payloads. Only NotePayload is used in Phase 1; the other three land with
 // their cards in Phase 3.

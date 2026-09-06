@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_ZOOM, MIN_ZOOM } from '../../lib/geometry';
-import type { Placement } from '../../lib/types';
+import type { Connection, Placement } from '../../lib/types';
 
 const invokeSafe = vi.fn();
 vi.mock('../../lib/ipc', () => ({
@@ -12,6 +12,17 @@ const { canvasStore } = await import('../canvasStore.svelte');
 
 function placement(id: number, z = id): Placement {
   return { id, canvas_id: 1, item_id: id, x: id * 10, y: 0, width: 236, height: 150, z_order: z };
+}
+
+function connection(id: number, from = 1, to = 2): Connection {
+  return {
+    id,
+    canvas_id: 1,
+    from_placement_id: from,
+    to_placement_id: to,
+    label: null,
+    directed: 1,
+  };
 }
 
 describe('canvasStore', () => {
@@ -122,19 +133,21 @@ describe('canvasStore', () => {
           updated_at: '',
         },
       ];
-      invokeSafe.mockResolvedValue([
-        {
-          placement: placement(1),
-          item: {
-            id: 1,
-            project_id: 1,
-            kind: 'note',
-            payload: '{"title":"T","text":""}',
-            created_at: '',
-            updated_at: '',
+      invokeSafe
+        .mockResolvedValueOnce([
+          {
+            placement: placement(1),
+            item: {
+              id: 1,
+              project_id: 1,
+              kind: 'note',
+              payload: '{"title":"T","text":""}',
+              created_at: '',
+              updated_at: '',
+            },
           },
-        },
-      ]);
+        ])
+        .mockResolvedValueOnce([]);
 
       await canvasStore.loadCanvas(9);
 
@@ -143,17 +156,71 @@ describe('canvasStore', () => {
       expect(canvasStore.items.size).toBe(1);
       expect(canvasStore.view).toEqual({ x: -120, y: 30, zoom: 0.5 });
     });
+
+    it('loadCanvas_aCanvasWithConnections_populatesTheConnectionMap', async () => {
+      canvasStore.canvases = [];
+      invokeSafe.mockResolvedValueOnce([]).mockResolvedValueOnce([connection(5), connection(6)]);
+
+      await canvasStore.loadCanvas(9);
+
+      expect(invokeSafe).toHaveBeenCalledWith('list_connections', { canvasId: 9 });
+      expect([...canvasStore.connections.keys()].sort()).toEqual([5, 6]);
+    });
+  });
+
+  describe('connections', () => {
+    beforeEach(() => {
+      for (const id of [1, 2, 3]) canvasStore.upsertPlacement(placement(id));
+      canvasStore.upsertConnection(connection(10));
+    });
+
+    it('selectConnection_aConnectionId_clearsThePlacementSelection', () => {
+      canvasStore.setSelection([1, 2]);
+      canvasStore.selectConnection(10);
+      expect(canvasStore.selection.size).toBe(0);
+      expect(canvasStore.selectedConnection?.id).toBe(10);
+    });
+
+    it('setSelection_anyIds_clearsTheSelectedConnection', () => {
+      canvasStore.selectConnection(10);
+      canvasStore.setSelection([1]);
+      expect(canvasStore.selectedConnectionId).toBeNull();
+    });
+
+    it('toggleSelected_anyId_clearsTheSelectedConnection', () => {
+      canvasStore.selectConnection(10);
+      canvasStore.toggleSelected(1);
+      expect(canvasStore.selectedConnectionId).toBeNull();
+    });
+
+    it('removeConnection_theSelectedConnection_clearsTheSelection', () => {
+      canvasStore.selectConnection(10);
+      canvasStore.removeConnection(10);
+      expect(canvasStore.connections.has(10)).toBe(false);
+      expect(canvasStore.selectedConnectionId).toBeNull();
+    });
+
+    it('patchConnection_aLabel_replacesTheEntryWithoutTouchingTheRest', () => {
+      canvasStore.patchConnection(10, { label: 'causes' });
+      expect(canvasStore.connections.get(10)).toMatchObject({ label: 'causes', directed: 1 });
+    });
   });
 
   describe('closeProject', () => {
     it('closeProject_anOpenProject_resetsEveryPieceOfCanvasState', () => {
       canvasStore.upsertPlacement(placement(1));
+      canvasStore.upsertConnection(connection(10));
+      canvasStore.selectConnection(10);
+      canvasStore.pendingLink = { fromPlacementId: 1, pointer: { x: 0, y: 0 } };
       canvasStore.setSelection([1]);
       canvasStore.setView({ x: 10, y: 10, zoom: 2 });
 
       canvasStore.closeProject();
 
       expect(canvasStore.placements.size).toBe(0);
+      expect(canvasStore.connections.size).toBe(0);
+      expect(canvasStore.selectedConnectionId).toBeNull();
+      expect(canvasStore.pendingLink).toBeNull();
       expect(canvasStore.selection.size).toBe(0);
       expect(canvasStore.view).toEqual({ x: 0, y: 0, zoom: 1 });
       expect(canvasStore.project).toBeNull();

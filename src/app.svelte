@@ -13,13 +13,27 @@
   import EmptyCanvas from './features/canvas/EmptyCanvas.svelte';
   import PerfOverlay from './features/canvas/PerfOverlay.svelte';
   import CardLayer from './features/cards/CardLayer.svelte';
+  import ConnectionLayer from './features/connections/ConnectionLayer.svelte';
+  import ConnectionLabels from './features/connections/ConnectionLabels.svelte';
+  import {
+    beginLink,
+    cancelLink,
+    completeLink,
+    deleteConnections,
+    hitPlacementAt,
+    trackLink,
+    updateConnection,
+  } from './features/connections/connections.svelte';
   import { applyMarquee, selectCard } from './features/selection/selection.svelte';
   import { bringForward, sendBack } from './features/cards/zorder';
   import { undoStack } from './features/undo/undoStack.svelte';
   import {
     createCardCommand,
+    createConnectionCommand,
     deleteCardsCommand,
+    deleteConnectionsCommand,
     duplicateCommand,
+    editConnectionCommand,
     editItemCommand,
     updatePlacementsCommand,
   } from './features/undo/commands';
@@ -75,13 +89,18 @@
     onSaved: () => canvasStore.markSaved(),
   };
 
+  /** Cards or a connection: the panel shows one selected thing at a time. */
+  const somethingSelected = $derived(
+    canvasStore.selection.size > 0 || canvasStore.selectedConnectionId !== null,
+  );
+
   const panelExpanded = $derived(
-    panelOpen && canvasStore.selection.size > 0 && windowWidth >= PANEL_AUTO_COLLAPSE_WIDTH,
+    panelOpen && somethingSelected && windowWidth >= PANEL_AUTO_COLLAPSE_WIDTH,
   );
 
   // The panel opens itself when something is selected and closes when nothing is.
   $effect(() => {
-    panelOpen = canvasStore.selection.size > 0;
+    panelOpen = somethingSelected;
   });
 
   async function guard(work: () => Promise<void>) {
@@ -190,6 +209,8 @@
       );
       for (const p of effect.placements) canvasStore.removePlacement(p.id);
       for (const i of effect.items) canvasStore.removeItem(i.id);
+      // The Rust side is the one that reports what the cascade removed; never pre-delete.
+      for (const c of effect.connections) canvasStore.removeConnection(c.id);
       canvasStore.clearSelection();
       undoStack.push(deleteCardsCommand(effect));
     });
@@ -379,22 +400,79 @@
     });
   }
 
+  // --- connection actions ------------------------------------------------
+
+  /** True when a link can be started from the current selection. */
+  const canStartLink = $derived(canvasStore.selection.size === 1 && canvasStore.cardCount >= 2);
+
+  function startLinkFromSelection() {
+    if (!canStartLink) return;
+    beginLink([...canvasStore.selection][0], pointerWorld);
+  }
+
+  async function finishLink() {
+    if (!canvasStore.pendingLink) return;
+    await guard(async () => {
+      const created = await completeLink(hitPlacementAt(pointerWorld), saveHooks);
+      if (created) undoStack.push(createConnectionCommand(created));
+    });
+  }
+
+  async function changeConnection(label: string | null, directed: number) {
+    const before = canvasStore.selectedConnection;
+    if (!before) return;
+    await guard(async () => {
+      await updateConnection(before.id, label, directed, saveHooks);
+      undoStack.push(
+        editConnectionCommand(
+          before.id,
+          { label: before.label, directed: before.directed },
+          { label, directed },
+        ),
+      );
+    });
+  }
+
+  async function deleteSelectedConnection() {
+    const id = canvasStore.selectedConnectionId;
+    if (id === null) return;
+    await guard(async () => {
+      const removed = await deleteConnections([id], saveHooks);
+      if (removed.length > 0) undoStack.push(deleteConnectionsCommand(removed));
+    });
+  }
+
   // --- keyboard ---------------------------------------------------------
 
   $effect(() =>
     registerShortcuts({
       'new-note': () => void createNote(pointerWorld),
       edit: () => cards?.editSelected(),
+      connect: startLinkFromSelection,
       cancel: () => {
-        // Esc is overloaded: close a menu, then finish an edit, and only then clear.
+        // Esc is overloaded: cancel a link, close a menu, finish an edit, then clear.
+        if (canvasStore.pendingLink) {
+          cancelLink();
+          return;
+        }
         if (openMenu) {
           openMenu = null;
           return;
         }
         if (cards?.cancelEdit()) return;
+        if (canvasStore.selectedConnectionId !== null) {
+          canvasStore.selectConnection(null);
+          return;
+        }
         canvasStore.clearSelection();
       },
-      delete: () => void deleteSelection(),
+      delete: () => {
+        if (canvasStore.selection.size === 0 && canvasStore.selectedConnectionId !== null) {
+          void deleteSelectedConnection();
+          return;
+        }
+        void deleteSelection();
+      },
       duplicate: () => void duplicateSelection(),
       copy: () => void copySelection(),
       paste: () => void paste(),
@@ -422,7 +500,8 @@
       label: 'Connect From Here',
       glyph: 'flow-arrow',
       action: 'connect',
-      available: false,
+      available: canStartLink,
+      run: startLinkFromSelection,
     },
     {
       kind: 'item',
@@ -538,7 +617,11 @@
   }
 </script>
 
-<svelte:window bind:innerWidth={windowWidth} onblur={() => void flushPlacements(saveHooks)} />
+<svelte:window
+  bind:innerWidth={windowWidth}
+  onblur={() => void flushPlacements(saveHooks)}
+  onpointerup={() => void finishLink()}
+/>
 
 <div class="app" onclickcapture={() => (openMenu = null)} role="presentation">
   <TitleBar
@@ -562,16 +645,27 @@
       bind:this={canvas}
       onViewSettled={persistView}
       onMarqueeEnd={applyMarquee}
-      onBackgroundClick={() => canvasStore.clearSelection()}
+      onBackgroundClick={() => {
+        canvasStore.selectConnection(null);
+        canvasStore.clearSelection();
+      }}
       onOpenBackgroundMenu={openBackgroundMenu}
-      onPointerWorld={(point) => (pointerWorld = point)}
+      onPointerWorld={(point) => {
+        pointerWorld = point;
+        trackLink(point);
+      }}
     >
+      <!-- Before the card layer in DOM order, so cards always paint over lines. -->
+      <ConnectionLayer onSelect={(id) => canvasStore.selectConnection(id)} />
+      <ConnectionLabels />
+
       <CardLayer
         bind:this={cards}
         onGeometryCommitted={(before, after, label) => void commitGeometry(before, after, label)}
         onOpenElementMenu={openElementMenu}
         onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
         onSelect={selectCard}
+        onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
       />
     </CanvasSurface>
 
@@ -587,6 +681,8 @@
       onSendBack={() => void reorder('back')}
       onDuplicate={() => void duplicateSelection()}
       onDelete={() => void deleteSelection()}
+      onConnectionChange={(label, directed) => void changeConnection(label, directed)}
+      onDeleteConnection={() => void deleteSelectedConnection()}
     />
   </div>
 
