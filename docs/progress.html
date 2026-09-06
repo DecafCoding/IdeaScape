@@ -160,10 +160,31 @@
   <p class="meta"><strong>Recorded:</strong> <code>scripts/phase-3-session.md</code> — the six failure-state steps, the observed 5.00 s fetch cut-off, a 0.017 s project open on the mixed canvas, and 56.2 fps with at most one dropped frame in 1,664 at 25 of 250 cards drawn. The frame figure is the panel's own variable-refresh cadence, not a cost this phase added: a notes-only control run on the same machine in the same session measured the same 55.9–56.5 fps. Installer 2,900,575 bytes — 2.77 MB against a 20 MB cap.</p>
 </section>
 
-<section class="phase" data-phase="4" data-status="not-planned">
-  <h2>Phase 4: Library <span class="badge">not planned</span></h2>
-  <p class="meta"><strong>Branch:</strong> <em>to be determined by <code>/dev-plan-phase 4</code></em></p>
-  <p class="meta"><strong>Phase doc:</strong> <em>none yet — run <code>/dev-plan-phase 4</code></em></p>
+<section class="phase" data-phase="4" data-status="not-started">
+  <h2>Phase 4: Library <span class="badge">not started</span></h2>
+  <p class="meta"><strong>Branch:</strong> <code>phase-4-library</code></p>
+  <p class="meta"><strong>Phase doc:</strong> <code>docs/phases/phase-4-library.html</code></p>
+  <p class="meta"><strong>Depends on:</strong> Phase 1 (canvas core) — complete; Phase 2 (connections) — complete; Phase 3 (rich cards) — complete. No new npm package, no new Rust crate, no new migration, no new Tauri capability permission: <code>dialog:allow-open</code> already covers the directory selector, and the <code>item.payload</code> JSON column plus SQLite's built-in <code>json_extract</code> carry search with no schema change.</p>
+  <p class="meta"><strong>Summary:</strong> Phase 4 makes IdeaScape self-sufficient — the user creates, opens, organises and searches projects without touching a file path, and the Phase 1 developer path is retired.</p>
+  <ul class="tasks">
+    <li class="task" data-task="1" data-status="todo">Task 1: The recent-projects store</li>
+    <li class="task" data-task="2" data-status="todo">Task 2: Create and close a project, and retire the developer path</li>
+    <li class="task" data-task="3" data-status="todo">Task 3: Canvas rename, delete and restore, in one transaction each</li>
+    <li class="task" data-task="4" data-status="todo">Task 4: Search — three LIKE queries, canvas names first</li>
+    <li class="task" data-task="5" data-status="todo">Task 5: The dialog surface — two tokens and the shared shell</li>
+    <li class="task" data-task="6" data-status="todo">Task 6: The project picker screen</li>
+    <li class="task" data-task="7" data-status="todo">Task 7: The New project dialog</li>
+    <li class="task" data-task="8" data-status="todo">Task 8: Boot, open, close — the shell's two states</li>
+    <li class="task" data-task="9" data-status="todo">Task 9: The canvas feature state and its three undo commands</li>
+    <li class="task" data-task="10" data-status="todo">Task 10: The canvas list — rows, create, inline rename, delete confirm</li>
+    <li class="task" data-task="11" data-status="todo">Task 11: Switching canvases, and what a switch owes the old one</li>
+    <li class="task" data-task="12" data-status="todo">Task 12: Search state and the highlight split</li>
+    <li class="task" data-task="13" data-status="todo">Task 13: The search box and the results popover</li>
+    <li class="task" data-task="14" data-status="todo">Task 14: The four keys, and opening a result</li>
+    <li class="task" data-task="15" data-status="todo">Task 15: Walk the §10.2 acceptance list in the running application</li>
+    <li class="task" data-task="16" data-status="todo">Task 16: Re-measure the frame gate and the installer budget</li>
+    <li class="task" data-task="17" data-status="todo">Task 17: Commit, push, and open PR</li>
+  </ul>
 </section>
 
 <section class="phase" data-phase="5" data-status="not-planned">

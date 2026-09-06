@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 4: Library</title>
+  <style>
+    :root { --fg:#1a1a1a; --muted:#666; --accent:#2563eb; --done:#16a34a; --warn:#dc2626; --rule:#e5e7eb; }
+    body { font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:62rem; margin:2rem auto; padding:0 1.25rem; }
+    h1 { font-size:2rem; border-bottom:2px solid var(--rule); padding-bottom:.3rem; }
+    h2 { font-size:1.5rem; margin-top:2.5rem; border-bottom:1px solid var(--rule); padding-bottom:.2rem; }
+    h3.milestone { font-size:1.25rem; margin-top:2rem; color:var(--accent); }
+    h4.task { font-size:1.1rem; margin-top:1.5rem; }
+    dl.phase-meta { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; }
+    dl.phase-meta dt { font-weight:600; color:var(--muted); }
+    code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    pre { background:#f6f8fa; padding:1rem; border-radius:6px; overflow:auto; }
+    code { background:#f6f8fa; padding:.1rem .3rem; border-radius:4px; }
+    pre code { background:none; padding:0; }
+    ul.checklist { list-style:none; padding-left:0; }
+    ul.checklist > li::before { content:"\2610 "; color:var(--muted); }
+    ul.checklist > li[data-checked="true"]::before { content:"\2611 "; color:var(--done); }
+    .validate { color:var(--done); font-weight:600; }
+  </style>
+</head>
+<body>
+
+<h1 data-phase="4">Phase 4: Library</h1>
+
+<p>The following plan should be complete, but validate documentation, codebase patterns, and task
+sanity before implementing. Pay special attention to naming of existing utils, types, and models —
+import from the right files.</p>
+
+<h2>Phase Description</h2>
+
+<p>Phase 4 makes IdeaScape self-sufficient. Phases 1–3 built a canvas that only opens the one project
+folder a command-line argument names; this phase removes that developer path and puts the user in
+charge of the library instead — creating and opening projects, organising the canvases inside one, and
+finding anything by name or text.</p>
+
+<p>Five pieces of work, in the order the PRD §11 Phase 4 deliverable list gives them:</p>
+
+<ul>
+  <li><strong>The project picker</strong> (design-system §9.1, frame <code>19a</code>) — what the
+    window shows when no project is open: <em>New project…</em>, <em>Open folder…</em>, and a 2 × 2
+    grid of recent projects.</li>
+  <li><strong>The New project dialog</strong>, and the database-locked/damaged message on the picker —
+    both listed as undrawn in design-system §15.1 and §15.2, designed in this phase.</li>
+  <li><strong>The left column's canvas rows</strong> — create, inline rename, delete with a confirm,
+    and switch (design-system §8.3, "Canvas rows"). Inline rename and the delete confirm are also
+    undrawn and designed here.</li>
+  <li><strong>Text search</strong> over canvas names, note titles and note body text — three
+    <code>LIKE</code> queries with canvas names ranked first (architecture <code>search-method</code>).</li>
+  <li><strong>The search popover</strong> (design-system §9.8, frame <code>20c</code>) and its
+    <code>↑</code> <code>↓</code> <code>Enter</code> keys.</li>
+</ul>
+
+<p>The three feature folders the architecture named up front and left empty since Phase 1 —
+<code>src/features/projects/</code>, <code>src/features/canvases/</code> and
+<code>src/features/search/</code> — are filled in here, and after this phase every folder in
+<code>module-layout</code> holds real code.</p>
+
+<h2>User Stories</h2>
+
+<p><strong>US-6 — Split a project into canvases.</strong><br>
+As the user<br>
+I want one project to hold many canvases<br>
+So that I can give each chapter or theme its own surface.</p>
+
+<p><strong>US-7 — Find a canvas by name, fast.</strong><br>
+As the user<br>
+I want to search and get the canvas I named before any loose card<br>
+So that search takes me to a place, not to noise.</p>
+
+<p><strong>Project library.</strong><br>
+As the user<br>
+I want to create and open projects from inside the application<br>
+So that I never have to know where a project folder lives to use one.</p>
+
+<p><strong>Canvas housekeeping.</strong><br>
+As the user<br>
+I want to rename a canvas in place and delete one I no longer need<br>
+So that the left column keeps matching how I actually think about the project.</p>
+
+<h2>Problem Statement</h2>
+
+<p>Today the application can only reach the folder that <code>dev_project_path</code> resolves —
+<code>--project &lt;path&gt;</code>, or a fixed <code>Documents\IdeaScape\Dev project</code> fallback.
+There is no way to make a second project, no way to open one, and no way out of the one that is open.
+Inside a project, the left column lists the canvases but they are read-only: <code>create_canvas</code>
+exists in Rust and nothing calls it, the <code>+</code> beside the <em>Canvases</em> label is drawn at
+the unavailable opacity, and there is no rename and no delete. The search box is drawn inert with the
+literal word "Search" in it.</p>
+
+<p>Three of the PRD's own acceptance lines cannot be attempted in that state: "Make a project. Make 3
+canvases inside it", "Search a canvas name. That canvas is the first result", and "That project opens
+in under 2 seconds" (there is nothing to open it <em>from</em>). Phase 4's gate is that every
+functional line in PRD §10.2 passes except the two dark-theme lines, so all three must land here.</p>
+
+<h2>Solution Statement</h2>
+
+<p>Four Rust additions and three front-end features, all inside the settled decisions:</p>
+
+<ul>
+  <li><strong>A recent-projects file</strong> — <code>%APPDATA%\IdeaScape\recent.json</code>, written
+    by Rust, holding at most four entries of <code>{ path, name, canvas_count, card_count,
+    opened_at }</code>. It is deliberately <em>not</em> <code>settings.json</code>: PRD §8.2 says that
+    file holds exactly the four values the Settings screen edits and no user data, and
+    <code>settings-storage</code>'s reasoning (one file per machine, outside every project folder, so a
+    copied project carries nothing of this machine) applies unchanged to a sibling file.</li>
+  <li><strong>Five project commands and three canvas commands</strong> —
+    <code>list_recent_projects</code>, <code>default_project_parent</code>, <code>create_project</code>,
+    <code>close_project</code>, <code>rename_canvas</code>, <code>delete_canvas</code>,
+    <code>restore_canvas</code> — plus <code>commands/search.rs</code>, the last file in
+    <code>module-layout</code>'s <code>commands/</code> list that does not yet exist.</li>
+  <li><strong>Search as three <code>LIKE</code> scans</strong> in one command, ranked canvases-first,
+    with the snippet cut in Rust and the match highlighted by splitting text into Svelte text nodes —
+    never by inserting markup (PRD §8.3).</li>
+  <li><strong>Composition through the root.</strong> <code>LeftColumn</code> lives in
+    <code>features/shell/</code> and may not import <code>features/canvases/</code> or
+    <code>features/search/</code>. It gains two snippet props instead, and <code>app.svelte</code> —
+    the one module allowed to reach into several features — fills them, exactly as it already composes
+    <code>CardLayer</code> and <code>ConnectionLayer</code> into <code>CanvasSurface</code>.</li>
+</ul>
+
+<p>The developer path goes. <code>dev_project_path</code> is deleted; the only survivor is a
+debug-only <code>perf_gate_project_path</code> read when <code>--perf-gate</code> is passed, because the
+frame gate has to keep being measurable in Phases 4 and 5. A release build has exactly one route into
+a project: the picker.</p>
+
+<h2>Phase Metadata</h2>
+
+<dl class="phase-meta">
+  <dt>Phase Type</dt><dd data-field="type">New Capability</dd>
+  <dt>Estimated Complexity</dt><dd data-field="complexity">Medium</dd>
+  <dt>Primary Systems Affected</dt><dd data-field="systems">Rust commands (project, canvas, search), the application shell and boot flow, the shared canvas store, the undo stack, the left column, three new front-end features (projects, canvases, search)</dd>
+  <dt>Dependencies</dt><dd data-field="dependencies">Phase 1 (canvas core) — complete; Phase 2 (connections) — complete; Phase 3 (rich cards) — complete. No new npm package, no new Rust crate, no new migration, no new Tauri capability permission: <code>dialog:allow-open</code> already covers the directory selector, and the <code>item.payload</code> JSON column plus SQLite's built-in <code>json_extract</code> carry search with no schema change.</dd>
+</dl>
+
+<h2>Context References</h2>
+
+<h3>Relevant Codebase Files — READ THESE BEFORE IMPLEMENTING</h3>
+
+<ul>
+  <li><code>src-tauri/src/commands/project.rs</code> (whole file, 228 lines) — Why: holds
+    <code>AppState</code>, <code>with_db</code>, <code>project_folder</code>, the lock-order rule
+    (<em>folder before db, never the reverse</em>), <code>open_project_at_with</code>, and the
+    <code>dev_project_path</code> this phase deletes. <code>record_perf_result</code> (lines 173–179)
+    is the precedent for a small <code>std::fs</code> write living in this file.</li>
+  <li><code>src-tauri/src/commands/canvas.rs</code> (whole file) — Why: the
+    <code>*_for(state, …)</code> inner-function plus thin <code>#[tauri::command]</code> wrapper shape
+    every new command must mirror, and <code>create_canvas_for</code>'s <code>sort_order</code>
+    assignment.</li>
+  <li><code>src-tauri/src/commands/placement.rs</code> lines 253–322 —
+    Why: <code>delete_placements_for</code> is the routine Task 3 refactors into a transaction-taking
+    helper. Read the orphan-item rule, the <code>reference_count</code> call <em>inside</em> the
+    transaction, and the folder-lock-before-db-lock comment.</li>
+  <li><code>src-tauri/src/commands/item.rs</code> lines 15–95 — Why: <code>validate_payload</code>,
+    the reusable <code>is_bare_file_name</code> (Task 2 validates a project name with it),
+    <code>asset_names</code> and <code>reference_count</code>.</li>
+  <li><code>src-tauri/src/db/models.rs</code> (whole file) — Why: every shared struct lives here and
+    the field names must stay in step with <code>src/lib/types.ts</code>. <code>DeleteEffect</code>
+    (lines 84–93) is the shape <code>CanvasDeleteEffect</code> mirrors.</li>
+  <li><code>src-tauri/src/error.rs</code> — Why: the one error type. Add no variant; the
+    locked/damaged message is <code>DatabaseOpen</code> carrying the file path.</li>
+  <li><code>src-tauri/src/lib.rs</code> lines 20–90 — Why: <strong>two</strong> invoke handler lists,
+    one per build profile. A command registered in only one is silently absent in the other.</li>
+  <li><code>src/app.svelte</code> lines 137–150 (boot <code>$effect</code>), 989–1082 (markup),
+    834–864 (<code>registerShortcuts</code>), 1006–1011 (<code>TitleBar</code>) — Why: this is the
+    composition root and the only module that may touch several features. The boot effect,
+    the shortcut map, the menu state and the markup all change.</li>
+  <li><code>src/features/shell/LeftColumn.svelte</code> (whole file) — Why: the search box and the
+    <code>+</code> are drawn inert here (lines 44–57), the Image row is still disabled (line 126), and
+    the canvas rows are a plain <code>#each</code> (59–74). The styles for
+    <code>.canvas-row</code>, <code>.search-box</code> and <code>.section-label.with-action</code> are
+    already at the locked values — move them, do not re-derive them.</li>
+  <li><code>src/features/canvas/CanvasSurface.svelte</code> lines 174–240 — Why:
+    <code>zoomToFit</code>/<code>resetZoom</code>/<code>pointerWorld</code> are the exported-function
+    pattern <code>centreOn</code> follows, and <code>eased</code> plus <code>onViewSettled()</code>
+    are what make a programmatic view change animate and persist.</li>
+  <li><code>src/features/undo/commands.ts</code> lines 45–176 — Why: <code>restoreCards</code>'s
+    old-id → new-id remapping, and why the canvas-delete command deliberately does <em>not</em> reuse
+    it (it mutates the <em>active</em> canvas's store maps).</li>
+  <li><code>src/features/undo/undoStack.svelte.ts</code> line 63 — Why: <code>clear()</code> exists
+    and nothing calls it yet. Phase 4 is where it gets wired.</li>
+  <li><code>src/stores/canvasStore.svelte.ts</code> lines 212–272 — Why: <code>loadCanvas</code>,
+    <code>openProject</code> and the unused <code>closeProject</code> are the three entry points the
+    picker drives.</li>
+  <li><code>src/lib/relativeTime.ts</code> (whole file, 32 lines) — Why: written in Phase 3
+    <em>for this phase</em> — its own doc comment says the Phase 4 search popover's canvas sub-line
+    needs the same phrasing. Use it for the popover and the picker cards; do not write a second one.</li>
+  <li><code>src/lib/menu.ts</code> and <code>src/features/shell/ContextMenu.svelte</code> — Why: the
+    canvas-row context menu is a third <code>OpenMenu.kind</code>, not a new component.</li>
+  <li><code>src/lib/shortcuts.ts</code> lines 66–123 — Why: <code>matchAction</code> returns
+    <code>null</code> for <code>ArrowUp</code>/<code>ArrowDown</code>/<code>Enter</code> when focus is
+    in a text box (line 97). The search box therefore cannot use the global dispatcher for its own
+    keys — see Task 14's GOTCHA. <code>result-up</code> and <code>result-down</code> already exist for
+    the picker grid, which is not a text box.</li>
+  <li><code>src/lib/tokens.css</code> lines 91–103 and 142–150 — Why: <code>--shadow-picker-card</code>,
+    <code>--shadow-search-popover</code>, <code>--z-search-popover</code> and <code>--z-dialog</code>
+    are already declared and measured. The comment on line 101 records that the dialog shadow is
+    Phase 4's to add.</li>
+  <li><code>src/lib/theme.css</code> lines 28–38 and 73–81 — Why: every shadow token is redeclared
+    twice on the dark side (<code>[data-theme="dark"]</code> and the
+    <code>prefers-color-scheme</code> block). A new token added in one place only breaks one theme.</li>
+  <li><code>src/features/shell/__tests__/shell.test.ts</code> lines 1–45 — Why: the token-reading
+    test helper and the <code>vi.mock('../../../lib/ipc')</code> idiom every component test uses.</li>
+  <li><code>scripts/phase-3-session.md</code> and <code>scripts/perf-gate.md</code> — Why: the
+    recorded-session format Task 15 mirrors, and the <code>--project … --perf-gate</code> invocation
+    Task 2 must keep working.</li>
+</ul>
+
+<h3>New Files to Create</h3>
+
+<ul>
+  <li><code>src-tauri/src/commands/search.rs</code> — the three <code>LIKE</code> queries, the
+    ranking, the snippet, and the <code>search_project</code> command.</li>
+  <li><code>src/features/projects/projects.svelte.ts</code> — recents state, and the open / create /
+    close flows.</li>
+  <li><code>src/features/projects/ProjectPicker.svelte</code> — frame <code>19a</code>.</li>
+  <li><code>src/features/projects/NewProjectDialog.svelte</code> — designed in this phase.</li>
+  <li><code>src/features/projects/__tests__/projects.test.ts</code></li>
+  <li><code>src/features/projects/__tests__/picker.test.ts</code></li>
+  <li><code>src/features/canvases/canvases.svelte.ts</code> — create / rename / delete flows.</li>
+  <li><code>src/features/canvases/CanvasList.svelte</code> — rows, <code>+</code>, inline rename.</li>
+  <li><code>src/features/canvases/DeleteCanvasDialog.svelte</code> — designed in this phase.</li>
+  <li><code>src/features/canvases/__tests__/canvases.test.ts</code></li>
+  <li><code>src/features/canvases/__tests__/canvasList.test.ts</code></li>
+  <li><code>src/features/search/search.svelte.ts</code> — query state, debounce, highlight cursor.</li>
+  <li><code>src/features/search/highlight.ts</code> — the pure match-splitting function.</li>
+  <li><code>src/features/search/SearchBox.svelte</code> — §8.3 idle and with-query states.</li>
+  <li><code>src/features/search/SearchResults.svelte</code> — frame <code>20c</code>.</li>
+  <li><code>src/features/search/__tests__/highlight.test.ts</code></li>
+  <li><code>src/features/search/__tests__/search.test.ts</code></li>
+  <li><code>src/features/search/__tests__/searchResults.test.ts</code></li>
+  <li><code>src/features/undo/__tests__/undoCanvases.test.ts</code></li>
+  <li><code>scripts/phase-4-session.md</code> — the recorded acceptance walk and gate measurement.</li>
+</ul>
+
+<h3>Relevant Documentation — READ BEFORE IMPLEMENTING</h3>
+
+<ul>
+  <li><a href="https://www.sqlite.org/lang_expr.html#the_like_glob_regexp_match_and_extract_operators">SQLite — the LIKE operator</a>
+    — Why: <code>LIKE</code> is case-insensitive for ASCII only, and <code>%</code>/<code>_</code> in
+    the user's query are wildcards unless escaped with an explicit <code>ESCAPE</code> clause. Both
+    facts are Task 4's correctness gotchas.</li>
+  <li><a href="https://www.sqlite.org/json1.html#jex">SQLite — json_extract()</a> — Why: the note
+    title and body are fields of the <code>item.payload</code> JSON column, so the two card queries
+    read <code>json_extract(payload,'$.title')</code> and <code>'$.text'</code> rather than scanning
+    the raw payload. JSON is built into SQLite from 3.38; <code>rusqlite</code>'s
+    <code>bundled</code> feature is well past that, and Task 4's first test asserts it rather than
+    assuming.</li>
+  <li><a href="https://docs.rs/rusqlite/0.32.0/rusqlite/struct.Transaction.html">rusqlite — Transaction</a>
+    — Why: Task 3 changes a <code>&amp;mut Connection</code> routine into one that takes an existing
+    <code>&amp;Transaction</code>, so a canvas delete and its cascade are one transaction
+    (<code>persistence-strategy</code>).</li>
+  <li><a href="https://v2.tauri.app/plugin/dialog/#open-a-directory-selector">Tauri 2 dialog plugin — open a directory selector</a>
+    — Why: <code>open({ directory: true })</code> is the same <code>open</code> command the image
+    picker already uses, so <code>dialog:allow-open</code> in
+    <code>src-tauri/capabilities/default.json</code> already permits it. No capability change.</li>
+  <li><a href="https://svelte.dev/docs/svelte/snippet">Svelte 5 — snippets and passing them as props</a>
+    — Why: this is how <code>LeftColumn</code> renders the canvas list and the search box without
+    importing either feature.</li>
+  <li><a href="https://learn.microsoft.com/en-us/windows/win32/shell/knownfolderid">Windows — known folders</a>
+    — Why: <code>%APPDATA%</code> is the roaming folder <code>settings-storage</code> names.
+    Tauri's <code>app_config_dir()</code> returns <code>%APPDATA%\com.ideascape.app</code>, which is
+    <em>not</em> the documented path, so read the environment variable — see Task 1's GOTCHA.</li>
+  <li><code>docs/design-system.html</code> §9.1 (project picker, every measurement), §9.8 (search
+    popover, every measurement), §8.3 (left column, canvas rows and the search box's with-query
+    state), §11.2 (hover and pressed per surface), §11.4 (focus versus selection), §15.1 and §15.2
+    (the four states this phase must design) — Why: the visual authority. Invent no value that is
+    written there.</li>
+  <li><code>docs/architecture.html</code> — the settled decisions this phase touches, by slug:
+    <code>search-method</code>, <code>storage-engine</code>, <code>db-access-layer</code>,
+    <code>settings-storage</code>, <code>module-layout</code>, <code>import-direction</code>,
+    <code>ipc-contract</code>, <code>persistence-strategy</code>, <code>undo-model</code>,
+    <code>failure-surfaces</code>, <code>nfr-targets</code>, <code>architecture-pattern</code>.</li>
+  <li><code>docs/prd.html</code> §6.4, §6.5, §6.9 (ownership and lifecycle), §8.2, §10.2, §11 Phase 4
+    — Why: the requirement text every acceptance criterion below is drawn from.</li>
+</ul>
+
+<h3>Patterns to Follow</h3>
+
+<p><strong>Naming conventions.</strong> Rust: an inner <code>*_for(state, …)</code> function that the
+tests call, and a thin <code>#[tauri::command]</code> wrapper that only unwraps
+<code>tauri::State</code>. Commands are <code>snake_case</code>; the front end passes
+<code>camelCase</code> argument names and Tauri maps them.</p>
+
+<pre><code>// src-tauri/src/commands/canvas.rs — the shape every new command copies
+pub fn rename_canvas_for(state: &amp;AppState, canvas_id: i64, name: String) -&gt; AppResult&lt;Canvas&gt; {
+    state.with_db(|conn| {
+        conn.execute(
+            "UPDATE canvas SET name = ?2, updated_at = ?3 WHERE id = ?1",
+            rusqlite::params![canvas_id, name, now_iso8601()],
+        )?;
+        Ok(conn.query_row("SELECT * FROM canvas WHERE id = ?1", [canvas_id], row_to_canvas)?)
+    })
+}
+
+#[tauri::command]
+pub fn rename_canvas(
+    state: tauri::State&lt;'_, AppState&gt;,
+    canvas_id: i64,
+    name: String,
+) -&gt; AppResult&lt;Canvas&gt; {
+    rename_canvas_for(&amp;state, canvas_id, name)
+}</code></pre>
+
+<p><strong>Error handling.</strong> One error type, one wrapper, and failure drawn in the page.
+<code>guard()</code> in <code>app.svelte</code> puts an <code>IpcError</code> message into the shell's
+strip; the picker gets its own strip for the same reason (<code>failure-surfaces</code>: never a
+dialog).</p>
+
+<pre><code>// src/app.svelte — the existing guard, reused unchanged
+async function guard(work: () =&gt; Promise&lt;void&gt;) {
+  try {
+    await work();
+    errorMessage = null;
+  } catch (error) {
+    errorMessage = error instanceof IpcError ? error.message : 'Something went wrong.';
+    logError('an action failed', error);
+  }
+}</code></pre>
+
+<p><strong>Logging.</strong> <code>logInfo</code> / <code>logWarn</code> / <code>logError</code> from
+<code>src/lib/logger.ts</code> in TypeScript, <code>log::warn!</code> in Rust. Never
+<code>console.log</code>, never <code>println!</code> — Level 5 greps for both.</p>
+
+<p><strong>Composition, not cross-feature imports.</strong> The root fills a feature's slot:</p>
+
+<pre><code>&lt;!-- src/app.svelte — CanvasSurface already works exactly this way --&gt;
+&lt;CanvasSurface …&gt;
+  &lt;ConnectionLayer … /&gt;
+  &lt;CardLayer … /&gt;
+&lt;/CanvasSurface&gt;
+
+&lt;!-- Phase 4 adds the same shape to LeftColumn, with named snippets --&gt;
+&lt;LeftColumn …&gt;
+  {#snippet search()}&lt;SearchBox … /&gt;{/snippet}
+  {#snippet canvases()}&lt;CanvasList … /&gt;{/snippet}
+&lt;/LeftColumn&gt;</code></pre>
+
+<p><strong>Tests.</strong> Behaviour-named, <code>methodName_condition_expectedResult</code> in
+TypeScript and <code>fn name_condition_expected()</code> in Rust; Rust data tests open a real SQLite
+file in a <code>tempfile::tempdir()</code>.</p>
+
+<pre><code>// src-tauri — the data-test idiom
+let dir = tempfile::tempdir().unwrap();
+let state = AppState::default();
+let project = open_project_at(&amp;state, dir.path()).unwrap();</code></pre>
+
+<h2>Implementation Plan</h2>
+
+<p><strong>Rendering:</strong> Milestones — see Step 6.</p>
+<p><strong>Rationale:</strong> Seventeen tasks over five genuine sub-layers (the Rust library layer,
+the picker, the canvas list, search, and the recorded gate), and each layer's checkpoint asserts
+something no single task's VALIDATE reaches — a whole project lifecycle through the command seam, two
+projects opened in one session, a canvas deleted and restored with its cards and lines, and the
+ranking rule proved against a deliberately ambiguous name. A flat list of seventeen would not be
+scannable, which is the same call Phases 1–3 made.</p>
+
+<h3 class="milestone" data-milestone="1">Milestone 1: The Rust library layer</h3>
+
+<p>Everything the front end will need before any of it is drawn: the recent-projects file, project
+create/close, canvas rename/delete/restore, and search.</p>
+
+<p><strong>Validation checkpoint:</strong> one Rust test drives a whole project lifecycle through the
+command layer against real SQLite files in temp directories — create two projects, confirm both are
+recorded in a temp <code>recent.json</code> newest-first with correct counts, make three canvases in
+one, put note and image cards on two of them, draw a connection, delete a canvas and assert its
+placements, connections, orphaned items and trashed asset files all went, restore it from the returned
+effect and assert every row and file is back, then search a term that matches both a canvas name and
+a note body and assert the canvas hit is returned first. No single task's VALIDATE crosses the
+recents file, the delete cascade and the ranking rule at once.</p>
+
+<h4 class="task" data-task="1">Task 1: The recent-projects store</h4>
+<p>A project the user opened must be findable again without a file path. This is the file that
+remembers, and the only new persistent state in the phase.</p>
+<ul>
+  <li><strong>CREATE:</strong> in <code>src-tauri/src/commands/project.rs</code>, a
+    <code>RecentProject { path: String, name: String, canvas_count: i64, card_count: i64, opened_at:
+    String }</code> struct (<code>Serialize</code>, <code>Deserialize</code>, <code>Clone</code>,
+    <code>PartialEq</code>, <code>Debug</code>), plus <code>app_data_dir() -&gt; PathBuf</code>,
+    <code>read_recent(dir: &amp;Path) -&gt; Vec&lt;RecentProject&gt;</code> and
+    <code>record_recent(dir: &amp;Path, entry: RecentProject) -&gt; AppResult&lt;()&gt;</code>.</li>
+  <li><strong>IMPLEMENT:</strong> <code>record_recent</code> reads the list, removes any entry whose
+    path matches case-insensitively, pushes the new entry at the front, truncates to
+    <code>RECENT_LIMIT = 4</code>, and writes <code>{"projects":[…]}</code> pretty-printed. A missing,
+    empty or unparseable file reads as an empty list and is never an error — this file holds no user
+    data and losing it costs the user four folder paths.</li>
+  <li><strong>ADD:</strong> <code>project_stats(conn) -&gt; AppResult&lt;(i64, i64)&gt;</code> — two
+    <code>count(*)</code> reads (canvases in the project, placements across those canvases) — and call
+    it plus <code>record_recent</code> at the end of <code>open_project_at_with</code>, using the
+    canonicalized folder path and <code>now_iso8601()</code>. A failure to write the recents file is
+    logged with <code>log::warn!</code> and never fails the open.</li>
+  <li><strong>ADD:</strong> commands <code>list_recent_projects() -&gt;
+    AppResult&lt;Vec&lt;RecentProject&gt;&gt;</code> and <code>default_project_parent() -&gt;
+    AppResult&lt;String&gt;</code> (<code>%USERPROFILE%\Documents</code>), registered in
+    <strong>both</strong> <code>invoke_handler!</code> lists in <code>src-tauri/src/lib.rs</code>.</li>
+  <li><strong>ADD:</strong> matching <code>RecentProject</code> interface in
+    <code>src/lib/types.ts</code>, beside <code>Project</code>.</li>
+  <li><strong>PATTERN:</strong> a small <code>std::fs</code> write inside
+    <code>commands/project.rs</code> — <code>record_perf_result</code>,
+    <code>src-tauri/src/commands/project.rs:173</code>.</li>
+  <li><strong>IMPORTS:</strong> <code>std::path::{Path, PathBuf}</code>,
+    <code>serde::{Deserialize, Serialize}</code>, <code>crate::db::connection::now_iso8601</code>.
+    Nothing new in <code>Cargo.toml</code>.</li>
+  <li><strong>GOTCHA:</strong> do <em>not</em> use Tauri's <code>app_config_dir()</code> — it returns
+    <code>%APPDATA%\com.ideascape.app</code>, and <code>settings-storage</code> plus PRD §8.2 both
+    name <code>%APPDATA%\IdeaScape</code>, a path the Settings screen will print to the user in
+    Phase 5. Read <code>std::env::var("APPDATA")</code> and join <code>"IdeaScape"</code>, falling
+    back to <code>USERPROFILE\AppData\Roaming\IdeaScape</code> then <code>.</code>. Keep
+    <code>read_recent</code>/<code>record_recent</code> taking the directory as a parameter so the
+    tests never touch the real <code>%APPDATA%</code>.</li>
+  <li><strong>GOTCHA:</strong> <code>std::fs::canonicalize</code> on Windows returns a
+    <code>\\?\</code>-prefixed path, which is ugly in the picker's path line. Strip a leading
+    <code>\\?\</code> before storing.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml recent</code> — tests:
+    <code>record_recent_fourFolders_keepsNewestFirst</code>,
+    <code>record_recent_sameFolderTwice_isOneEntryMovedToFront</code>,
+    <code>record_recent_fifthFolder_dropsTheOldest</code>,
+    <code>read_recent_missingFile_isEmpty</code>,
+    <code>open_project_at_recordsCountsInTheRecentFile</code>.</li>
+</ul>
+
+<h4 class="task" data-task="2">Task 2: Create and close a project, and retire the developer path</h4>
+<p>The picker needs to make a folder and to let go of one. This is also where the Phase 1 stand-in
+comes out.</p>
+<ul>
+  <li><strong>ADD:</strong> <code>create_project(app, state, parent_path: String, name: String) -&gt;
+    AppResult&lt;Project&gt;</code> — reject a name that is not
+    <code>is_bare_file_name</code> (reuse <code>crate::commands::item::is_bare_file_name</code>) or is
+    blank after trimming, with <code>AppError::Invalid</code>; reject an existing target with
+    <code>AppError::Invalid(format!("a folder called {name} is already there"))</code>; otherwise
+    create <code>&lt;parent&gt;/&lt;name&gt;</code> and hand off to <code>open_project_at_with</code>,
+    which already creates the database, the first canvas and the <code>assets/</code> folder and now
+    also records the recent entry.</li>
+  <li><strong>ADD:</strong> <code>close_project(state) -&gt; AppResult&lt;()&gt;</code> — refresh the
+    recent entry's counts from the still-open connection first, then set both
+    <code>AppState</code> mutexes to <code>None</code>. Take the folder guard before the db guard,
+    per the lock-order comment in <code>project.rs</code>.</li>
+  <li><strong>REMOVE:</strong> the <code>dev_project_path</code> command and its registration in both
+    handler lists.</li>
+  <li><strong>ADD:</strong> <code>#[cfg(debug_assertions)] perf_gate_project_path() -&gt;
+    AppResult&lt;String&gt;</code>, holding the old <code>--project &lt;path&gt;</code> parsing and
+    the <code>Documents\IdeaScape\Dev project</code> fallback, registered only in the debug handler
+    list beside <code>perf_gate_requested</code>. Rename <code>resolve_dev_project_path</code> to
+    <code>resolve_perf_gate_project_path</code> and put it behind the same
+    <code>cfg</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/db/connection.rs</code> — the
+    <code>AppError::DatabaseOpen</code> mapping carries the database file path, so the picker's
+    message can name the file the way design-system §15.2 requires ("a plain message names the
+    file"). Do the same for the <code>migrations::apply</code> failure path by mapping it through a
+    message that includes the path.</li>
+  <li><strong>MIRROR:</strong> the <code>#[cfg(debug_assertions)]</code> command pattern at
+    <code>src-tauri/src/commands/project.rs:165–179</code>.</li>
+  <li><strong>GOTCHA:</strong> <code>src-tauri/src/lib.rs</code> has two
+    <code>generate_handler!</code> lists. Removing <code>dev_project_path</code> from one and not the
+    other is a compile error in one profile only, and adding a command to one only is a silent
+    runtime rejection in the other.</li>
+  <li><strong>GOTCHA:</strong> <code>scripts/perf-gate.md</code> and
+    <code>scripts/phase-3-session.md</code> both document
+    <code>ideascape.exe --project &lt;folder&gt; --perf-gate</code>. That invocation must keep
+    working — it is how Task 16 and Phase 5 re-measure the gate. Only the <em>interactive</em>
+    developer path goes.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml project:: &amp;&amp; ! grep -rn "dev_project_path" src-tauri/src src</code>
+    — tests: <code>create_project_freshFolder_createsTheFolderAndFirstCanvas</code>,
+    <code>create_project_existingFolder_isRejected</code>,
+    <code>create_project_nameWithASeparator_isRejected</code>,
+    <code>close_project_thenWithDb_reportsNoProject</code>,
+    <code>open_project_damagedFile_errorNamesTheFile</code> (write junk bytes into
+    <code>ideascape.db</code> and assert the message contains <code>ideascape.db</code>).</li>
+</ul>
+
+<h4 class="task" data-task="3">Task 3: Canvas rename, delete and restore, in one transaction each</h4>
+<p>Deleting a canvas takes its placements, its connections, the items that lose their last placement
+and those items' asset files with it (PRD §6.9 lifecycle). All of that already exists for a card
+delete; this task makes it reusable rather than writing it twice.</p>
+<ul>
+  <li><strong>REFACTOR:</strong> <code>src-tauri/src/commands/placement.rs</code> — extract the body
+    of <code>delete_placements_for</code> into <code>pub(crate) fn delete_placements_tx(tx:
+    &amp;rusqlite::Transaction, ids: &amp;[i64]) -&gt; AppResult&lt;DeleteEffect&gt;</code>, leaving
+    <code>delete_placements_for</code> as: open a transaction, call the helper, commit, then trash the
+    named assets outside the db lock. Behaviour must not change — the existing placement tests are
+    the regression suite.</li>
+  <li><strong>ADD:</strong> <code>CanvasDeleteEffect { canvas: Canvas, placements: Vec&lt;Placement&gt;,
+    items: Vec&lt;Item&gt;, connections: Vec&lt;Connection&gt;, assets: Vec&lt;String&gt; }</code> in
+    <code>src-tauri/src/db/models.rs</code>, beside <code>DeleteEffect</code>, and the matching
+    interface in <code>src/lib/types.ts</code>.</li>
+  <li><strong>ADD:</strong> in <code>commands/canvas.rs</code>: <code>rename_canvas</code>;
+    <code>delete_canvas</code> — one transaction that reads the canvas row, refuses with
+    <code>AppError::Invalid("the last canvas in a project cannot be deleted")</code> when it is the
+    only canvas in its project, reads every placement id on it, calls
+    <code>delete_placements_tx</code>, deletes the canvas row, commits, then trashes the reported
+    assets; and <code>restore_canvas(effect: CanvasDeleteEffect) -&gt; AppResult&lt;Canvas&gt;</code>
+    — untrash every asset the restored payloads name (<code>crate::assets::untrash</code>, before the
+    rows go in, as <code>restore_card</code> does), then in one transaction insert the canvas row with
+    its original name, <code>sort_order</code> and view fields, insert each item and placement, and
+    insert each connection with its endpoints remapped from the old placement ids to the newly minted
+    ones.</li>
+  <li><strong>PATTERN:</strong> the asset half of <code>restore_card</code>,
+    <code>src-tauri/src/commands/placement.rs:196–228</code>; the orphan-item and
+    <code>reference_count</code> rules, lines 290–320.</li>
+  <li><strong>GOTCHA:</strong> the id remapping lives in Rust here, unlike the card-delete undo which
+    remaps in <code>src/features/undo/commands.ts</code>. That is deliberate — see the Notes. Build
+    the <code>old id → new id</code> map as the placements are inserted, in the order they arrive, and
+    skip a connection whose endpoint is not in the map rather than failing the whole restore.</li>
+  <li><strong>GOTCHA:</strong> <code>canvas(id)</code> is the parent of both <code>placement</code>
+    and <code>connection</code> with <code>ON DELETE CASCADE</code>, and foreign keys are on. Read
+    every row you intend to report <em>before</em> deleting the canvas row, or the cascade takes them
+    silently and the effect comes back empty — which would make the undo a no-op.</li>
+  <li><strong>GOTCHA:</strong> <code>restore_canvas</code> must not reuse the old primary keys. The
+    front end adopts the returned rows; nothing may assume an id survived.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml canvas:: placement::</code> — tests:
+    <code>rename_canvas_newName_isReadBack</code>,
+    <code>delete_canvas_onlyCanvasInProject_isRefused</code>,
+    <code>delete_canvas_withCardsAndLines_reportsEveryRowItRemoved</code>,
+    <code>delete_canvas_itemUsedOnlyThere_isDeletedAndItsAssetTrashed</code>,
+    <code>restore_canvas_fromItsEffect_putsBackRowsLinesAndFiles</code>,
+    <code>restore_canvas_remapsConnectionEndpointsToTheNewPlacementIds</code>, plus every existing
+    <code>delete_placements</code> test still green after the refactor.</li>
+</ul>
+
+<h4 class="task" data-task="4">Task 4: Search — three LIKE queries, canvas names first</h4>
+<p>The last file <code>module-layout</code> names in <code>commands/</code>. The ranking is the
+requirement, not the indexing (<code>search-method</code>).</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/commands/search.rs</code> with
+    <code>CanvasHit { canvas_id, name, card_count, updated_at }</code>,
+    <code>CardHit { placement_id, canvas_id, canvas_name, item_id, kind, title, snippet, matched_title }</code>,
+    <code>SearchResults { canvases: Vec&lt;CanvasHit&gt;, cards: Vec&lt;CardHit&gt; }</code>,
+    <code>search_project_for(state, query) -&gt; AppResult&lt;SearchResults&gt;</code> and the
+    <code>search_project</code> command; add <code>pub mod search;</code> to
+    <code>commands/mod.rs</code> and register the command in both handler lists.</li>
+  <li><strong>IMPLEMENT:</strong> three queries, in this order —
+    (1) <code>canvas.name LIKE ?1 ESCAPE '\'</code>, returning the canvas with a correlated
+    <code>count(*)</code> of its placements, ordered by <code>sort_order, id</code>;
+    (2) note items whose <code>json_extract(payload,'$.title')</code> matches;
+    (3) note items whose <code>json_extract(payload,'$.text')</code> matches. Both card queries
+    <code>JOIN placement</code> and <code>JOIN canvas</code> so a hit carries the placement to select
+    and the canvas name to print, and are scoped to the project by
+    <code>canvas.project_id</code>. Concatenate (2) then (3), drop any card whose
+    <code>item_id</code> already appeared, and set <code>matched_title</code> accordingly — "a card
+    matching on either title or body is one result, named by its title" (design-system §9.8). Cap
+    each group with <code>LIMIT 25</code>.</li>
+  <li><strong>ADD:</strong> two pure helpers with their own tests —
+    <code>escape_like(query: &amp;str) -&gt; String</code> (escape <code>\</code>, <code>%</code> and
+    <code>_</code>, then wrap in <code>%…%</code>) and
+    <code>snippet(body: &amp;str, query: &amp;str, width: usize) -&gt; String</code> (a window of
+    about 120 characters centred on the first case-insensitive match, on a character boundary, with a
+    leading and/or trailing <code>…</code> when it was cut, and newlines collapsed to spaces).</li>
+  <li><strong>IMPLEMENT:</strong> a blank or whitespace-only query returns empty groups without
+    touching the database.</li>
+  <li><strong>ADD:</strong> the matching <code>CanvasHit</code>, <code>CardHit</code> and
+    <code>SearchResults</code> interfaces to <code>src/lib/types.ts</code>.</li>
+  <li><strong>GOTCHA:</strong> <code>%</code> and <code>_</code> typed by the user are
+    <code>LIKE</code> wildcards. Without <code>escape_like</code> plus an explicit
+    <code>ESCAPE '\'</code> clause, searching <code>100%</code> matches every canvas in the project.</li>
+  <li><strong>GOTCHA:</strong> snippet slicing must respect UTF-8 character boundaries —
+    <code>&amp;body[a..b]</code> panics mid-character. Work in <code>char_indices()</code>.</li>
+  <li><strong>GOTCHA:</strong> only <code>note</code> items are searched. <code>search-method</code>
+    names exactly three queries; image alt text, link titles and video titles are not among them, and
+    adding a fourth query here would contradict a settled decision. The <code>kind</code> field on
+    <code>CardHit</code> exists so the popover can pick its glyph and so a later phase can widen the
+    search without changing the shape.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml search</code> — tests:
+    <code>json_extract_isAvailableInTheBundledSqlite</code>,
+    <code>escape_like_percentAndUnderscore_areEscaped</code>,
+    <code>snippet_matchInTheMiddle_isWindowedWithEllipses</code>,
+    <code>snippet_multibyteBody_doesNotPanic</code>,
+    <code>search_project_termMatchingBoth_returnsTheCanvasFirst</code>,
+    <code>search_project_titleAndBodyBothMatch_isOneResult</code>,
+    <code>search_project_blankQuery_returnsNothing</code>,
+    <code>search_project_cardOnAnotherCanvas_carriesThatCanvasName</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="2">Milestone 2: The project picker</h3>
+
+<p>Frame <code>19a</code>, the New project dialog, and the boot flow that decides between the picker
+and the shell.</p>
+
+<p><strong>Validation checkpoint:</strong> a component-level test drives the whole session shape the
+picker exists for — mount the root with no project and assert the picker is shown and the shell is
+not; create a project through the dialog and assert the shell replaces the picker with the new
+project's first canvas active and the assets folder set; close the project and assert the picker is
+back, the store is empty and the undo depth is zero; then open a <em>second</em> project and assert the
+recents list came back reordered with the second project first. No individual task crosses the
+boot decision, the create flow, the teardown and the recents ordering together.</p>
+
+<h4 class="task" data-task="5">Task 5: The dialog surface — two tokens and the shared shell</h4>
+<p>This phase draws the first three modal surfaces in the product. They need one elevation and one
+scrim, declared once.</p>
+<ul>
+  <li><strong>ADD:</strong> to <code>src/lib/tokens.css</code>, beside the two Phase 1 additions:
+    <code>--shadow-dialog: 0 18px 44px rgba(45, 43, 43, 0.34)</code> and
+    <code>--scrim: color-mix(in srgb, var(--color-text) 26%, transparent)</code>. Update the comment
+    that currently reads "The dialog shadow belongs to Phase 4" to record that it has arrived and is
+    flagged for the owner.</li>
+  <li><strong>ADD:</strong> to <code>src/lib/theme.css</code>, in <strong>both</strong> dark blocks
+    (<code>[data-theme="dark"]</code> and the <code>prefers-color-scheme: dark</code> block):
+    <code>--shadow-dialog: 0 18px 44px rgba(0, 0, 0, 0.7)</code> and
+    <code>--scrim: color-mix(in srgb, #000 46%, transparent)</code>. The alpha follows §15.4's
+    interim rule for an undrawn dark shadow — same offsets and blur, black ink, roughly triple the
+    alpha.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/TitleBar.svelte</code> — a
+    <code>pickerMode = false</code> prop that hides the breadcrumb, the save state and the counts,
+    leaving the brand and the three window controls (design-system §9.1: "the title bar shows the
+    brand and the window controls only"). The bar keeps its 34 px height and its drag region.</li>
+  <li><strong>PATTERN:</strong> the token comment style at <code>src/lib/tokens.css:99–103</code>; the
+    dark-side duplication at <code>src/lib/theme.css:28–38</code> and <code>73–81</code>.</li>
+  <li><strong>GOTCHA:</strong> a token added to <code>theme.css</code>'s
+    <code>[data-theme="dark"]</code> block but not to the <code>prefers-color-scheme</code> block
+    (or the reverse) makes the System theme disagree with the explicit one — which is exactly the
+    "nothing moves between the two themes" rule Phase 5 signs off.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/shell/__tests__/shell.test.ts src/lib/__tests__/tokens.test.ts</code>
+    — a new token test asserts <code>--shadow-dialog</code> and <code>--scrim</code> are declared once
+    in <code>tokens.css</code> and twice in <code>theme.css</code>, and a shell test asserts
+    <code>pickerMode</code> renders the brand with no breadcrumb, no save state and no counts.</li>
+</ul>
+
+<h4 class="task" data-task="6">Task 6: The project picker screen</h4>
+<p>Frame <code>19a</code>, at its locked measurements, plus the failure strip design-system §15.2
+assigns to it.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/projects/projects.svelte.ts</code> — a small
+    feature state module: <code>recents</code> (a <code>$state</code> array),
+    <code>selectedIndex</code>, <code>failure</code> (a string or null),
+    <code>loadRecents()</code>, <code>openFolder(path)</code>, <code>chooseFolder()</code> (the Tauri
+    directory selector), <code>openProject(path)</code> and <code>closeProject()</code>. Every call
+    goes through <code>invokeSafe</code>; nothing here builds a path.</li>
+  <li><strong>CREATE:</strong> <code>src/features/projects/ProjectPicker.svelte</code> — content
+    column <code>padding: 54px 64px 0</code>; the <code>Open a project</code> heading as an
+    <code>&lt;h2&gt;</code> at <code>--text-32</code>, <code>--tracking-tight-2</code>, 7 px below;
+    the sub-line at <code>--text-12-5</code>, line-height 1.6, opacity .6,
+    <code>max-width: 62ch</code>, 26 px below, with the drawn copy verbatim; an actions row
+    (gap 10 px, 36 px below) holding <code>New project…</code> with <code>ph-folder-plus</code>
+    (<code>--text-13</code>, padding <code>7px 16px</code>, <code>--radius-lg</code>, background and
+    border <code>--color-accent</code>, colour <code>--color-bg</code>) and
+    <code>Open folder…</code> with <code>ph-folder-open</code> (transparent, 1 px
+    <code>--color-divider</code> border, <code>--color-text</code>); the <code>Recent</code> section
+    label; a 2 × 2 grid, gap 14 px, <code>max-width: 720px</code>, of at most four cards
+    (<code>--color-surface</code>, <code>--radius-card</code>, <code>--shadow-picker-card</code>,
+    padding <code>14px 16px 13px</code>, gap 7 px, <code>min-width: 0</code>) each holding the
+    <code>ph-folder</code>-plus-name row (16 px glyph at opacity .5; name at <code>--text-14</code>,
+    weight 600, <code>--tracking-tight-1</code>, ellipsized), the folder path
+    (<code>--text-11</code>, opacity .5, ellipsized) and a baseline row 3 px down with
+    <code>{n} canvases · {n} cards</code> at <code>--text-11-5</code> opacity .6 and the
+    relative last-opened time right-aligned at <code>--text-11-5</code> opacity .42; and the footer
+    (<code>margin-top: auto</code>, padding-bottom 22 px, gap 20 px, <code>--text-11-5</code> opacity
+    .42) reading <code>IdeaScape 0.1 · Windows</code> and
+    <code>No account, no sync — nothing leaves this machine</code>.</li>
+  <li><strong>IMPLEMENT:</strong> the selected card takes <code>outline: 2px solid
+    var(--color-accent)</code>. <code>result-up</code>/<code>result-down</code> move
+    <code>selectedIndex</code>, <code>Enter</code> opens the selected card, a click opens that card
+    directly; hover follows §11.2's surface tint.</li>
+  <li><strong>IMPLEMENT:</strong> the failure strip — when <code>failure</code> is set, a row between
+    the actions and <code>Recent</code> with <code>--color-accent-2-100</code> ground,
+    <code>--color-accent-2-700</code> text, <code>--text-11-5</code>, padding <code>8px 12px</code>,
+    <code>--radius-card</code>, holding the message the Rust error carried (which names the database
+    file). It is a drawn state, never a dialog (design-system §15.2, <code>failure-surfaces</code>),
+    and it clears on the next successful open.</li>
+  <li><strong>PATTERN:</strong> the existing error strip, <code>src/app.svelte</code>
+    <code>.error</code> rule (lines 1113–1119); <code>relativeTime</code> from
+    <code>src/lib/relativeTime.ts</code> for both time phrases.</li>
+  <li><strong>GOTCHA:</strong> the picker is the only screen with no left column and no canvas, so it
+    must not be rendered inside <code>div.body</code>. It replaces it.</li>
+  <li><strong>GOTCHA:</strong> the recents list can name a folder that has since been moved or is on
+    a disconnected drive. Opening it fails through the normal error path and draws the strip; the
+    entry stays in the list, because a temporarily missing drive is not a reason to forget a project.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/projects/__tests__/picker.test.ts</code> — tests:
+    <code>picker_fourRecents_rendersATwoByTwoGrid</code>,
+    <code>picker_noRecents_showsTheActionsAndNoGrid</code>,
+    <code>picker_arrowDownThenEnter_opensTheSecondRecent</code>,
+    <code>picker_openFailed_drawsTheMessageNamingTheFile</code>,
+    <code>picker_recentCard_showsCanvasAndCardCountsAndRelativeTime</code>.</li>
+</ul>
+
+<h4 class="task" data-task="7">Task 7: The New project dialog</h4>
+<p>Listed as undrawn in design-system §15.1. Designed here in the document's own visual language, and
+flagged in the PR body for a later <code>dev-ui-update</code> to fold in — the precedent Phases 2 and
+3 set for an undrawn state.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/projects/NewProjectDialog.svelte</code> — a
+    <code>--scrim</code> backdrop at <code>--z-dialog</code>, centred panel 380 px wide,
+    <code>--color-surface</code>, <code>--radius-card</code>, <code>--shadow-dialog</code>, padding
+    <code>18px 20px 16px</code>; an <code>&lt;h3&gt;</code> <code>New Project</code> at
+    <code>--text-22</code>/<code>--tracking-tight-2</code>; a <code>Name</code> field (label
+    <code>--text-10</code> uppercase <code>--tracking-10</code> opacity .45; input
+    <code>--text-12-5</code>, padding <code>5px 8px</code>, 1 px <code>--color-divider</code> border,
+    <code>--radius-card</code>, taking the accent border and outline on focus per §11.4); a
+    <code>Folder</code> row showing the parent path at <code>--text-11</code> opacity .5, ellipsized,
+    with a <code>Choose…</code> button beside it; a helper line at <code>--text-11</code> opacity .5
+    naming the folder that will be created; and a right-aligned footer, gap 10 px,
+    <code>Cancel</code> (transparent, divider border) and <code>Create Project</code> (accent fill,
+    disabled at opacity .35 while the name is blank).</li>
+  <li><strong>IMPLEMENT:</strong> the parent defaults to <code>default_project_parent</code>;
+    <code>Choose…</code> opens the Tauri directory selector; <code>Enter</code> creates when the name
+    is valid, <code>Esc</code> cancels, and the name input takes focus on mount. A create failure
+    (name taken, name with a separator) draws in the dialog itself using the same
+    <code>--color-accent-2-100</code> strip as the picker — never a dialog on top of a dialog.</li>
+  <li><strong>PATTERN:</strong> the directory selector call shape in
+    <code>src/features/cards/ingest.svelte.ts:107</code> (<code>pickImages</code>) and
+    <code>replaceImage</code> in <code>src/app.svelte</code> — <code>await import('@tauri-apps/plugin-dialog')</code>,
+    then <code>open({ directory: true, multiple: false })</code>.</li>
+  <li><strong>GOTCHA:</strong> the dialog's own keydown must stop propagating, or <code>Esc</code>
+    reaches the global dispatcher's <code>cancel</code> chain and <code>Enter</code> reaches
+    <code>edit</code>. The dialog is modal; it owns those keys while it is open.</li>
+  <li><strong>GOTCHA:</strong> no new capability is needed —
+    <code>dialog:allow-open</code> in <code>src-tauri/capabilities/default.json</code> covers the
+    directory selector, because it is the same <code>open</code> command. A missing Tauri permission
+    does not throw where the call is written; it rejects the invoke, which this codebase logs and
+    moves past.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/projects/__tests__/projects.test.ts</code> — tests:
+    <code>newProjectDialog_blankName_disablesCreate</code>,
+    <code>newProjectDialog_nameAndFolder_invokesCreateProjectWithBoth</code>,
+    <code>newProjectDialog_createRejected_drawsTheMessageInTheDialog</code>,
+    <code>newProjectDialog_escape_cancelsWithoutCreating</code>.</li>
+</ul>
+
+<h4 class="task" data-task="8">Task 8: Boot, open, close — the shell's two states</h4>
+<p>The root stops assuming a project. This is the task that actually retires the developer path from
+the front end.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — replace the boot <code>$effect</code>
+    that calls <code>dev_project_path</code> with one that loads the recents list only. The markup
+    becomes: <code>TitleBar</code> always (with <code>pickerMode={canvasStore.project === null}</code>),
+    then <code>{#if canvasStore.project === null}&lt;ProjectPicker …/&gt;{:else}&lt;div
+    class="body"&gt;…{/if}</code>.</li>
+  <li><strong>ADD:</strong> one <code>openProject(path)</code> flow in the root:
+    <code>canvasStore.openProject(path)</code>, then
+    <code>setAssetsFolder(await invokeSafe('assets_folder'))</code>, then
+    <code>folderPath = path</code>, then <code>undoStack.clear()</code>. It runs inside
+    <code>guard()</code> for the shell's strip, and its failure message is also handed to the picker's
+    <code>failure</code> so the message is drawn where the user is looking.</li>
+  <li><strong>ADD:</strong> a <code>closeProject()</code> flow: <code>flushPlacements</code> and
+    <code>persistView.flush()</code> first (nothing in flight is lost), then
+    <code>invokeSafe('close_project')</code>, then <code>canvasStore.closeProject()</code>,
+    <code>undoStack.clear()</code>, <code>setAssetsFolder(null)</code>, <code>clipboard = []</code>,
+    and reload the recents so the picker shows the just-closed project first. Reached from a
+    <code>Close Project</code> row pinned above <code>Settings</code> in the left column
+    (<code>ph-arrow-left</code>, already in the closed glyph set).</li>
+  <li><strong>UPDATE:</strong> <code>maybeRunPerfGate</code> — it now opens the project itself from
+    <code>perf_gate_project_path</code> before seeding, so the harness no longer depends on the boot
+    effect having opened one.</li>
+  <li><strong>UPDATE:</strong> the <code>registerShortcuts</code> <code>$effect</code> — when
+    <code>canvasStore.project === null</code> register only
+    <code>result-up</code>, <code>result-down</code>, <code>edit</code> and <code>cancel</code>,
+    routed to the picker; otherwise the full map. A canvas shortcut must not fire on the picker.</li>
+  <li><strong>PATTERN:</strong> <code>src/app.svelte:137–150</code> for the effect being replaced;
+    <code>windowAction('close')</code> at lines 973–989 for the flush-before-teardown ordering.</li>
+  <li><strong>GOTCHA:</strong> <code>assets_folder</code> is per project. It is currently read once at
+    boot; if it is not re-read on every open, the second project of a session draws the first
+    project's pictures — or none.</li>
+  <li><strong>GOTCHA:</strong> <code>canvasStore.closeProject()</code> and
+    <code>undoStack.clear()</code> both exist and neither is called anywhere yet. An undo stack that
+    survives a project switch would replay a delete against another project's ids
+    (<code>undo-model</code>: the stack holds the current session only, and closing the project
+    clears it).</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/projects src/stores</code> — tests:
+    <code>app_noProject_rendersThePickerAndNotTheCanvas</code>,
+    <code>app_projectOpened_rendersTheShellAndSetsTheAssetsFolder</code>,
+    <code>app_closeProject_returnsToThePickerAndClearsTheStoreAndUndo</code>,
+    <code>app_secondProjectOpened_reReadsTheAssetsFolder</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="3">Milestone 3: Canvases in the left column</h3>
+
+<p>Create, inline rename, delete with a confirm, and switch — with the view position of each canvas
+surviving the round trip.</p>
+
+<p><strong>Validation checkpoint:</strong> one test drives the full canvas lifecycle against the
+mocked seam and the real store: create two canvases, rename one in place, put cards on each, pan each
+to a different position, switch between them twice and assert each canvas comes back at its own view
+and with its own cards, then delete one, assert the shell switched to a remaining canvas and the undo
+depth rose, undo it, and assert the canvas, its cards and its lines are all back and it is active
+again. Nothing else in the phase asserts that switching, persistence and the delete undo compose.</p>
+
+<h4 class="task" data-task="9">Task 9: The canvas feature state and its three undo commands</h4>
+<p>The logic first, so the component that follows is only drawing.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/canvases/canvases.svelte.ts</code> —
+    <code>createCanvas()</code> (name <code>Canvas {n}</code>, where <code>n</code> is one past the
+    highest existing <code>Canvas &lt;number&gt;</code> so a delete does not cause a duplicate name),
+    <code>renameCanvas(id, name)</code> (a blank or unchanged name is a no-op),
+    <code>deleteCanvas(id)</code> and <code>refreshCanvases()</code>. Each writes through
+    <code>invokeSafe</code>, updates <code>canvasStore.canvases</code>, and returns the undo command
+    for the root to push.</li>
+  <li><strong>ADD:</strong> to <code>src/features/undo/commands.ts</code>:
+    <code>createCanvasCommand(canvas)</code> (undo deletes it and adopts nothing; redo re-creates and
+    adopts the new row), <code>renameCanvasCommand(id, before, after)</code>, and
+    <code>deleteCanvasCommand(effect)</code> — undo calls <code>restore_canvas</code> with the whole
+    effect, re-lists the canvases, and calls <code>canvasStore.loadCanvas</code> on the restored id;
+    redo calls <code>delete_canvas</code> on the current id and adopts the new effect. Labels are
+    Title Case: <code>New Canvas</code>, <code>Rename Canvas</code>, <code>Delete Canvas</code>.</li>
+  <li><strong>PATTERN:</strong> <code>deleteCardsCommand</code>,
+    <code>src/features/undo/commands.ts:159–176</code> — the <code>let current = effect</code>
+    re-adoption idiom is mandatory, because every id in a restored effect is new.</li>
+  <li><strong>GOTCHA:</strong> <code>deleteCanvasCommand</code> deliberately does <em>not</em> reuse
+    the module's <code>restoreCards</code> helper. That helper writes into
+    <code>canvasStore.placements</code>, which holds the <em>active</em> canvas — and the canvas being
+    restored is never the active one, because deleting the active canvas switches away from it first.
+    Restoring through Rust keeps the active canvas's store untouched and the whole restore in one
+    transaction.</li>
+  <li><strong>GOTCHA:</strong> a feature may not import another feature.
+    <code>canvases.svelte.ts</code> may import <code>stores/</code> and <code>lib/</code> only; the
+    undo commands live in <code>features/undo/</code> and are pushed by the root, exactly as every
+    other command already is.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/canvases/__tests__/canvases.test.ts src/features/undo/__tests__/undoCanvases.test.ts</code>
+    — tests: <code>createCanvas_thirdCanvas_isNamedCanvasThree</code>,
+    <code>renameCanvas_blankName_writesNothing</code>,
+    <code>deleteCanvasCommand_undo_callsRestoreCanvasWithTheWholeEffect</code>,
+    <code>deleteCanvasCommand_redoAfterUndo_deletesTheRestoredId</code>,
+    <code>renameCanvasCommand_undo_writesTheOldName</code>.</li>
+</ul>
+
+<h4 class="task" data-task="10">Task 10: The canvas list — rows, create, inline rename, delete confirm</h4>
+<p>Design-system §8.3's canvas rows, plus the two states §15.1 lists as undrawn.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/canvases/CanvasList.svelte</code> — MOVE the
+    <code>Canvases</code> section label with its right-aligned <code>ph-plus</code> (now live) and the
+    row list out of <code>LeftColumn.svelte</code>, at the same locked values: rows padding
+    <code>5px 12px</code>, <code>--text-12</code>, gap 8 px, <code>ph-square-half</code> at 13 px,
+    name ellipsized; inactive at opacity .72; active on <code>--color-accent-tint-fill</code> with
+    <code>--color-accent-tint-text</code> and weight 600.</li>
+  <li><strong>IMPLEMENT:</strong> inline rename (undrawn — designed here): the row's text is replaced
+    in place by an input at the same font size and padding, 1 px <code>--color-accent</code> border
+    and a matching 1 px outline, <code>--radius-card</code>, text pre-selected.
+    <code>Enter</code> commits, <code>Esc</code> cancels, blur commits. Started by a double-click on
+    the row or by the row menu's <code>Rename</code>.</li>
+  <li><strong>CREATE:</strong> <code>src/features/canvases/DeleteCanvasDialog.svelte</code> (undrawn —
+    designed here): the same dialog shell as Task 7 at 340 px, heading
+    <code>Delete Canvas?</code>, body at <code>--text-12-5</code> line-height 1.6 naming the canvas
+    and its card count and saying <code>Ctrl+Z</code> brings it back, then <code>Cancel</code> and a
+    destructive <code>Delete Canvas</code> (<code>--color-accent-2</code> fill,
+    <code>--color-bg</code> text — the second accent is destructive-only, §4.3).
+    <code>Esc</code> cancels; the destructive button takes focus on mount.</li>
+  <li><strong>ADD:</strong> a row context menu — the row raises
+    <code>onOpenMenu(event, canvasId)</code>; <code>src/lib/menu.ts</code> gains
+    <code>'canvas'</code> to <code>OpenMenu.kind</code>, an optional <code>canvasId</code>, and
+    <code>CANVAS_MENU_WIDTH = 196</code>; the root builds the entries
+    (<code>Rename</code> — <code>ph-note</code>, <code>action: 'edit'</code>,
+    <code>shortcutLabel: ''</code>; <code>Delete Canvas</code> — <code>ph-trash</code>,
+    <code>action: 'delete'</code>, <code>destructive: true</code>, unavailable when it is the only
+    canvas) and renders the existing <code>ContextMenu</code>.</li>
+  <li><strong>UPDATE:</strong> <code>LeftColumn.svelte</code> — take <code>canvases</code> and
+    <code>search</code> snippet props and render them where the moved markup was; drop the
+    <code>is-unavailable</code> search box and <code>+</code>; wire the <code>Add → Image</code> row
+    to a new <code>onNewImage</code> prop and drop its <code>disabled</code>; add the
+    <code>Close Project</code> row above <code>Settings</code>. Correct the file's header comment —
+    only <code>Settings</code> is still Phase 5.</li>
+  <li><strong>PATTERN:</strong> the snippet composition shape at <code>src/app.svelte:1023–1052</code>
+    (<code>CanvasSurface</code> with children); the menu-entry shape at
+    <code>src/app.svelte:866–930</code>.</li>
+  <li><strong>GOTCHA:</strong> <code>LeftColumn</code> is in <code>features/shell/</code> and may not
+    import <code>features/canvases/</code> or <code>features/search/</code>
+    (<code>import-direction</code>, enforced not advisory). Snippet props from the root are the only
+    legal shape.</li>
+  <li><strong>GOTCHA:</strong> the <code>Add → Image</code> row has been drawn disabled since Phase 1
+    and Phase 3 never enabled it, even though <code>pickImages</code> ships and the
+    <code>I</code> key and the background menu both reach it. Enabling it here is a one-line wiring
+    of existing behaviour, not new scope.</li>
+  <li><strong>GOTCHA:</strong> the rename input is a text box inside the left column. While it has
+    focus, <code>matchAction</code> suppresses every key but <code>Esc</code> and the non-editing
+    Ctrl combinations — so <code>Enter</code> must be handled on the input itself, and the input's
+    <code>Esc</code> must stop propagating or the global <code>cancel</code> chain also clears the
+    selection.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/canvases/__tests__/canvasList.test.ts src/features/shell/__tests__/shell.test.ts</code>
+    — tests: <code>canvasList_plusClicked_createsACanvas</code>,
+    <code>canvasList_doubleClickedRow_becomesATextBoxHoldingTheName</code>,
+    <code>canvasList_renameCommitted_writesTheNewName</code>,
+    <code>canvasList_renameEscaped_keepsTheOldName</code>,
+    <code>deleteCanvasDialog_namesTheCanvasAndItsCardCount</code>,
+    <code>deleteCanvasDialog_onlyCanvas_theMenuRowIsUnavailable</code>,
+    <code>leftColumn_withSnippets_rendersTheCanvasListAndSearchBox</code>,
+    <code>leftColumn_imageRow_isAvailable</code>.</li>
+</ul>
+
+<h4 class="task" data-task="11">Task 11: Switching canvases, and what a switch owes the old one</h4>
+<p>Switching is already wired to <code>loadCanvas</code>, but it drops work on the floor: a drag in
+flight is never flushed, the pan position is not persisted, and the undo stack follows the user onto a
+canvas whose ids it does not know.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — a <code>switchCanvas(id)</code> flow:
+    return early when it is already active, else <code>await flushPlacements(saveHooks)</code>,
+    <code>persistView.flush()</code>, <code>undoStack.clear()</code>, then
+    <code>canvasStore.loadCanvas(id)</code> inside <code>guard()</code>. Route the row click, the
+    delete's fall-back switch, and both search-result kinds through it.</li>
+  <li><strong>IMPLEMENT:</strong> deleting the active canvas switches to the first remaining canvas in
+    <code>sort_order</code> before the delete is written, so the shell is never showing rows that no
+    longer exist.</li>
+  <li><strong>PATTERN:</strong> the flush-then-act ordering in <code>windowAction('close')</code>,
+    <code>src/app.svelte:973–989</code>.</li>
+  <li><strong>GOTCHA:</strong> <code>persistView</code> is a 400 ms trailing debounce. Without the
+    explicit <code>flush()</code>, panning canvas A and immediately clicking canvas B loses A's view
+    — and "everything is exactly as it was left, including the view position" is a PRD §10.2
+    acceptance line.</li>
+  <li><strong>GOTCHA:</strong> <code>loadCanvas</code> already clears the selection, the pending link,
+    the edit target and the fetch statuses, and restores the canvas's saved view. Do not duplicate
+    any of that in the root.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/canvases src/stores/__tests__/canvasStore.test.ts</code> —
+    tests: <code>switchCanvas_pendingDrag_isFlushedBeforeTheLoad</code>,
+    <code>switchCanvas_pannedCanvas_persistsTheViewBeforeLeaving</code>,
+    <code>switchCanvas_newCanvas_clearsTheUndoStack</code>,
+    <code>switchCanvas_sameCanvas_doesNothing</code>,
+    <code>deleteCanvas_active_switchesToTheFirstRemainingCanvas</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="4">Milestone 4: Search</h3>
+
+<p>The box, the popover, the ranking and the four keys.</p>
+
+<p><strong>Validation checkpoint:</strong> a test proves the ranking rule end to end against a
+deliberately ambiguous project — a canvas named <em>Chapter 3</em> and a note titled
+<em>Chapter 3</em> on another canvas — asserting the canvas row is rendered first and the card row
+second, that the matched words are bolded as text nodes with no markup from the data reaching the
+page, and that <code>Enter</code> on the card result switches canvas, selects that placement and
+centres the view on it. No single task asserts the query, the ranking, the highlight safety and the
+open action together.</p>
+
+<h4 class="task" data-task="12">Task 12: Search state and the highlight split</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/search/highlight.ts</code> — a pure
+    <code>splitOnMatch(text: string, query: string): { text: string; match: boolean }[]</code>,
+    case-insensitive, splitting on every occurrence and returning the whole string as one
+    non-matching part when the query is empty or absent. This is what lets the component render
+    <code>&lt;b&gt;</code> around matches through Svelte's normal text escaping.</li>
+  <li><strong>CREATE:</strong> <code>src/features/search/search.svelte.ts</code> —
+    <code>query</code>, <code>results</code>, <code>open</code>, <code>highlighted</code> (an index
+    across the two groups, canvases then cards), <code>run()</code> (debounced 140 ms, calling
+    <code>search_project</code> through <code>invokeSafe</code>), <code>clear()</code>,
+    <code>move(delta)</code> and <code>current()</code>. A query shorter than one non-space character
+    closes the popover and runs nothing.</li>
+  <li><strong>PATTERN:</strong> <code>debounce</code> from <code>src/lib/save.ts:68</code> — already
+    written, with <code>flush</code> and <code>cancel</code>. Do not write a second debounce.</li>
+  <li><strong>GOTCHA:</strong> the highlight must never be built with <code>{@html}</code>. PRD §8.3
+    forbids inserting fetched or stored text as markup, and Level 5 asserts the codebase has exactly
+    one <code>{@html}</code> and that it is in <code>NoteCard.svelte</code>.</li>
+  <li><strong>GOTCHA:</strong> a slow query must not overwrite a newer one's results. Keep a
+    monotonically increasing request id and drop a response that is not the newest.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/search/__tests__/highlight.test.ts src/features/search/__tests__/search.test.ts</code>
+    — tests: <code>splitOnMatch_twoOccurrences_marksBoth</code>,
+    <code>splitOnMatch_differentCase_stillMatches</code>,
+    <code>splitOnMatch_emptyQuery_isOneUnmatchedPart</code>,
+    <code>splitOnMatch_regexCharactersInQuery_areTreatedAsText</code>,
+    <code>search_typingThenClearing_closesThePopover</code>,
+    <code>search_staleResponse_isDiscarded</code>,
+    <code>search_move_wrapsAcrossBothGroups</code>.</li>
+</ul>
+
+<h4 class="task" data-task="13">Task 13: The search box and the results popover</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/search/SearchBox.svelte</code> — the §8.3 box: flex
+    row, gap 6 px, padding <code>3px 8px</code>, 1 px <code>--color-divider</code> border,
+    <code>--radius-card</code>, <code>--text-11-5</code>, opacity .5, with
+    <code>ph-magnifying-glass</code> at 13 px, now holding a real input. With a query: full opacity,
+    border and a 1 px outline both <code>--color-accent</code>, and <code>ph-x</code> at 12 px opacity
+    .45 pushed right, which clears. (The drawn 1 × 13 px accent caret is the input's own caret.)</li>
+  <li><strong>CREATE:</strong> <code>src/features/search/SearchResults.svelte</code> — frame
+    <code>20c</code>: <code>position: absolute; left: 156px; top: 34px</code>, width 318 px,
+    <code>--color-surface</code>, <code>--radius-card</code>,
+    <code>--shadow-search-popover</code>, <code>--z-search-popover</code>, padding
+    <code>6px 0 4px</code>; two groups each headed by a baseline row (a <code>--text-10</code>
+    <code>--tracking-10</code> uppercase opacity .45 label plus a count at <code>--text-10</code>
+    opacity .4), separated by a 1 px <code>--color-divider</code> rule with 6 px margins;
+    <strong>Canvases first</strong> — <code>ph-square-half</code>, the name at
+    <code>--text-12</code> weight 600 line-height 1.35, sub-line at <code>--text-10-5</code> opacity
+    .5 reading <code>{n} cards · last opened {relativeTime}</code>; <strong>Cards second</strong> —
+    <code>ph-note</code> or <code>ph-image</code> by kind, the card title, a sub-line naming kind and
+    canvas (<code>Note · Hull studies</code>), then the snippet at <code>--text-10-5</code>
+    line-height 1.4 opacity .6 with matched words in <code>&lt;b&gt;</code>; rows padding
+    <code>7px 12px</code>, gap 9 px, 14 px glyph at opacity .55 with a 1 px top margin, text column
+    <code>flex: 1; min-width: 0</code>, titles and sub-lines ellipsized; the highlighted row on
+    <code>--color-accent-100</code>; and a footer after a rule with
+    <code>↑↓ to move</code>, <code>Enter to open</code> and a right-aligned
+    <code>Esc to close</code> at <code>--text-10-5</code> opacity .42.</li>
+  <li><strong>IMPLEMENT:</strong> the popover opens with the §11.3 motion the context menu uses —
+    110 ms, 3 px rise, one easing curve — and closes at 0 ms. Max height 420 px with the
+    <code>.scroll-thin</code> utility. Searching selects nothing, so the properties panel stays
+    collapsed (design-system §9.8).</li>
+  <li><strong>PATTERN:</strong> the popover surface, motion and edge behaviour of
+    <code>src/features/shell/ContextMenu.svelte</code>; the keyboard-hint footer styling of the
+    same file.</li>
+  <li><strong>GOTCHA:</strong> the footer hint labels come from <code>SHORTCUT_LABELS</code> where a
+    key exists, never retyped — PRD §6.8 makes every printed key a contract the application must
+    honour. <code>result-up</code>, <code>result-down</code>, <code>edit</code> and
+    <code>cancel</code> are all already in the table.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/search/__tests__/searchResults.test.ts</code> — tests:
+    <code>searchResults_canvasAndCardHits_rendersCanvasesFirst</code>,
+    <code>searchResults_matchedWords_areWrappedInBoldTextNodes</code>,
+    <code>searchResults_cardHit_showsKindAndCanvasInTheSubLine</code>,
+    <code>searchResults_groupHeaders_carryTheirCounts</code>,
+    <code>searchBox_withAQuery_showsTheClearGlyph</code>,
+    <code>searchBox_clearClicked_emptiesTheQuery</code>.</li>
+</ul>
+
+<h4 class="task" data-task="14">Task 14: The four keys, and opening a result</h4>
+<ul>
+  <li><strong>IMPLEMENT:</strong> in <code>SearchBox.svelte</code>, handle
+    <code>ArrowUp</code>, <code>ArrowDown</code>, <code>Enter</code> and <code>Escape</code> on the
+    input itself, calling <code>preventDefault()</code> and <code>stopPropagation()</code>, and raise
+    <code>onMove</code>, <code>onOpen</code> and <code>onClose</code>.</li>
+  <li><strong>ADD:</strong> <code>export function centreOn(rect: Rect)</code> to
+    <code>CanvasSurface.svelte</code> — set <code>eased = true</code>, place the rect's centre at the
+    viewport centre at the current zoom, and call <code>onViewSettled()</code> so the new view is
+    persisted like any other.</li>
+  <li><strong>IMPLEMENT:</strong> in the root, <code>openResult()</code> — a canvas hit calls
+    <code>switchCanvas(canvasId)</code>; a card hit calls <code>switchCanvas</code> when the canvas
+    differs, then <code>canvasStore.setSelection([placementId])</code> and
+    <code>canvas.centreOn(placementRect)</code>. Either way the popover closes and the query is kept,
+    so a second <code>Enter</code> is not needed to search again.</li>
+  <li><strong>UPDATE:</strong> the root's <code>cancel</code> chain — the search popover closes
+    before the pending link, the open menu and the selection, because it is the frontmost thing on
+    screen when it is open.</li>
+  <li><strong>PATTERN:</strong> <code>zoomToFit</code>, <code>src/features/canvas/CanvasSurface.svelte:214</code>
+    — the same <code>eased</code>-then-<code>setView</code>-then-<code>onViewSettled</code> shape.</li>
+  <li><strong>GOTCHA:</strong> <code>matchAction</code> returns <code>null</code> for
+    <code>ArrowUp</code>/<code>ArrowDown</code>/<code>Enter</code> whenever focus is in a text box
+    (<code>src/lib/shortcuts.ts:97</code>), so the global dispatcher cannot serve the search box's
+    keys. Do <em>not</em> "fix" <code>matchAction</code> to let them through — that would fire
+    <code>Delete</code> and <code>Enter</code> while the user is typing into a note. Handle them
+    locally; the dispatcher's <code>result-up</code>/<code>result-down</code> stay for the picker
+    grid, which is not a text box.</li>
+  <li><strong>GOTCHA:</strong> a card hit's placement is only in the store after its canvas has
+    loaded. Read the rect after <code>switchCanvas</code> resolves, not before.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/search src/features/canvas/__tests__/canvasSurface.test.ts</code>
+    — tests: <code>searchBox_arrowDown_movesTheHighlightWithoutLosingFocus</code>,
+    <code>searchBox_escape_closesThePopoverAndDoesNotClearTheSelection</code>,
+    <code>openResult_canvasHit_switchesCanvas</code>,
+    <code>openResult_cardHitOnAnotherCanvas_switchesSelectsAndCentres</code>,
+    <code>centreOn_rect_putsItsCentreAtTheViewportCentre</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="5">Milestone 5: The phase gate</h3>
+
+<p>PRD §11 Phase 4's gate is every functional acceptance line in §10.2 except the two dark-theme
+lines. It is measured in the running application, not in the suite.</p>
+
+<p><strong>Validation checkpoint:</strong> <code>scripts/phase-4-session.md</code> exists and records
+a PASS for each of the ten non-dark-theme §10.2 lines, a measured project-open time under 2 000 ms
+taken from the picker, a median frame rate at or above the Phase 3 recorded figure on 250 mixed
+cards, a drawn-versus-total cull ratio that proves culling still works, and an installer size under
+20 MB — and the Level 4 block asserts all of it by reading the file, so the gate cannot be reported
+green from memory.</p>
+
+<h4 class="task" data-task="15">Task 15: Walk the §10.2 acceptance list in the running application</h4>
+<ul>
+  <li><strong>IMPLEMENT:</strong> build and run the real window
+    (<code>npm run tauri build</code>, then the built binary with no arguments so the picker is the
+    entry), and walk, recording each step and its outcome in
+    <code>scripts/phase-4-session.md</code>: make a project from the dialog and three canvases inside
+    it; put 250 mixed cards on one canvas via the seeder and pan it; close and reopen the project from
+    the picker, timing the open; paste a web address and a YouTube address; join cards with a labelled
+    arrow; force-close mid-edit and reopen; search a canvas name and confirm it ranks first; delete
+    the last card of an image item, confirm the file left <code>assets/</code>, and undo; rename a
+    canvas; delete a canvas with cards and lines on it and undo that too; open a second project in the
+    same session and confirm the first project's cards are gone from the shell and its folder is
+    listed first in the picker.</li>
+  <li><strong>IMPLEMENT:</strong> record for each step <code>PASS</code> or <code>FAIL</code>, the
+    measured open time in milliseconds, and the observed <code>drawn of total</code> cull counts from
+    the development overlay.</li>
+  <li><strong>MIRROR:</strong> the structure and the wording of
+    <code>scripts/phase-3-session.md</code>, including its <code>Gate: PASS</code> line.</li>
+  <li><strong>GOTCHA:</strong> the release build registers no <code>perf_gate_requested</code> and no
+    seeder, so the 250-card and open-time steps are run on a
+    <code>npm run tauri build -- --debug</code> binary with
+    <code>--project &lt;scratch folder&gt; --perf-gate</code>, and the interactive steps on the release
+    binary with no arguments. Record which binary each step used.</li>
+  <li><strong>GOTCHA:</strong> "That project opens in under 2 seconds" is now measurable end to end
+    for the first time — it starts when the recent card is clicked, not when
+    <code>list_placements</code> is called.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>node -e "const s=require('fs').readFileSync('scripts/phase-4-session.md','utf8'); if(/FAIL/.test(s)){console.error('a recorded step failed');process.exit(1);} if(!/Gate:\s*PASS/.test(s)){console.error('gate not recorded as PASS');process.exit(1);} const m=s.match(/open[^0-9]*([0-9]+)\s*ms/i); if(!m||parseInt(m[1])&gt;2000){console.error('no project open under 2000 ms recorded');process.exit(1);} console.log('session recorded, open', m[1], 'ms');"</code></li>
+</ul>
+
+<h4 class="task" data-task="16">Task 16: Re-measure the frame gate and the installer budget</h4>
+<ul>
+  <li><strong>IMPLEMENT:</strong> run the perf harness on 250 mixed cards at 100% and 40% zoom, append
+    the median frame rate, the dropped-frame count and the cull counts to
+    <code>scripts/phase-4-session.md</code>, and compare against the Phase 3 recorded figure. This
+    phase adds no per-frame work inside the transformed layer, so a regression means something
+    accidental — a popover that does not unmount, or a canvas switch that leaks a listener.</li>
+  <li><strong>IMPLEMENT:</strong> build the NSIS installer and record its size. No new crate and no
+    new npm package means the figure should sit within a few kilobytes of Phase 3's 2,900,575 bytes.</li>
+  <li><strong>IMPLEMENT:</strong> if the frame rate misses, work the ladder Phase 3 recorded before
+    reopening anything: check the drawn-versus-total counts first, then confirm the low-zoom
+    simplified branch is taken, then look for a retained listener from a canvas switch or a popover.
+    Record which rung was used.</li>
+  <li><strong>GOTCHA:</strong> the harness now opens its own project from
+    <code>perf_gate_project_path</code> (Task 8). If it silently measures an empty canvas the fps
+    figure is meaningless — the recorded cull counts are what prove it did not.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>node -e "const fs=require('fs'),p=require('path');const s=fs.readFileSync('scripts/phase-4-session.md','utf8');const m=s.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i);if(!m){console.error('no fps recorded');process.exit(1);}const d=s.match(/drawn[^0-9]*([0-9]+)[^0-9]+of[^0-9]*([0-9]+)/i);if(!d||parseInt(d[1])&gt;parseInt(d[2])*0.5){console.error('cull looks broken; the fps number is meaningless');process.exit(1);}const dir='src-tauri/target/release/bundle/nsis';const exe=fs.readdirSync(dir).find(x=&gt;x.endsWith('.exe'));if(!exe){console.error('no NSIS installer');process.exit(1);}const size=fs.statSync(p.join(dir,exe)).size;if(size&gt;20*1024*1024){console.error('installer over 20 MB');process.exit(1);}console.log('gate ok:',m[1],'fps,',d[1],'of',d[2],'drawn, installer',size,'bytes');"</code></li>
+</ul>
+
+<h3 class="milestone" data-milestone="6">Milestone 6: Commit, push, and open PR</h3>
+
+<h4 class="task" data-task="17">Task 17: Commit, push, and open PR</h4>
+<p>After every prior validation checkpoint has passed:</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> stage and commit uncommitted changes with a descriptive message
+    summarizing the phase; push with <code>git push -u origin phase-4-library</code>; open a PR with
+    <code>gh pr create --head phase-4-library --title "&lt;title&gt;" --body "&lt;body&gt;"</code>
+    (omitting <code>--base</code> targets the repo's default branch; pass <code>--base main</code>
+    explicitly if needed).</li>
+  <li><strong>PR title format:</strong> <code>Phase 4: Library</code> — names the phase, not any
+    individual feature.</li>
+  <li><strong>PR body format:</strong> copy the Acceptance Criteria as a checklist with each box
+    checked off, followed by a <code>Notes</code> section listing assumptions/trade-offs decided
+    during execution. Flag for the owner, explicitly: the two new tokens
+    (<code>--shadow-dialog</code>, <code>--scrim</code>), the four states designed in this phase
+    (the New project dialog, the picker's database-locked message, inline canvas rename, the canvas
+    delete confirm) for a later <code>dev-ui-update</code> to fold into
+    <code>docs/design-system.html</code> §9 and §15, and the <code>recent.json</code> sibling file
+    beside <code>settings.json</code>.</li>
+  <li><strong>GOTCHA:</strong> pushing over HTTPS on this machine hangs on a blocking Windows
+    credential dialog. Use
+    <code>git -c credential.helper= -c credential.helper='!gh auth git-credential' push -u origin phase-4-library</code>.</li>
+  <li><strong>GOTCHA:</strong> CLAUDE.md forbids any AI attribution in commits, PR bodies or code
+    comments. No <code>Co-Authored-By</code>, no generated-with footer.</li>
+  <li><strong>GOTCHA:</strong> if <code>gh</code> is not installed or authenticated this step fails.
+    It is standard tooling in this repository — Phases 1–3 all shipped through it.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>gh pr view --json number,title,state,headRefName</code> returns the new PR with
+    <code>"state": "OPEN"</code> and <code>"headRefName": "phase-4-library"</code>.</li>
+</ul>
+
+<h2>Testing Strategy</h2>
+
+<h3>Unit Tests</h3>
+<ul>
+  <li><strong>Rust, in-file <code>#[cfg(test)]</code> per area.</strong> Pure functions first —
+    <code>escape_like</code>, <code>snippet</code>, the recents list mutation — then data tests
+    against a real SQLite file in a <code>tempfile::tempdir()</code>, which is the same engine that
+    ships so migrations and WAL behave identically. The recents functions take their directory as a
+    parameter precisely so no test writes to the real <code>%APPDATA%</code>.</li>
+  <li><strong>TypeScript, Vitest with plain <code>expect</code>.</strong> Stores and pure logic:
+    <code>splitOnMatch</code>, the search state machine's staleness and highlight movement, the
+    canvas-name generator, and every new undo command's undo/redo pair against a mocked
+    <code>invokeSafe</code>. Not the visual output.</li>
+</ul>
+
+<h3>Integration Tests</h3>
+<ul>
+  <li>The five milestone checkpoints. Each is a real test file, not a manual step: the Rust lifecycle
+    test (M1), the session-shape component test (M2), the canvas lifecycle test (M3), the ranking and
+    open test (M4), and the recorded-artefact assertions (M5).</li>
+  <li>Component tests render through <code>@testing-library/svelte</code> with
+    <code>vi.mock('../../../lib/ipc')</code>, the idiom every existing shell and card test uses.</li>
+</ul>
+
+<h3>Edge Cases</h3>
+<ul>
+  <li>A recents entry whose folder has been moved, renamed, or is on a disconnected drive.</li>
+  <li>A project database that is locked by another process, or is not a database at all.</li>
+  <li><code>create_project</code> against an existing folder, a name with a path separator, a blank
+    name, and a name that is only whitespace.</li>
+  <li>Deleting the only canvas in a project (refused), and deleting the active canvas (switches
+    first).</li>
+  <li>Undoing a canvas delete after the project has been closed and reopened — the stack is cleared,
+    so there is nothing to undo, which is the <code>undo-model</code> contract and not a bug.</li>
+  <li>A search query containing <code>%</code>, <code>_</code>, <code>\</code>, a regular-expression
+    metacharacter, or non-ASCII text.</li>
+  <li>A note whose title matches and whose body also matches — one result, named by its title.</li>
+  <li>A card result whose canvas is not the active one.</li>
+  <li>A canvas renamed to a name another canvas already has (allowed; names are not unique).</li>
+  <li>Two projects opened in one session: the assets folder, the store, the undo stack and the
+    recents order all have to follow.</li>
+  <li>A search response arriving after a newer query has been typed.</li>
+</ul>
+
+<h2>Validation Commands</h2>
+
+<h3>Level 1: Syntax &amp; Style</h3>
+<pre><code>npm run check
+npx prettier --check .
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings</code></pre>
+<p>Expected: exit code 0 from each.</p>
+
+<h3>Level 2: Unit Tests</h3>
+<pre><code>npm test -- --run
+cargo test --manifest-path src-tauri/Cargo.toml</code></pre>
+
+<h3>Level 3: Integration Tests</h3>
+<pre><code>cargo test --manifest-path src-tauri/Cargo.toml -- --include-ignored
+npx vitest run src/features src/stores src/lib</code></pre>
+
+<h3>Level 4: Manual Validation</h3>
+<p>One non-interactive block. It builds the application, asserts the bundle is still self-contained
+and within budget, and asserts the recorded session artefact. Exits 0 on success, non-zero on
+failure.</p>
+<pre><code>set -e
+npm run build
+npm run tauri build
+node -e "
+const fs=require('fs'), p=require('path');
+const walk=d=&gt;fs.readdirSync(d,{withFileTypes:true}).flatMap(e=&gt;e.isDirectory()?walk(p.join(d,e.name)):[p.join(d,e.name)]);
+const css=walk('dist').filter(f=&gt;f.endsWith('.css')).map(f=&gt;fs.readFileSync(f,'utf8')).join('');
+if(/url\(\s*['\\\"]?https?:/.test(css)) { console.error('external asset reference in bundle'); process.exit(1); }
+const d='src-tauri/target/release/bundle/nsis';
+const exe=fs.readdirSync(d).find(x=&gt;x.endsWith('.exe'));
+if(!exe) { console.error('no NSIS installer'); process.exit(1); }
+const size=fs.statSync(p.join(d,exe)).size;
+if(size &gt; 20*1024*1024) { console.error('installer over 20 MB'); process.exit(1); }
+const s=fs.readFileSync('scripts/phase-4-session.md','utf8');
+if(/FAIL/.test(s)) { console.error('a recorded session step failed'); process.exit(1); }
+if(!/Gate:\s*PASS/.test(s)) { console.error('session gate not recorded as PASS'); process.exit(1); }
+const o=s.match(/open[^0-9]*([0-9]+)\s*ms/i);
+if(!o || parseInt(o[1]) &gt; 2000) { console.error('no project open under 2000 ms recorded'); process.exit(1); }
+const m=s.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i);
+if(!m) { console.error('no fps recorded'); process.exit(1); }
+const dr=s.match(/drawn[^0-9]*([0-9]+)[^0-9]+of[^0-9]*([0-9]+)/i);
+if(!dr || parseInt(dr[1]) &gt; parseInt(dr[2])*0.5) { console.error('cull looks broken; the fps number is meaningless'); process.exit(1); }
+console.log('phase 4 gate ok:', o[1], 'ms open,', m[1], 'fps,', dr[1], 'of', dr[2], 'drawn, installer', size, 'bytes');
+"</code></pre>
+
+<h3>Level 5: Additional Validation (Optional)</h3>
+<pre><code># Every new command is registered in BOTH invoke_handler lists, and the dev path is gone
+node -e "
+const fs=require('fs');
+const s=fs.readFileSync('src-tauri/src/lib.rs','utf8');
+const need={project:['list_recent_projects','default_project_parent','create_project','close_project'],
+            canvas:['rename_canvas','delete_canvas','restore_canvas'],
+            search:['search_project']};
+for (const [mod, cmds] of Object.entries(need)) for (const c of cmds) {
+  const n=(s.match(new RegExp(mod+'::'+c+'\\\\b','g'))||[]).length;
+  if (n &lt; 2) { console.error('command not registered in both handlers: '+mod+'::'+c); process.exit(1); }
+}
+if (/dev_project_path/.test(s)) { console.error('the developer path is still registered'); process.exit(1); }
+console.log('all new commands registered twice; developer path gone');
+"
+# The debug-only perf gate path is behind cfg(debug_assertions)
+grep -q 'cfg(debug_assertions)' src-tauri/src/commands/project.rs
+! grep -rn "dev_project_path" src src-tauri/src
+# No new migration, no new dependency, no new capability permission
+node -e "const n=require('fs').readdirSync('src-tauri/migrations').filter(f=&gt;f.endsWith('.sql')).length; if(n!==1){console.error('migration count changed: '+n);process.exit(1);} console.log('one migration, unchanged');"
+git diff --stat origin/main -- src-tauri/Cargo.toml package.json src-tauri/capabilities/default.json
+# The import direction rule: no feature imports another feature
+! grep -rn "from '\.\./\.\./features/" src/features --include=*.ts --include=*.svelte
+! grep -rn "features/" src/lib src/stores --include=*.ts --include=*.svelte
+# All network code still lives in fetch/
+! grep -rn "reqwest" src-tauri/src --include=*.rs | grep -v "src-tauri/src/fetch/"
+! grep -rn "fetch(\|XMLHttpRequest\|WebSocket" src --include=*.ts --include=*.svelte
+# The front end never calls invoke() or convertFileSrc directly
+! grep -rn "@tauri-apps/api/core" src --include=*.ts --include=*.svelte | grep -v "lib/ipc.ts"
+# {@html} is still used exactly once, on rendered Markdown only
+test "$(grep -rn '{@html' src --include=*.svelte | wc -l)" = "1"
+grep -rn '{@html' src --include=*.svelte | grep -q "NoteCard.svelte"
+# No forbidden logging reached shipped source
+! grep -rn "console\.log" src --include=*.ts --include=*.svelte | grep -v "logger.ts"
+! grep -rn "println!" src-tauri/src</code></pre>
+
+<h2>Acceptance Criteria</h2>
+
+<ul class="checklist">
+  <li data-checked="false">With no project open the window shows the project picker at frame <code>19a</code>'s locked values: the heading, the sub-line, <em>New project…</em>, <em>Open folder…</em>, a 2 × 2 Recent grid and the two-part footer. No left column, no canvas, and a title bar showing only the brand and the window controls.</li>
+  <li data-checked="false"><em>New project…</em> opens a dialog that takes a name and a parent folder, creates <code>&lt;parent&gt;/&lt;name&gt;</code> with <code>ideascape.db</code>, an <code>assets/</code> folder and one canvas, and opens it. An existing folder or a name with a path separator is refused with the reason drawn in the dialog.</li>
+  <li data-checked="false"><em>Open folder…</em> opens any existing project folder, and a recent card opens that project. Up to four recent projects persist across a restart in <code>%APPDATA%\IdeaScape\recent.json</code>, newest first, each showing its name, path, canvas and card counts and a relative last-opened time.</li>
+  <li data-checked="false">A project whose database is locked or damaged does not open, and a plain message naming the database file is drawn on the picker. No error dialog appears, and no other project is affected.</li>
+  <li data-checked="false"><em>Close Project</em> returns to the picker with the store empty, the undo stack cleared, the assets folder unset and nothing in flight lost. A second project can then be opened in the same session and the shell shows only its canvases and cards.</li>
+  <li data-checked="false">The left column's <em>Canvases</em> section creates a canvas with its <code>+</code>, renames one in place, deletes one behind a confirm that names the canvas and its card count, and switches between them. Deleting the only canvas in a project is refused.</li>
+  <li data-checked="false">Deleting a canvas removes its placements, its connections, every item that lost its last placement and those items' asset files, in one transaction. <code>Ctrl+Z</code> brings the canvas, its cards, its lines and its files back together, and the restored lines join the cards they were drawn between.</li>
+  <li data-checked="false">Switching canvases flushes any pending geometry, persists the outgoing canvas's view position, and clears the undo stack. Each canvas comes back at its own pan and zoom.</li>
+  <li data-checked="false">Typing in the left column's search box opens the popover at frame <code>20c</code>'s locked values, over the canvas, with the properties panel collapsed. Canvas results are always listed before card results.</li>
+  <li data-checked="false">Search runs exactly three <code>LIKE</code> queries — canvas names, note titles, note body text. A note matching on both title and body is one result, named by its title. A query containing <code>%</code> or <code>_</code> matches those characters literally.</li>
+  <li data-checked="false">Matched words are bolded in the snippet, and no stored text ever reaches the page as markup: the codebase still holds exactly one <code>{@html}</code> and it is on rendered Markdown.</li>
+  <li data-checked="false"><code>↑</code> and <code>↓</code> move through the results and <code>Enter</code> opens one; <code>Esc</code> closes the popover. A canvas result switches to that canvas; a card result switches to its canvas, selects the card and centres the view on it.</li>
+  <li data-checked="false"><code>dev_project_path</code> is gone from the Rust side and the front end. A release build has exactly one route into a project: the picker. The debug-only <code>--project … --perf-gate</code> harness invocation still works.</li>
+  <li data-checked="false">Every functional line in PRD §10.2 except the two dark-theme lines passes in the running application, and <code>scripts/phase-4-session.md</code> records each one with a measured project-open time under 2 000 ms.</li>
+  <li data-checked="false">250 mixed cards still pan at or above the frame rate Phase 3 recorded, with the cull counts recorded beside it, and the NSIS installer is still under 20 MB.</li>
+  <li data-checked="false">No new npm package, no new Rust crate, no new migration and no new Tauri capability permission was added.</li>
+  <li data-checked="false">No feature imports another feature; <code>stores/</code> and <code>lib/</code> import no feature; the front end makes no network call and builds no SQL.</li>
+</ul>
+
+<h2>Completion Checklist</h2>
+
+<ul class="checklist">
+  <li data-checked="false">Level 1 — <code>npm run check</code>, <code>npx prettier --check .</code>, <code>cargo fmt -- --check</code> and <code>cargo clippy -- -D warnings</code> all exit 0.</li>
+  <li data-checked="false">Level 2 — <code>npm test -- --run</code> and <code>cargo test</code> are green, including every pre-existing Phase 1–3 test after the <code>delete_placements_for</code> refactor.</li>
+  <li data-checked="false">Level 3 — the five milestone checkpoint tests pass.</li>
+  <li data-checked="false">Level 4 — the build block exits 0: installer under 20 MB, no external asset reference, and <code>scripts/phase-4-session.md</code> recording <code>Gate: PASS</code>, an open under 2 000 ms, an fps figure and a sane cull ratio.</li>
+  <li data-checked="false">Level 5 — every new command registered in both handler lists, the developer path gone, one migration, no dependency or capability change, the import-direction and network greps clean, one <code>{@html}</code>, no <code>console.log</code>, no <code>println!</code>.</li>
+  <li data-checked="false">Every task's inline VALIDATE was run at the moment that task completed.</li>
+  <li data-checked="false">PR open against the default branch with the acceptance list checked off and the flagged design additions named in the body.</li>
+</ul>
+
+<h2>Notes</h2>
+
+<h3>Architecture conformance</h3>
+
+<p>Planned entirely within <code>docs/architecture.html</code>. No decision is
+<code>data-status="open"</code>; the decisions this phase touches, by <code>data-decision</code>
+slug, are:</p>
+
+<ul>
+  <li><code>search-method</code> — three plain <code>LIKE</code> scans (canvas names, note titles,
+    note body text), canvas names returned first, FTS5 present and unused. Task 4 implements exactly
+    that and no fourth query.</li>
+  <li><code>storage-engine</code> and <code>db-access-layer</code> — one SQLite file per project
+    folder, <code>rusqlite</code> bundled, synchronous, migrations checked when a project opens. The
+    picker opens one project at a time; no schema change, so the migration count stays at one.</li>
+  <li><code>settings-storage</code> — <code>%APPDATA%\IdeaScape</code> is the per-machine location
+    outside every project folder. <code>recent.json</code> is a sibling of the Phase 5
+    <code>settings.json</code>, not part of it, so PRD §8.2's "it holds the four values the Settings
+    screen edits" and "nothing in this file is user data" both stay literally true.</li>
+  <li><code>module-layout</code> — <code>commands/search.rs</code> is the last file in the agreed
+    <code>commands/</code> list to be written, and <code>features/projects/</code>,
+    <code>features/canvases/</code> and <code>features/search/</code> are the last three named
+    front-end folders to be filled.</li>
+  <li><code>import-direction</code> — enforced, not advisory. It is why <code>LeftColumn</code> takes
+    snippet props instead of importing two features, and why the canvas-row context menu is raised to
+    the root rather than importing <code>features/shell/ContextMenu.svelte</code>.</li>
+  <li><code>ipc-contract</code> — eight new release commands and one debug-only one, all through
+    <code>invokeSafe</code>; no generic query command; one error type; the front end builds no SQL
+    and no file path.</li>
+  <li><code>persistence-strategy</code> — every canvas delete and restore is one transaction, a
+    canvas switch flushes pending geometry and the outgoing view first, and WAL is unchanged.</li>
+  <li><code>undo-model</code> — three new inverse commands; the stack clears when the project closes
+    <em>and</em> when the canvas changes, which is the scope the decision states and which nothing
+    called before this phase.</li>
+  <li><code>failure-surfaces</code> — the locked/damaged database, a failed create and a missing
+    recent folder are all drawn strips on the surface the user is looking at. There is no error
+    dialog in the phase.</li>
+  <li><code>nfr-targets</code> — the two-second open and the 60 fps / 250-card figure are re-measured
+    in Tasks 15 and 16, and the 20 MB installer cap is asserted in Level 4.</li>
+  <li><code>architecture-pattern</code> — vertical slice in the front end (three new feature folders
+    holding their own components, state and logic), modules by kind in Rust.</li>
+</ul>
+
+<h3>Assumptions and decisions</h3>
+
+<ul>
+  <li><strong>ASSUMPTION:</strong> The recent-projects list lives in
+    <code>%APPDATA%\IdeaScape\recent.json</code>, a separate file from <code>settings.json</code>,
+    holding at most four entries of <code>{ path, name, canvas_count, card_count, opened_at }</code>.
+    Authority: <code>settings-storage</code> fixes the folder and states what
+    <code>settings.json</code> holds; PRD §8.2 says that file holds those four values and no user
+    data. A recents list is neither a setting nor project data, and putting it inside a project folder
+    would break the portability rule the same decision gives. Four entries is what
+    design-system §9.1 draws (a 2 × 2 grid), so storing more would be data the user cannot reach.</li>
+  <li><strong>ASSUMPTION:</strong> The picker is the launch screen; the application does not
+    auto-open the most recently used project. Authority: design-system §9.1 — "what opens when no
+    project is open: choose a recent project folder, or make a new one" — and the Recent grid would
+    be pointless if the last project opened itself. PRD §10.2's "close the application, open it
+    again, everything is exactly as it was left" is satisfied by one click on the first recent card,
+    which is also where the two-second open is measured from.</li>
+  <li><strong>ASSUMPTION:</strong> <code>dev_project_path</code> is deleted and replaced by a
+    <code>#[cfg(debug_assertions)]</code> <code>perf_gate_project_path</code> read only when
+    <code>--perf-gate</code> is passed. Authority: the Phase 1 Notes say the developer path "is
+    removed in Phase 4 when the picker lands", while <code>scripts/perf-gate.md</code> and
+    <code>nfr-targets</code> require the 250-card gate to stay measurable in Phases 4 and 5. Keeping
+    the argument in debug builds for the measurement harness alone removes the developer path from
+    every release build and from every interactive launch, which is what the note was about.</li>
+  <li><strong>ASSUMPTION:</strong> The search popover's canvas sub-line phrase
+    <code>{n} cards · last opened {relativeTime}</code> is derived from
+    <code>canvas.updated_at</code>. Authority: design-system §9.8 draws the phrase, no document adds
+    a <code>last_opened_at</code> column, and <code>update_canvas_view</code> already stamps
+    <code>updated_at</code> whenever the user pans or zooms a canvas, so it tracks "when I was last
+    here" closely. This is the smallest reversible option — a real column would be a migration for a
+    display string. The picker's own last-opened time is genuine, from <code>recent.json</code>.</li>
+  <li><strong>ASSUMPTION:</strong> Only <code>note</code> items are searched, so the popover's card
+    rows are always <code>ph-note</code> in the MVP even though design-system §9.8 draws
+    <code>ph-note</code> <em>or</em> <code>ph-image</code>. Authority: <code>search-method</code>
+    names exactly three queries and image alt text is not one of them; adding a fourth would
+    contradict a settled decision to satisfy a drawn glyph. <code>CardHit.kind</code> is carried
+    anyway so widening the search later changes a query and not a shape.</li>
+  <li><strong>ASSUMPTION:</strong> Deleting a <em>project</em> is not in this phase. Authority:
+    PRD §11's Phase 4 deliverable list says "Project picker: create and open", and design-system §9.1
+    draws no delete or remove control. PRD §6.4's "deleting a project deletes its folder, its
+    database and every asset file" is a lifecycle rule for whenever that control arrives, not a
+    Phase 4 screen.</li>
+  <li><strong>ASSUMPTION:</strong> Each search group is capped at 25 rows and the group header count
+    is the number of rows returned. Authority: no document states a limit or a paging rule; 25 rows
+    at the drawn row height scrolls comfortably inside a 420 px popover, and a count that disagreed
+    with the visible rows would be worse than a cap. One constant, trivially reversible.</li>
+  <li><strong>ASSUMPTION:</strong> A canvas is created as <code>Canvas {n}</code> where
+    <code>n</code> is one past the highest existing <code>Canvas &lt;number&gt;</code>, and canvas
+    names are not required to be unique. Authority: <code>open_project_at</code> already names the
+    first canvas <code>Canvas 1</code>; nothing states a uniqueness rule, and enforcing one would
+    make rename fail in a way no state is drawn for.</li>
+  <li><strong>ASSUMPTION:</strong> The four states design-system §15.1 and §15.2 leave undrawn — the
+    New project dialog, the picker's database-locked message, inline canvas rename, and the canvas
+    delete confirm — are designed in this phase in the document's own visual language, recorded here,
+    and flagged in the PR body for a later <code>dev-ui-update</code> run to fold in. Authority: the
+    precedent Phases 2 and 3 both set, and §15.1's own framing that each gap "needs a design pass
+    before the phase that builds it" — which assigns the pass to the phase, not the document to the
+    phase.</li>
+  <li><strong>ASSUMPTION:</strong> Two tokens are added — <code>--shadow-dialog</code> and
+    <code>--scrim</code> — in both palettes. Authority: <code>src/lib/tokens.css</code>'s own Phase 1
+    comment says "the dialog shadow belongs to Phase 4", and §5.3's closed set has no scrim because no
+    modal surface existed before this phase. The dark values follow §15.4's stated interim rule for an
+    undrawn dark shadow: same offsets and blur, black ink, roughly triple the alpha. Both are flagged
+    for the owner, exactly as Phase 1 flagged its two.</li>
+  <li><strong>ASSUMPTION:</strong> The <code>Add → Image</code> row in the left column is enabled
+    here. Authority: it is drawn as an available row in design-system §8.3, and Phase 3 shipped
+    <code>pickImages</code> plus the <code>I</code> key and the background menu route without
+    enabling it. It is one line of wiring to existing behaviour, in a task that is already rewriting
+    the file.</li>
+  <li><strong>ASSUMPTION:</strong> No new npm package, no new Rust crate and no new capability
+    permission. Authority: the 20 MB cap in <code>nfr-targets</code>, PRD §7's closed dependency
+    table, and the fact that <code>dialog:allow-open</code> already covers the directory selector
+    because it is the same <code>open</code> command the image picker uses.</li>
+  <li><strong>DECISION:</strong> Rendering is Milestones rather than Flat, at five substantive
+    milestones plus the shipping milestone. Seventeen tasks over five genuine sub-layers is well past
+    the ~6-task threshold where a flat list stops being scannable, and each checkpoint asserts
+    something cross-task — a whole project lifecycle through the command seam, two projects opened in
+    one session, a canvas deleted and restored with its cards and lines, the ranking rule against a
+    deliberately ambiguous name, and a measurement taken in the running application — that no
+    individual task's VALIDATE reaches.</li>
+  <li><strong>DECISION:</strong> The whole Rust library layer (Tasks 1–4) lands before any of it is
+    drawn, and inside it the <code>delete_placements_for</code> refactor comes before
+    <code>delete_canvas</code>. Both invert the tempting order deliberately: a canvas delete that
+    re-implements the orphan-item and reference-count rules instead of reusing them is the same data
+    bug written twice, and it gets dramatically harder to find once there is a confirm dialog to
+    blame.</li>
+  <li><strong>DECISION:</strong> A canvas delete is undoable, not merely confirmed.
+    <code>undo-model</code> says each user action records how to undo itself, and a confirm dialog is
+    a warning rather than a remedy. The confirm still ships because design-system §15.1 names it.</li>
+  <li><strong>DECISION:</strong> <code>restore_canvas</code> takes the whole
+    <code>CanvasDeleteEffect</code> back and does the old-id → new-id remapping in Rust, rather than
+    reusing the front-end <code>restoreCards</code> helper Phase 2 built. That helper writes into
+    <code>canvasStore.placements</code>, which holds the <em>active</em> canvas — and a deleted canvas
+    is never the active one, because deleting the active canvas switches away from it first. Doing it
+    in Rust keeps the active canvas's store untouched, keeps the restore in one transaction, and lets
+    the front end hand back exactly the structure the delete returned.</li>
+  <li><strong>DECISION:</strong> <code>delete_canvas</code> refuses to remove the only canvas in a
+    project. A project with no canvas has no drawn state — design-system §9.2's empty project has
+    one — and the left column would have nothing to make active.</li>
+  <li><strong>DECISION:</strong> <code>LeftColumn</code> takes <code>canvases</code> and
+    <code>search</code> snippet props and <code>app.svelte</code> fills them, rather than
+    <code>features/shell/</code> importing <code>features/canvases/</code> and
+    <code>features/search/</code>. This is the shape the root already uses for
+    <code>CanvasSurface</code>'s children, and it is the only shape <code>import-direction</code>
+    permits.</li>
+  <li><strong>DECISION:</strong> The search box handles <code>↑</code>, <code>↓</code>,
+    <code>Enter</code> and <code>Esc</code> on its own input rather than through the global
+    dispatcher. <code>matchAction</code> deliberately suppresses those keys while focus is in a text
+    box, and relaxing that rule to serve the search box would fire <code>Delete</code> and
+    <code>Enter</code> while the user is typing into a note. The dispatcher's existing
+    <code>result-up</code> and <code>result-down</code> actions serve the picker's Recent grid, which
+    is not a text box.</li>
+  <li><strong>DECISION:</strong> The match highlight is built by splitting text into parts and
+    rendering <code>&lt;b&gt;</code> around the matching ones through Svelte's normal escaping, never
+    with <code>{@html}</code>. PRD §8.3 forbids inserting stored or fetched text as markup, and
+    Level 5 asserts the codebase still holds exactly one <code>{@html}</code>.</li>
+  <li><strong>DECISION:</strong> Shared struct placement: <code>CanvasDeleteEffect</code> goes in
+    <code>src-tauri/src/db/models.rs</code> beside <code>DeleteEffect</code> it mirrors;
+    <code>RecentProject</code> stays in <code>commands/project.rs</code> because it is a file record
+    and not a row; the search hit structs stay in <code>commands/search.rs</code> for the same
+    reason. <code>src/lib/types.ts</code> mirrors all of them, as it already mirrors every row
+    struct.</li>
+  <li><strong>DECISION:</strong> Search reads the note title and body through
+    <code>json_extract</code> rather than scanning the raw <code>payload</code> text. A raw scan
+    cannot tell a title hit from a body hit, and the ranking rule needs that distinction. The first
+    search test asserts <code>json_extract</code> is present in the bundled SQLite rather than
+    assuming it.</li>
+</ul>
+
+<h3>Conflicts found between documents</h3>
+
+<p>One, resolved above rather than escalated.</p>
+
+<ul>
+  <li>Design-system §9.8 draws a card result row taking <code>ph-note</code> <strong>or</strong>
+    <code>ph-image</code>, while <code>search-method</code> in <code>docs/architecture.html</code>
+    names exactly three queries, none of which reaches an image card. The architecture wins: card
+    results are note items only, and the drawn <code>ph-image</code> is unreachable until a later
+    phase widens the search. Recorded as an assumption above and flagged in the PR body, because it
+    is the one drawn detail this phase knowingly does not render.</li>
+</ul>
+
+<p>No conflict was found between <code>docs/architecture.html</code>, <code>docs/prd.html</code> and
+<code>docs/design-system.html</code> on any other point the phase touches. PRD §11's Phase 4
+deliverable list, design-system §16's P4 row (the project picker, the search popover and its ranking,
+canvas rows with create, rename and delete) and the architecture's <code>commands/</code> and
+<code>features/</code> trees all agree, down to <code>commands/search.rs</code> being the file that
+does not exist yet.</p>
+
+<p>The two questions design-system §15.4 still counts as open — the four undrawn dark shadow values
+and the <code>--color-accent-2-400</code> contrast check — are assigned to Phase 5 and do not block
+this phase. Three of those four values (<code>--shadow-context-menu</code>,
+<code>--shadow-search-popover</code>, <code>--shadow-picker-card</code>) are already declared on both
+sides in <code>src/lib/theme.css</code> under the §15.4 interim rule, and this phase's new
+<code>--shadow-dialog</code> follows the same rule. The destructive <code>Delete Canvas</code> button
+uses <code>--color-accent-2</code>, not the unmeasured <code>--color-accent-2-400</code>.</p>
+
+<h3>Risks carried into execution</h3>
+
+<ul>
+  <li><strong>The canvas delete and its undo is the phase's real correctness risk.</strong> It is the
+    only operation that touches all five tables at once, and it has to compose with a cascade, an
+    orphan-item rule, a reference-counted asset trash and an id remapping. Getting it wrong in one
+    direction leaves orphan files and rows in a project the MVP has no library screen to show them in;
+    wrong in the other, it destroys a picture another card still uses. Milestone 1's checkpoint
+    exercises both directions through the real command path against a real SQLite file, and Task 3's
+    refactor exists so the rules are implemented once rather than twice.</li>
+  <li><strong>The <code>delete_placements_for</code> refactor can break Phases 1–3 silently.</strong>
+    Every card delete and every delete-undo in the product goes through it. The existing placement
+    and undo tests are the regression suite; they must be green before Task 3 is called done, and no
+    behaviour may change — only where the transaction is opened.</li>
+  <li><strong>Two invoke handler lists.</strong> Eight new commands, times two registrations, in one
+    file, with a missing entry producing a silent invoke rejection in one build profile only. Level 5
+    counts each registration rather than trusting that the feature "seemed to work" — the same
+    mitigation Phase 3 used for the capability file.</li>
+  <li><strong>Session state that does not follow a project switch.</strong>
+    <code>closeProject()</code> and <code>undoStack.clear()</code> have existed since Phase 1 with no
+    caller, the assets folder is read once at boot, and the card clipboard is a module-level array.
+    Any one of them left behind on a switch produces a bug that looks like data corruption: another
+    project's pictures, an undo that deletes a stranger's rows, a paste that creates cards from a
+    project that is closed. Task 8's checkpoint opens two projects in one session for exactly this
+    reason.</li>
+  <li><strong>The search box is the first text input in the chrome.</strong> The global dispatcher's
+    text-box rule was written for the note editor, and the interaction between it, the
+    <code>Esc</code> chain and the popover is the likeliest place for a key to be swallowed or to fire
+    twice. Handle the four keys locally and stop propagation; do not relax
+    <code>matchAction</code>.</li>
+  <li><strong>Rust remains unfamiliar to the repository owner</strong>, which
+    <code>docs/mvp-plan.html</code> records as a risk. This phase adds one module and eight commands
+    with no async and no new crate — a smaller and simpler Rust surface than Phase 3's — and every
+    parsing decision (<code>escape_like</code>, <code>snippet</code>, the recents list mutation) is a
+    pure function with its own test.</li>
+</ul>
+
+</body>
+</html>
