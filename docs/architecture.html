@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IdeaScape — Architecture</title>
+<style>
+:root{
+  --bg:#ffffff; --panel:#f6f8fa; --line:#d8dee4; --fg:#1f2328;
+  --dim:#59636e; --accent:#0969da; --warn:#9a6700; --warnbg:#fff8c5;
+  --ok:#1a7f37;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16px/1.65 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+.wrap{max-width:900px;margin:0 auto;padding:40px 24px 90px}
+h1{font-size:32px;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:22px;margin:46px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+h3{font-size:17px;margin:28px 0 8px}
+p{margin:0 0 12px}
+.sub{color:var(--dim);font-size:17px;margin:0 0 20px}
+.meta{color:var(--dim);font-size:13px;background:var(--panel);
+  border:1px solid var(--line);border-radius:8px;padding:12px 15px;margin:0 0 14px}
+.callout{background:var(--warnbg);border:1px solid #d4a72c66;border-left:4px solid var(--warn);
+  border-radius:6px;padding:14px 16px;margin:0 0 18px}
+.callout b{color:var(--warn)}
+ul,ol{margin:0 0 14px;padding-left:22px}
+li{margin:0 0 6px}
+ul.checklist{list-style:none;padding-left:0}
+ul.checklist li{padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+  margin:0 0 7px;background:var(--panel)}
+ul.checklist li[data-checked="true"]::before{content:"\2714 ";color:var(--ok);font-weight:700}
+ul.checklist li[data-checked="false"]::before{content:"\2718 ";color:var(--dim);font-weight:700}
+ul.checklist li[data-checked="false"]{color:var(--dim);background:#fff}
+table{width:100%;border-collapse:collapse;border:1px solid var(--line);
+  border-radius:8px;overflow:hidden;margin:0 0 18px}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);
+  font-size:15px;vertical-align:top}
+th{background:var(--panel);font-size:12px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--dim)}
+tr:last-child td{border-bottom:none}
+code{background:var(--panel);border:1px solid var(--line);border-radius:4px;
+  padding:1px 5px;font-size:14px}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;overflow-x:auto;margin:0 0 18px}
+pre code{background:none;border:none;padding:0;font-size:13.5px;line-height:1.6}
+h3.decision{border-left:4px solid var(--accent);padding-left:10px}
+h3.decision[data-status="amended"]{border-left-color:var(--warn)}
+h3.decision[data-status="open"]{border-left-color:var(--dim)}
+.badges{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--dim);margin:0 0 10px;padding-left:14px}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-right:6px;
+  background:#ddf4ff;color:var(--accent);border:1px solid #54aeff66;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>IdeaScape &mdash; Architecture</h1>
+<p class="sub">How the application gets built. The MVP plan says what gets built.</p>
+
+<p class="meta">
+Written: 2026-09-05, from the architecture interview.<br>
+Scope authority: <a href="mvp-plan.html">docs/mvp-plan.html</a><br>
+Market input: <a href="competitive-scan.html">docs/competitive-scan.html</a><br>
+Visual authority: <a href="design-system.html">docs/design-system.html</a> &mdash; every colour,
+size, spacing, screen layout and on-screen state. This document does not restate them.<br>
+This document is the technical authority. Downstream skills read it at this fixed path.
+</p>
+
+<h2>1. Context</h2>
+
+<p>This design serves the MVP in <a href="mvp-plan.html">docs/mvp-plan.html</a>. That plan holds
+<b>17 in-scope items</b>. It was frozen on 2026-09-05 and amended on 2026-09-05 and 2026-09-06 by
+<code>dev-ui-update</code>, which added four items and removed Vimeo.</p>
+
+<p>IdeaScape is a single-user Windows desktop application. The user places cards on a canvas and
+joins them with lines to build a concept.</p>
+
+<h3>Inherited constraints</h3>
+
+<ul>
+  <li>One user. One machine. No accounts, no sharing, no cloud storage. These are on the plan's "never" list.</li>
+  <li>60 frames per second while panning a canvas that holds 250 cards. This is the P1 gate.</li>
+  <li>25 canvases in one project. A project opens in under 2 seconds.</li>
+  <li>Installer under 20 MB.</li>
+  <li>The application makes no network call the user did not start. No usage tracking. No update check.</li>
+  <li>Windows 11 only.</li>
+  <li>Zero running cost. There is no server.</li>
+  <li>One project folder holds a readable SQLite file and the original picture files.</li>
+</ul>
+
+<h3>Market input used</h3>
+
+<p>Three market-wide signals from the competitive scan shaped decisions here.</p>
+
+<ul>
+  <li><b>Performance at scale.</b> Slow pan and zoom is the loudest repeated complaint in the
+      category. It drove the front-end framework choice and the culling design.</li>
+  <li><b>Data lock-in and offline use.</b> Users choose local-first tools for this reason. It
+      supports the local SQLite file and the self-contained project folder.</li>
+  <li><b>Search quality.</b> Users say Milanote search returns loose notes instead of the board
+      they asked for. The answer is ranking, not indexing. Canvas names rank first.</li>
+</ul>
+
+<h3>Open architecture inputs from the plan</h3>
+
+<p>The plan parked three items under "Not yet decided". All three are settled in this document.</p>
+
+<ul class="checklist">
+  <li data-checked="true">The web interface framework. Settled in section 2.</li>
+  <li data-checked="true">The rich text approach for note cards. Settled in section 3.</li>
+  <li data-checked="true">The exact search method inside SQLite. Settled in section 3.</li>
+</ul>
+
+<h2>2. Stack</h2>
+
+<h3 class="decision"
+    data-decision="runtime-shell"
+    data-status="settled"
+    data-reversible="expensive">Desktop shell: Tauri 2 with a Rust backend</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: expensive</span></p>
+
+<p>The application is a Tauri 2 desktop shell. The backend is Rust. The interface is web
+technology, drawn in the WebView2 engine that ships with Windows 11.</p>
+
+<p><b>This departs from the house default of C# and .NET.</b> The reason is two hard targets in
+the plan. A self-contained .NET installer is about 60 to 80 MB, which breaks the 20 MB limit. A
+Tauri installer is about 5 MB, because it uses the browser engine already on the machine.</p>
+
+<p>A native .NET interface was also considered and rejected. Rich text and web link previews both
+need a browser engine, so a native application would have to embed one anyway. That removes the
+benefit and keeps the size cost.</p>
+
+<p>Rust is unfamiliar to the user. The plan already records this as a risk. The Rust side stays
+small on purpose. See section 5.</p>
+
+<h3 class="decision"
+    data-decision="frontend-framework"
+    data-status="settled"
+    data-reversible="expensive">Front-end framework: Svelte 5</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: expensive</span></p>
+
+<p>Svelte 5 with runes. Runes are Svelte's fine-grained reactivity marks. A change to one card
+updates that card only. The other 249 cards are not touched.</p>
+
+<p>React 19 was considered. It compares a tree of elements on each change. That work has to be
+hand-tuned to hold 60 frames per second during a drag. SolidJS was considered and is equally fast.
+Svelte was chosen for the larger set of canvas examples and the smaller bundle.</p>
+
+<p>The build uses Vite, which Tauri 2 sets up by default. TypeScript is used throughout.</p>
+
+<h3 class="decision"
+    data-decision="rendering-approach"
+    data-status="settled"
+    data-reversible="expensive">Canvas drawing: page elements with culling</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: expensive</span></p>
+
+<p>Carried from the MVP plan, section 6. Each card is a real element in the page. The canvas
+moves and scales with one CSS transform. Only the cards inside the view window are in the page.
+A card outside the view is removed. This is called culling.</p>
+
+<p>WebGL drawing was rejected in the plan. Text editing and rich content cannot be drawn that
+way, so page elements would be needed on top regardless.</p>
+
+<h2>3. Storage</h2>
+
+<h3 class="decision"
+    data-decision="storage-engine"
+    data-status="settled"
+    data-reversible="expensive">Storage engine: SQLite, one file per project</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: expensive</span></p>
+
+<p>Carried from the MVP plan, section 6. One project is one folder on disk.</p>
+
+<pre><code>MyProject/
+  ideascape.db      SQLite. Canvases, items, placements, connections
+  assets/           Every picture file, copied in, named by content hash
+</code></pre>
+
+<p>Pictures are copied into the folder. They are never referenced where the user left them. The
+folder can then be moved, zipped or backed up as one unit. A card does not break when the user
+moves or renames the original file.</p>
+
+<p>The schema is the entity table in the MVP plan, section 4. That plan owns the data model.
+This document does not restate it.</p>
+
+<h3 class="decision"
+    data-decision="db-access-layer"
+    data-status="settled"
+    data-reversible="cheap">Database access: rusqlite, bundled, with rusqlite_migration</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
+
+<p><code>rusqlite</code> with the <code>bundled</code> feature. SQLite is compiled into the
+application. There is no system library to find on the user's machine. Calls are synchronous,
+which suits one local file with one reader.</p>
+
+<p>Bundling also guarantees that the FTS5 module is present. FTS5 is SQLite's full-text search
+engine. The MVP does not use it. Having it present keeps the search decision below cheap to undo.</p>
+
+<p>Migrations use <code>rusqlite_migration</code>. Numbered SQL files live in
+<code>src-tauri/migrations/</code>. The database version is checked when a project opens.</p>
+
+<p><code>sqlx</code> was considered. It checks SQL at build time, but it is asynchronous. That
+adds work with no gain for one local file. <code>sea-orm</code> was considered and rejected. It
+hides the query plan, which matters for a later FTS5 move.</p>
+
+<h3 class="decision"
+    data-decision="search-method"
+    data-status="settled"
+    data-reversible="cheap">Search: plain LIKE scan, canvas names ranked first</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
+
+<p>Search runs three <code>LIKE</code> queries. One over canvas names. One over note card titles.
+One over note card body text. Canvas name results are returned first, then card results.</p>
+
+<p><i>Amended 2026-09-05 by <code>dev-ui-update</code>: it was two queries. The note payload gained
+a <code>title</code> field, so the title is searched as well as the body. A card hit on either
+field is one result, named by its title.</i></p>
+
+<p>The size limits make this fast enough. 25 canvases times 250 cards is about 6,000 rows at
+most. A full scan of 6,000 short rows takes a few milliseconds.</p>
+
+<p>FTS5 was considered. At this data size it buys no measurable speed. The market complaint about
+search is about ranking, and the ranking rule above answers it directly. Moving to FTS5 later only
+adds a table and three triggers. No existing table changes.</p>
+
+<h3 class="decision"
+    data-decision="note-text-format"
+    data-status="settled"
+    data-reversible="moderate">Note cards: Markdown text, plain text box while editing</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: moderate</span></p>
+
+<p>A note card stores Markdown in the <code>note { text }</code> payload the plan defines. The
+card shows the rendered result. When the user edits the card, it becomes a plain text box holding
+the Markdown source. Toolbar buttons insert Markdown marks for bold, italic and lists.</p>
+
+<p>No editor library is used. TipTap, which is built on ProseMirror, was considered. One instance
+per card would put 250 editors on the canvas and fail the 60 fps gate. Mounting one instance only
+on the focused card still adds about 150 KB and changes the stored payload to HTML.</p>
+
+<p>Keeping the stored value as plain Markdown also keeps the <code>LIKE</code> search simple.
+The stored text is the searched text.</p>
+
+<h3 class="decision"
+    data-decision="asset-storage"
+    data-status="settled"
+    data-reversible="moderate">Assets: copied into the project folder, named by content hash</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: moderate</span></p>
+
+<p>Every picture is copied into <code>assets/</code> when it is added. The file name is a hash of
+the file content. A hash is a short fixed-length value computed from the bytes. Two identical
+pictures then share one file.</p>
+
+<p>An asset value in an item payload is always a file name. It is never an absolute path. This is
+carried from the MVP plan, section 4.</p>
+
+<p>The hash algorithm is not chosen. See section 11.</p>
+
+<h3 class="decision"
+    data-decision="settings-storage"
+    data-status="settled"
+    data-reversible="cheap">Settings: one JSON file per machine, outside every project</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
+
+<p>Application settings live in <code>settings.json</code> under
+<code>%APPDATA%\IdeaScape</code>. That is one file per machine, not one per project. The Settings
+screen names this path in its own footer, so it is user-visible.</p>
+
+<p>It holds the four values the Settings screen edits: the auto-save cadence, snap to grid, the
+zoom modifier, and the theme. The project folder path shown there is read-only and comes from the
+open project, not from this file.</p>
+
+<p>It is deliberately <b>not</b> in the project folder. A project folder must stay portable &mdash;
+moved, zipped or backed up whole &mdash; and it would be wrong for a copied folder to carry another
+machine's theme choice. Nothing in this file is user data; losing it resets the four values to
+their defaults and nothing else.</p>
+
+<p>SQLite was considered for these four values and rejected. It would mean a second database with
+its own migrations for four scalars. Windows registry keys were rejected: the plan's privacy rule
+favours a file the user can read and delete.</p>
+
+<p><i>Added 2026-09-05 by <code>dev-ui-update</code>. The Settings screen arrived with the design
+handoff and needed a home. See <code>docs/design-system.html</code> §9.11.</i></p>
+
+<h2>4. Architecture pattern</h2>
+
+<h3 class="decision"
+    data-decision="architecture-pattern"
+    data-status="settled"
+    data-reversible="moderate">Pattern: vertical slice in the front end, modules by kind in Rust</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: moderate</span></p>
+
+<p>The front end is organised by feature. One feature folder holds its Svelte components, its
+state and its types together.</p>
+
+<p>The Rust side is organised by kind, not by feature. It is small. The plan limits it to database
+work and file work. Feature folders there would be near-empty.</p>
+
+<p><b>This is a partial departure from the house default.</b> The house default is vertical slice
+everywhere. The front-end half matches it. The Rust half does not.</p>
+
+<p>One shared state store is named up front. The canvas is not cleanly separable by feature.
+Cards, connections, selection, pan and zoom all read and write the same canvas state. Hiding that
+inside feature folders would produce cross-feature imports. Naming it once is honest and keeps the
+import rule in section 5 enforceable.</p>
+
+<h2>5. Module layout</h2>
+
+<h3 class="decision"
+    data-decision="module-layout"
+    data-status="settled"
+    data-reversible="moderate">Directory tree</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: moderate</span></p>
+
+<pre><code>IdeaScape/
+├── src-tauri/
+│   ├── src/
+│   │   ├── main.rs            app start, command registration
+│   │   ├── db/                connection, migrations, schema
+│   │   ├── commands/          one file per area: project, canvas, item,
+│   │   │                        placement, connection, search
+│   │   ├── assets/            file copy, content hash, missing-file check
+│   │   ├── fetch/             link preview and video metadata
+│   │   └── error.rs           one error type returned to the front end
+│   └── migrations/            numbered .sql files
+├── src/
+│   ├── features/
+│   │   ├── canvas/            pan, zoom, culling, the canvas surface
+│   │   ├── cards/             the four card kinds, move, resize, z-order
+│   │   ├── connections/       draw, arrow, label
+│   │   ├── selection/         click, drag box, keyboard
+│   │   ├── undo/              session undo and redo stack
+│   │   ├── projects/          project picker
+│   │   ├── canvases/          canvas list, create, rename, delete
+│   │   └── search/            search box and results
+│   ├── stores/
+│   │   └── canvasStore.svelte.ts   the one shared canvas state
+│   ├── lib/                   ipc wrapper, markdown render, shared types
+│   └── app.svelte
+└── docs/
+</code></pre>
+
+<h3 class="decision"
+    data-decision="import-direction"
+    data-status="settled"
+    data-reversible="moderate">Import direction rule</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: moderate</span></p>
+
+<ul>
+  <li>A feature may import from <code>stores/</code> and <code>lib/</code>.</li>
+  <li>A feature may not import from another feature.</li>
+  <li><code>stores/</code> and <code>lib/</code> may not import from any feature.</li>
+  <li>Code needed by two features moves to <code>lib/</code>. It is not imported across.</li>
+  <li>On the Rust side, <code>commands/</code> may use <code>db/</code>, <code>assets/</code> and
+      <code>fetch/</code>.</li>
+  <li><code>db/</code>, <code>assets/</code> and <code>fetch/</code> never call
+      <code>commands/</code>.</li>
+</ul>
+
+<h2>6. Boundaries</h2>
+
+<h3 class="decision"
+    data-decision="network-boundary"
+    data-status="settled"
+    data-reversible="cheap">Network: all fetching happens in Rust</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
+
+<p>All network code lives in <code>src-tauri/src/fetch/</code>. The front end never makes a
+network call.</p>
+
+<ul>
+  <li>Link previews use <code>reqwest</code> to get the page and <code>scraper</code> to read the
+      Open Graph tags. Open Graph tags are the standard page tags that carry a title, a
+      description and a preview picture.</li>
+  <li>Video metadata uses the public oEmbed address for YouTube. oEmbed is a public
+      endpoint that returns a title and a thumbnail. It needs no key and no account.
+      <i>Vimeo was removed from the MVP on 2026-09-06. A Vimeo address is treated as an ordinary
+      web link and takes the link-preview path above. Adding Vimeo back is one more oEmbed address
+      in the same module.</i></li>
+  <li>Every fetch is cut off after 5 seconds, as the plan requires.</li>
+</ul>
+
+<p>Fetching from the front end was rejected. The browser engine blocks most cross-origin requests,
+so link cards would fail often. A third-party preview service was rejected. It would send every
+pasted address to a server outside the user's machine. That breaks the plan's privacy rule.</p>
+
+<h3 class="decision"
+    data-decision="boundary-table"
+    data-status="settled"
+    data-reversible="cheap">Every outside dependency, and what happens when it fails</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
+
+<table>
+<thead><tr><th>Boundary</th><th>Treatment</th><th>When it is unavailable</th></tr></thead>
+<tbody>
+<tr><td>WebView2 browser engine</td><td>Owned by the Tauri shell</td>
+    <td>The application does not start. The installer ships the WebView2 bootstrapper</td></tr>
+<tr><td>SQLite project file</td><td>Wrapped in <code>db/</code></td>
+    <td>The project does not open. A plain message names the file. No other project is affected</td></tr>
+<tr><td>Asset picture files</td><td>Wrapped in <code>assets/</code></td>
+    <td>The card shows a missing-file marker. The item is not deleted. The app does not crash</td></tr>
+<tr><td>Web page fetch</td><td>Wrapped in <code>fetch/</code></td>
+    <td>The card is created at once, marked not fetched, with a retry button</td></tr>
+<tr><td>YouTube oEmbed</td><td>Wrapped in <code>fetch/</code></td>
+    <td>The card falls back to the address. Clicking it still opens the browser</td></tr>
+<tr><td>Clipboard and file drop</td><td>Tauri calls, used directly</td>
+    <td>Not applicable. These are local operating system calls</td></tr>
+</tbody>
+</table>
+
+<h3 class="decision"
+    data-decision="ipc-contract"
+    data-status="settled"
+    data-reversible="cheap">Internal seam: the Tauri command boundary</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
+
+<p>The front end and the Rust side meet at Tauri commands only. Every call goes through one
+wrapper in <code>src/lib/</code>. That wrapper is the single place where a Rust error becomes a
+front-end error.</p>
+
+<p>Rust returns one error type, defined in <code>src-tauri/src/error.rs</code>. The front end
+never receives a raw Rust error string.</p>
+
+<p>The front end never builds SQL. It calls named commands such as <code>create_placement</code>.
+This is why the Rust side keeps a <code>commands/</code> folder rather than exposing a generic
+query call.</p>
+
+<h2>7. State and failure</h2>
+
+<h3 class="decision"
+    data-decision="persistence-strategy"
+    data-status="settled"
+    data-reversible="moderate">Saving: write on every change, group rapid changes</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: moderate</span></p>
+
+<p>Carried from the MVP plan, section 7.</p>
+
+<ul>
+  <li>Every change is written to SQLite.</li>
+  <li>Rapid changes, such as dragging a card, are grouped and written when the drag ends.</li>
+  <li>A change that touches several rows is written in one transaction. A crash part-way leaves no
+      half-finished state.</li>
+  <li>Closing the application saves the view position and zoom for each canvas.</li>
+</ul>
+
+<p>There is no concurrency problem to solve. One user, one machine, one open project at a time.
+SQLite runs in WAL mode for safer writes. WAL means write-ahead log.</p>
+
+<h3 class="decision"
+    data-decision="undo-model"
+    data-status="settled"
+    data-reversible="moderate">Undo: inverse-command stack in the front end</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: moderate</span></p>
+
+<p>Each user action records how to undo itself. Deleting placement 42 records a command that
+creates placement 42 again. The stack lives in <code>src/features/undo/</code>.</p>
+
+<p>One command may carry several effects. This is how the plan's rule is met: undo restores a
+deleted item, its placement, its connections and its asset files together.</p>
+
+<p>The stack holds the current session only. Closing the project clears it. Persistent history is
+deferred in the plan.</p>
+
+<p>A snapshot stack was considered. Copying 250 cards of state on each action uses too much
+memory, and a drag produces many actions. SQLite savepoints were considered. They tie undo to an
+open transaction, which fights the automatic save above.</p>
+
+<h3 class="decision"
+    data-decision="failure-surfaces"
+    data-status="settled"
+    data-reversible="cheap">Failure states are normal states</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
+
+<p>The failure table in the MVP plan, section 7, is the contract. Two rules follow from it.</p>
+
+<ul>
+  <li>A failed fetch is drawn on the card. It is never an error dialog.</li>
+  <li>A partial failure leaves the database consistent, because multi-row changes run in one
+      transaction. The user loses only the action in progress.</li>
+</ul>
+
+<h2>8. Non-functional requirements</h2>
+
+<h3 class="decision"
+    data-decision="nfr-targets"
+    data-status="settled"
+    data-reversible="moderate">Targets, carried from the MVP plan</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: moderate</span></p>
+
+<table>
+<thead><tr><th>Area</th><th>Target</th></tr></thead>
+<tbody>
+<tr><td>Canvas speed</td><td>60 frames per second while panning 250 cards</td></tr>
+<tr><td>Canvas size</td><td>250 cards on one canvas</td></tr>
+<tr><td>Project size</td><td>25 canvases in one project</td></tr>
+<tr><td>Open time</td><td>A project opens in under 2 seconds</td></tr>
+<tr><td>Link preview</td><td>The card appears at once. The preview fills in within 3 seconds, or shows a clear failure state</td></tr>
+<tr><td>Download size</td><td>Under 20 MB for the installer</td></tr>
+<tr><td>Privacy</td><td>Only a call the user started. No usage tracking. No update check</td></tr>
+<tr><td>Security</td><td>A fetched web page is read for preview data only. It is never run as code</td></tr>
+<tr><td>Cost</td><td>Zero running cost. There is no server</td></tr>
+</tbody>
+</table>
+
+<p>Two security rules follow from the stack choice.</p>
+
+<ul>
+  <li>Rendered Markdown is cleaned before it goes into the page. A note card can never run script.</li>
+  <li>Fetched Open Graph values are treated as plain text. A page title is never inserted as markup.</li>
+</ul>
+
+<h2>9. Deployment</h2>
+
+<h3 class="decision"
+    data-decision="deployment-target"
+    data-status="settled"
+    data-reversible="cheap">Windows NSIS installer, built locally, not signed</h3>
+<p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
+
+<ul>
+  <li>Target: Windows 11, 64-bit.</li>
+  <li>Installer: Tauri's NSIS output, including the WebView2 bootstrapper.</li>
+  <li>Built on the developer machine. There is no CI service.</li>
+  <li>Not code signed. Windows SmartScreen shows a warning on a machine that is not the
+      developer's. This does not matter while the user is the only user.</li>
+  <li>One environment. There is no staging and no production split.</li>
+  <li>No secrets. No API keys. Nothing the user must fill in to start. The one configuration file,
+    <code>settings.json</code> (section 3), is written by the application, has working defaults, and
+    is never required to exist.</li>
+  <li>No update service. This is required by the privacy rule.</li>
+</ul>
+
+<p>GitHub Actions was considered. This folder is not a git repository yet. Code signing was
+considered. A certificate costs about 200 US dollars per year and is only worth it when the
+application is sold. Neither changes any code, so both stay cheap to add.</p>
+
+<h2>10. Risks and reversibility</h2>
+
+<table>
+<thead><tr><th>Decision</th><th>Slug</th><th>Undo cost</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Tauri 2 + Rust shell</td><td><code>runtime-shell</code></td><td>expensive</td>
+    <td>A full rewrite. Only the SQLite file carries over</td></tr>
+<tr><td>Svelte 5 front end</td><td><code>frontend-framework</code></td><td>expensive</td>
+    <td>The whole interface is rewritten. The Rust side survives</td></tr>
+<tr><td>Page elements with culling</td><td><code>rendering-approach</code></td><td>expensive</td>
+    <td>The canvas is the product. Changing this changes every card component</td></tr>
+<tr><td>SQLite, one file per project</td><td><code>storage-engine</code></td><td>expensive</td>
+    <td>It sets the on-disk format the user already has data in</td></tr>
+<tr><td>Markdown note payload</td><td><code>note-text-format</code></td><td>moderate</td>
+    <td>A data change across every note card. Scriptable, but it touches user data</td></tr>
+<tr><td>Assets by content hash</td><td><code>asset-storage</code></td><td>moderate</td>
+    <td>Renaming files in place needs a migration over the assets folder</td></tr>
+<tr><td>Vertical slice + shared store</td><td><code>architecture-pattern</code></td><td>moderate</td>
+    <td>Moving files is easy. Untangling the shared canvas store is not</td></tr>
+<tr><td>Directory tree</td><td><code>module-layout</code></td><td>moderate</td>
+    <td>Wide but mechanical. Every import path changes</td></tr>
+<tr><td>Import direction rule</td><td><code>import-direction</code></td><td>moderate</td>
+    <td>Loosening it is free. Tightening it later means untangling real imports</td></tr>
+<tr><td>Write on every change</td><td><code>persistence-strategy</code></td><td>moderate</td>
+    <td>Every command's write path changes. No user data is touched</td></tr>
+<tr><td>Inverse-command undo</td><td><code>undo-model</code></td><td>moderate</td>
+    <td>Every action's undo is rewritten. No user data is touched</td></tr>
+<tr><td>Non-functional targets</td><td><code>nfr-targets</code></td><td>moderate</td>
+    <td>Lowering a target is free. Raising one can force a rendering change</td></tr>
+<tr><td>rusqlite, bundled</td><td><code>db-access-layer</code></td><td>cheap</td>
+    <td>The SQL stays. Only the calling code changes</td></tr>
+<tr><td>LIKE search</td><td><code>search-method</code></td><td>cheap</td>
+    <td>FTS5 only adds a table. Nothing existing changes</td></tr>
+<tr><td>Settings in one JSON file</td><td><code>settings-storage</code></td><td>cheap</td>
+    <td>Four scalars in one file the application owns. No user data. Deleting it resets the
+    defaults</td></tr>
+<tr><td>Network calls in Rust</td><td><code>network-boundary</code></td><td>cheap</td>
+    <td>One folder, behind a wrapper</td></tr>
+<tr><td>Boundary failure behaviour</td><td><code>boundary-table</code></td><td>cheap</td>
+    <td>Each row is a small local change</td></tr>
+<tr><td>Tauri command seam</td><td><code>ipc-contract</code></td><td>cheap</td>
+    <td>Commands are added and removed one at a time</td></tr>
+<tr><td>Failure states on the card</td><td><code>failure-surfaces</code></td><td>cheap</td>
+    <td>Presentation only</td></tr>
+<tr><td>NSIS unsigned installer</td><td><code>deployment-target</code></td><td>cheap</td>
+    <td>A build setting and a certificate. No code changes</td></tr>
+</tbody>
+</table>
+
+<h3>Where the expensive decisions are proved</h3>
+
+<p>Four decisions are expensive to undo. All four are exercised by phase P1 in the MVP plan, and
+P1 carries a hard gate of 60 frames per second with 250 cards.</p>
+
+<p>That ordering is deliberate. If the gate fails, the shell, the framework and the drawing
+approach are all still cheap to change, because almost nothing else has been built on them.</p>
+
+<div class="callout">
+<p><b>Override warning.</b> Two decisions depart from the house default that
+<code>dev-claud-md</code> hard-codes. That default is C# with .NET and vertical slice everywhere.
+<code>runtime-shell</code> replaces it with Tauri and Rust. <code>architecture-pattern</code> keeps
+vertical slice in the front end only.</p>
+<p><code>dev-claud-md</code> must be pointed at this file. If it runs on its default, it will write
+C# and .NET conventions into <code>CLAUDE.md</code>. Every later agent run will then inherit
+them.</p>
+</div>
+
+<h2>11. Open questions</h2>
+
+<table>
+<thead><tr><th>Question</th><th>What settles it</th><th>Settle by</th></tr></thead>
+<tbody>
+<tr>
+  <td><code>dev-claud-md</code> must not overwrite the stack and pattern overrides</td>
+  <td>Point <code>dev-claud-md</code> at <code>docs/architecture.html</code> when it runs. Then read the produced <code>CLAUDE.md</code> and confirm it says Tauri and Rust</td>
+  <td>Before the first phase is planned</td>
+</tr>
+<tr>
+  <td>The culling method is not chosen. Fixed grid buckets, or a simple box check per card</td>
+  <td>Build the simple box check first. Measure it against 250 cards. Move to grid buckets only if the frame rate misses</td>
+  <td>P1, before the 60 fps gate is measured</td>
+</tr>
+<tr>
+  <td>The content hash algorithm for asset file names is not chosen</td>
+  <td>Pick one when the assets folder is built. BLAKE3 and SHA-256 are both suitable. Speed matters more than cryptographic strength here</td>
+  <td>P3, when image cards are built</td>
+</tr>
+<tr>
+  <td>The Markdown renderer library is not chosen</td>
+  <td>Pick a small renderer with built-in cleaning, so a note card can never run script. Measure the added bundle size against the 20 MB limit</td>
+  <td>P1, when note cards are built</td>
+</tr>
+</tbody>
+</table>
+
+<h2>12. Amendments</h2>
+
+<p class="meta">
+2026-09-05 &mdash; created. Written from the architecture interview, against the MVP plan frozen
+the same day. Ten branches closed: constraints, stack, storage, pattern, layout, boundaries, state
+and failure, non-functional, deployment, risk. Nineteen decisions recorded. Four are expensive to
+undo, eight are moderate, seven are cheap. Two house-default overrides recorded:
+<code>runtime-shell</code> and <code>architecture-pattern</code>. The three items the MVP plan left
+under "Not yet decided" are all settled: <code>frontend-framework</code>,
+<code>note-text-format</code> and <code>search-method</code>.
+</p>
+
+<p class="meta">
+2026-09-05 &mdash; design handoff folded in by <code>dev-ui-update</code>. Source:
+<code>docs/handoff/</code>. The visual design now lives in
+<a href="design-system.html">docs/design-system.html</a> and this document points at it rather than
+restating it. Three changes here.<br>
+<b>One decision added:</b> <code>settings-storage</code> in section 3 &mdash; one
+<code>settings.json</code> per machine under <code>%APPDATA%\IdeaScape</code>, outside every project
+folder. Cheap to undo. That makes twenty decisions: four expensive, eight moderate, eight cheap.<br>
+<b><code>search-method</code> amended:</b> two <code>LIKE</code> queries became three, because the
+note payload gained a <code>title</code> field. The decision itself, its ranking rule and its undo
+cost are unchanged.<br>
+<b>Section 9 corrected:</b> "no configuration file the user must fill in" became "nothing the user
+must fill in to start", because <code>settings.json</code> now exists. It is written by the
+application, has working defaults, and is never required.<br>
+No stack, pattern, layout or boundary decision changed. Both house-default overrides stand.
+</p>
+
+<p class="meta">
+2026-09-06 &mdash; open design questions settled, by <code>dev-ui-update</code>. Ten of the twelve
+questions raised in <a href="design-system.html">docs/design-system.html</a> §15 were answered by
+the owner. One touches this document.<br>
+<b><code>network-boundary</code> narrowed:</b> video metadata now uses the YouTube oEmbed address
+only. <b>Vimeo was removed from the MVP</b>, so a Vimeo address takes the ordinary link-preview
+path in the same module. The boundary table row was renamed to match. The decision, its wrapper and
+its undo cost are unchanged &mdash; adding Vimeo back is one more oEmbed address in
+<code>src-tauri/src/fetch/</code>.<br>
+Nothing else here moved. Twenty decisions stand: four expensive, eight moderate, eight cheap.
+</p>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IdeaScape — Competitive Scan</title>
+<style>
+  :root{
+    --bg:#0e1117; --panel:#161b22; --panel2:#1c232c; --line:#2a323d;
+    --fg:#e6edf3; --dim:#9aa7b4; --accent:#6ea8fe;
+    --in:#2ea043; --part:#d29922; --no:#58a6ff; --never:#8b949e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 20px 80px}
+  h1{font-size:30px;margin:0 0 6px}
+  h2{font-size:21px;margin:44px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:26px 0 8px;color:var(--dim)}
+  p{margin:0 0 12px}
+  .sub{color:var(--dim);margin:0 0 18px}
+  .meta{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:14px 16px;color:var(--dim);font-size:13px;margin:0 0 26px}
+  .meta b{color:var(--fg)}
+  .note{background:var(--panel2);border-left:3px solid var(--accent);
+    border-radius:6px;padding:14px 16px;margin:0 0 18px}
+  .note h3{margin:0 0 6px;color:var(--accent);font-size:14px;text-transform:uppercase;letter-spacing:.06em}
+  .note.warn{border-left-color:#d29922}
+  .note.warn h3{color:#d29922}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;padding:3px 9px;border-radius:20px;vertical-align:middle;
+    margin-left:10px;background:#22303f;color:var(--accent);border:1px solid var(--line)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 18px}
+  .row{padding:16px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .name,.li-name{font-weight:700;font-size:16px;margin-bottom:5px}
+  .who,.li-who{color:var(--dim);margin-bottom:4px}
+  .sent,.li-sent{color:var(--fg);margin-bottom:4px}
+  .why{color:var(--fg);margin-bottom:4px}
+  .cov{color:var(--dim);font-size:14px;margin-top:6px;
+    border-left:2px solid var(--line);padding-left:10px}
+  ol.ranked{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:6px 18px 6px 42px;margin:0}
+  ol.ranked>li{padding:16px 0 16px 6px;border-bottom:1px solid var(--line)}
+  ol.ranked>li:last-child{border-bottom:none}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;
+    border-radius:5px;vertical-align:middle;margin-left:8px;color:#0e1117}
+  .b-in{background:var(--in);color:#fff}
+  .b-part{background:var(--part)}
+  .b-no{background:var(--no)}
+  .b-never{background:var(--never);color:#fff}
+  .src{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;
+    vertical-align:middle;margin-left:6px;background:#3d2a52;color:#d2a8ff;border:1px solid #6e40c9}
+  table{width:100%;border-collapse:collapse;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 18px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px}
+  th{background:var(--panel2);color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  tr:last-child td{border-bottom:none}
+  footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);
+    color:var(--dim);font-size:13px}
+  footer a{color:var(--accent)}
+  ul{margin:0 0 12px;padding-left:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>IdeaScape — Competitive Scan</h1>
+<p class="sub">A desktop canvas application. Small ideas (notes, pictures, web links, video) are
+placed on a canvas and connected together to build a larger concept.</p>
+
+<div class="meta">
+  <b>Comparables surveyed:</b> Milanote, Miro, FigJam (Figma), Mural, Obsidian Canvas,
+  Heptabase, Scrintal, Kosmik, tldraw / Excalidraw, Kinopio.<br>
+  <b>Research prepared:</b> 2026-09-05.<br>
+  <b>Extended:</b> not yet extended.<br>
+  <b>Coverage pass:</b> 2026-09-05, against <code>docs/mvp-plan.html</code>. See the footer.
+</div>
+
+<div class="note">
+  <h3>How to read this</h3>
+  <p>Only the <b>Required</b> bucket feeds MVP scope. Those items are table stakes.
+  The application is not what it claims to be without them.</p>
+  <p><b>Top 10</b> and <b>Other</b> are the reviewed backlog. They are recorded here, not decided here.
+  The <code>dev-add-feature</code> skill works through them later, one at a time, against a working
+  application.</p>
+  <p>Rows badged <b>Never</b> are off the backlog permanently. They are ruled out by the "never" list
+  in <code>docs/mvp-plan.html</code>, section 3.</p>
+</div>
+
+<div class="note">
+  <h3>Market-wide signals</h3>
+  <p>These complaints repeat across every comparable. Each one is a design input for the whole
+  product, not a single feature.</p>
+  <ul>
+    <li><b>Performance at scale.</b> Canvases become slow when they hold many items. Obsidian users
+      report choppy pan and zoom. Scrintal users report slowdown after a few hundred cards.</li>
+    <li><b>Subscription cost and hard caps.</b> Milanote free stops at 100 items. Miro free stops at
+      3 editable boards, then jumps to $20 per seat per month. Users say the caps push them to
+      look elsewhere.</li>
+    <li><b>Data lock-in and weak offline use.</b> Milanote offline support is limited. Milanote has
+      no public API. Users choose Kosmik and Heptabase partly for offline work.</li>
+    <li><b>Search quality.</b> Milanote search is called practically useless. It returns loose notes
+      instead of the board the user asked for.</li>
+  </ul>
+</div>
+
+<div class="note warn">
+  <h3>Under-met table stakes</h3>
+  <p>Four Required rows are not fully met by the MVP. Each was raised in the interview and accepted
+  on purpose. The stated reason was to prove the rest of the application first.</p>
+  <ul>
+    <li><b>Export.</b> Not in any phase. Every comparable offers some export.</li>
+    <li><b>Video.</b> Title, thumbnail and a link only. Every comparable plays video in place.</li>
+    <li><b>Multiple boards.</b> A flat list of canvases. Nested boards are left out.</li>
+    <li><b>Search.</b> Text over canvas names and card text only. No search inside pictures or
+      linked pages.</li>
+  </ul>
+</div>
+
+<h2>Required <span class="tag">Table stakes · feeds MVP scope</span></h2>
+<div class="card">
+
+  <div class="row" data-coverage="in" data-phase="1">
+    <div class="name">Pan and zoom canvas <span class="badge b-in">In MVP · P1</span></div>
+    <div class="who">Every comparable ships this. Milanote uses fixed boards. Miro, FigJam, Mural,
+      tldraw, Kosmik and Kinopio use an infinite canvas.</div>
+    <div class="sent"><b>Sentiment:</b> Users pick infinite canvas tools over Milanote boards when
+      they want freedom. Users also complain loudly when pan and zoom drop frames.</div>
+    <div class="cov"><b>P1 Canvas core.</b> Free placement on a large canvas, with pan and zoom.
+      Smooth movement is a hard gate on the phase.</div>
+  </div>
+
+  <div class="row" data-coverage="in" data-phase="1">
+    <div class="name">Text note card <span class="badge b-in">In MVP · P1</span></div>
+    <div class="who">All ten comparables ship a text card or sticky note.</div>
+    <div class="sent"><b>Sentiment:</b> Milanote users like the writing feel. Some ask for font
+      choice, which Milanote does not offer.</div>
+    <div class="cov"><b>P1 Canvas core.</b> Text notes with basic formatting. Font choice is left
+      out. It sits in the Other bucket.</div>
+  </div>
+
+  <div class="row" data-coverage="in" data-phase="3">
+    <div class="name">Image card, by drag, drop and paste <span class="badge b-in">In MVP · P3</span></div>
+    <div class="who">All ten ship image placement. Milanote, Kosmik and Morpholio push image
+      collection as the main use.</div>
+    <div class="sent"><b>Sentiment:</b> Drag and drop from the desktop is the expected behaviour.
+      Users notice at once when paste does not work.</div>
+    <div class="cov"><b>P3 Rich cards.</b> File drop, file picker and clipboard paste. Files are
+      copied into the project's <code>assets</code> folder.</div>
+  </div>
+
+  <div class="row" data-coverage="in" data-phase="3">
+    <div class="name">Web link card with preview <span class="badge b-in">In MVP · P3</span></div>
+    <div class="who">Milanote, Kosmik, Heptabase and Kinopio fetch a title, an icon and a picture
+      for a pasted address.</div>
+    <div class="sent"><b>Sentiment:</b> The Milanote web clipper scores 4.8 of 5 in the Chrome
+      store. Link capture is the most praised part of the category.</div>
+    <div class="cov"><b>P3 Rich cards.</b> Paste a web address inside the application. The card shows
+      title, icon and preview picture. The browser extension itself is a separate Top 10 row and is
+      not in the MVP.</div>
+  </div>
+
+  <div class="row" data-coverage="partial" data-phase="3">
+    <div class="name">Video card <span class="badge b-part">Partial · P3</span></div>
+    <div class="who">Milanote, Miro, FigJam and Kosmik embed YouTube and Vimeo and play in place.</div>
+    <div class="sent"><b>Sentiment:</b> Users expect a video to play in place. They dislike being
+      sent out to another tab.</div>
+    <div class="cov"><b>P3 Rich cards.</b> In: the card shows the video title and thumbnail, and
+      opens the video in the browser on click. <b>YouTube only</b> — Vimeo was removed on
+      2026-09-06 and a Vimeo address becomes an ordinary link card. Left out: playing inside the
+      card, Vimeo, local video files, and any player controls. This is an accepted gap against a table stake. It was raised in the
+      interview and accepted, to be added after the rest is proved.</div>
+  </div>
+
+  <div class="row" data-coverage="in" data-phase="2">
+    <div class="name">Connections between cards <span class="badge b-in">In MVP · P2</span></div>
+    <div class="who">Milanote draws arrows between items. Obsidian Canvas, Heptabase, Scrintal,
+      Miro and tldraw all draw edges.</div>
+    <div class="sent"><b>Sentiment:</b> Connections are the reason users choose these tools over a
+      folder of pictures. Users ask for labels on the line.</div>
+    <div class="cov"><b>P2 Connections.</b> A line between two cards on one canvas, with arrow
+      direction and an optional text label. Connections join placements, not library items. Curved
+      styling and routing choices are left out.</div>
+  </div>
+
+  <div class="row" data-coverage="in" data-phase="1">
+    <div class="name">Move, resize and select cards <span class="badge b-in">In MVP · P1</span></div>
+    <div class="who">Universal across all ten.</div>
+    <div class="sent"><b>Sentiment:</b> Users judge the whole product on how this feels. Snapping
+      and multi-select are expected.</div>
+    <div class="cov"><b>P1 Canvas core.</b> Drag, resize, multi-select, delete and z-order.</div>
+  </div>
+
+  <div class="row" data-coverage="in" data-phase="1">
+    <div class="name">Automatic save and reliable persistence <span class="badge b-in">In MVP · P1</span></div>
+    <div class="who">Universal. Obsidian and tldraw save to local files. The rest save to a server.</div>
+    <div class="sent"><b>Sentiment:</b> Lost work is the complaint that makes users leave for good.</div>
+    <div class="cov"><b>P1 Canvas core.</b> Every change is written to SQLite. Multi-row changes are
+      written in one transaction, so a crash leaves no half-finished state.</div>
+  </div>
+
+  <div class="row" data-coverage="partial" data-phase="4">
+    <div class="name">Multiple boards or projects <span class="badge b-part">Partial · P4</span></div>
+    <div class="who">Milanote nests boards inside boards. Miro and Mural give a flat list of boards.
+      Obsidian gives one canvas file per idea.</div>
+    <div class="sent"><b>Sentiment:</b> Nested boards are a well-liked Milanote idea. Free-plan
+      board caps are a top reason users leave Miro.</div>
+    <div class="cov"><b>P4 Library.</b> In: projects, and a flat list of canvases inside a project,
+      with create, rename, delete and switch. Left out: boards nested inside a canvas. There are no
+      caps of any kind, because there is no paid tier.</div>
+  </div>
+
+  <div class="row" data-coverage="partial" data-phase="4">
+    <div class="name">Search across content <span class="badge b-part">Partial · P4</span></div>
+    <div class="who">All ten offer search. Quality is uneven.</div>
+    <div class="sent"><b>Sentiment:</b> The single loudest Milanote complaint. Search returns loose
+      notes and does not rank the board the user named.</div>
+    <div class="cov"><b>P4 Library.</b> In: text search over canvas names and card text, with canvas
+      names ranked first. That ranking rule is the direct answer to the Milanote complaint. Left out:
+      search inside pictures and inside the content of linked pages.</div>
+  </div>
+
+  <div class="row" data-coverage="in" data-phase="1">
+    <div class="name">Undo and redo <span class="badge b-in">In MVP · P1</span></div>
+    <div class="who">Universal across all ten.</div>
+    <div class="sent"><b>Sentiment:</b> Users treat missing undo on a canvas as a defect, not a
+      missing feature.</div>
+    <div class="cov"><b>P1 Canvas core.</b> A per-session undo and redo stack. It restores deleted
+      items, placements, connections and picture files together. It is cleared when the project is
+      closed. Persistent history sits in Other, as version history.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Export and data portability <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">Miro and Milanote export to PDF and picture files. Obsidian and tldraw store
+      an open file format on disk.</div>
+    <div class="sent"><b>Sentiment:</b> Lock-in is a market-wide complaint. Users name it as a
+      reason to choose local-first tools.</div>
+    <div class="cov">Not in a phase. This is an accepted gap against a table stake. It was raised in
+      the interview and accepted, to be added after the rest is proved. Part of the same need is
+      already met: each project is a self-contained folder holding a readable SQLite file and the
+      original picture files, on the user's own disk.</div>
+  </div>
+
+</div>
+
+<h2>Top 10 <span class="tag">Ranked backlog · not MVP scope</span></h2>
+<p class="sub">Ranked by complaint signal first, then by how common the capability is, then by fit
+to this project. This ranking records the market at research time. It is not re-ranked later.</p>
+<ol class="ranked">
+
+  <li data-coverage="partial" data-phase="1">
+    <div class="li-name">Smooth performance with many items <span class="badge b-part">Partial · P1</span></div>
+    <div class="li-who">tldraw and Kinopio stay smooth. Obsidian Canvas and Scrintal do not.</div>
+    <div class="li-sent"><b>Sentiment:</b> Obsidian forum threads report frame rate drops on pan and
+      zoom. A community patch exists for repeated mounting of embedded media. Scrintal users report
+      slowdown past a few hundred cards.</div>
+    <div class="why">Ranked first. It is the loudest repeated complaint in the category. It is also
+      an architecture decision, so it must be answered early or not at all.</div>
+    <div class="cov"><b>P1 Canvas core.</b> In: culling, so only the cards inside the view window are
+      drawn. A hard gate of 60 frames per second while panning 250 cards. Left out: level-of-detail
+      drawing, worker threads, and any target above 250 cards on one canvas. Events overtook this
+      row's rank. It became a P1 gate rather than a later feature.</div>
+  </li>
+
+  <li data-coverage="in" data-phase="1">
+    <div class="li-name">Full offline use and local data ownership <span class="badge b-in">In MVP · P1</span></div>
+    <div class="li-who">Obsidian, tldraw, Heptabase and Kosmik work offline. Milanote offline is
+      limited.</div>
+    <div class="li-sent"><b>Sentiment:</b> Users name offline work as a reason to leave Milanote.
+      Kosmik markets offline work as its answer to that complaint.</div>
+    <div class="why">Ranked second. It is a market-wide signal, not one product's gap.</div>
+    <div class="cov"><b>P1 Canvas core.</b> The whole application is offline by design. Data lives in
+      a local project folder. Cloud storage of user data is on the "never" list. The only network
+      calls are ones the user starts. Events overtook this row's rank. The storage decision answered
+      it in full.</div>
+  </li>
+
+  <li data-coverage="none">
+    <div class="li-name">Browser extension web clipper <span class="badge b-no">Not in MVP</span></div>
+    <div class="li-who">Milanote, Morpholio and Moodboard Grabber ship one. Miro has a light
+      version.</div>
+    <div class="li-sent"><b>Sentiment:</b> The most praised single feature found. Milanote's clipper
+      holds 4.8 of 5 in the Chrome store.</div>
+    <div class="why">Ranked third. Strong positive signal and a direct fit with collecting ideas
+      from the web.</div>
+    <div class="cov">Not in a phase. Pasting a web address inside the application covers the same
+      need more cheaply for one user. That is P3.</div>
+  </li>
+
+  <li data-coverage="never">
+    <div class="li-name">Real-time shared editing <span class="badge b-never">Never</span></div>
+    <div class="li-who">Miro, FigJam, Mural, Milanote and Scrintal all ship it. Obsidian and tldraw
+      local files do not.</div>
+    <div class="li-sent"><b>Sentiment:</b> Teams treat it as required. Single users say they pay for
+      it and never use it.</div>
+    <div class="why">Ranked fourth on how common it is. It is a large build and it changes the whole
+      architecture, so it must be a deliberate choice.</div>
+    <div class="cov">Ruled out. Collaboration is on the "never" list in the MVP plan. IdeaScape is a
+      single-user desktop application. Off the backlog permanently.</div>
+  </li>
+
+  <li data-coverage="never">
+    <div class="li-name">No item caps and simple pricing <span class="badge b-never">Never</span></div>
+    <div class="li-who">Milanote free stops at 100 items. Miro free stops at 3 editable boards.
+      Scrintal added a free plan. OmniCanvas markets "no 100-note limit".</div>
+    <div class="li-sent"><b>Sentiment:</b> Caps and the jump to $20 per seat are named as the top
+      reason users shop for alternatives.</div>
+    <div class="why">Ranked fifth. Loud signal, but it is a business decision more than a build.</div>
+    <div class="cov">Ruled out as a feature. In-application billing and subscriptions are on the
+      "never" list. The complaint is answered by the product's shape: no accounts, no tiers, no caps.
+      If IdeaScape is ever sold, it is a download with a one-time key checked offline. That is
+      recorded in Other, not here.</div>
+  </li>
+
+  <li data-coverage="none">
+    <div class="li-name">Mobile application that can really edit <span class="badge b-no">Not in MVP</span></div>
+    <div class="li-who">Milanote, Miro and Heptabase ship mobile applications.</div>
+    <div class="li-sent"><b>Sentiment:</b> Milanote mobile is called a limited companion, with weak
+      canvas viewing and little real editing.</div>
+    <div class="why">Ranked sixth. Clear complaint, but a canvas on a small screen is a separate
+      product problem.</div>
+    <div class="cov">Not in a phase. The MVP targets Windows 11 only. A mobile version would also
+      need a way to move data, which the "never" list keeps off the cloud.</div>
+  </li>
+
+  <li data-coverage="none">
+    <div class="li-name">Public API and third-party integrations <span class="badge b-no">Not in MVP</span></div>
+    <div class="li-who">Miro and Figma ship full APIs. Milanote offers no public API and no native
+      integrations.</div>
+    <div class="li-sent"><b>Sentiment:</b> Reviewers list the missing API as a specific Milanote
+      weakness.</div>
+    <div class="why">Ranked seventh. Real gap, but it matters most to teams and to power users.</div>
+    <div class="cov">Not in a phase. The deferred export file format would cover part of the same
+      need. Export is itself not in the MVP.</div>
+  </li>
+
+  <li data-coverage="none">
+    <div class="li-name">Freehand drawing and ink layer <span class="badge b-no">Not in MVP</span></div>
+    <div class="li-who">tldraw, Excalidraw, FigJam, Miro and OmniCanvas ship it. Milanote does not.</div>
+    <div class="li-sent"><b>Sentiment:</b> OmniCanvas markets a real freehand layer as its edge over
+      Milanote.</div>
+    <div class="why">Ranked eighth. Common in whiteboard tools, less asked for in idea-collection
+      tools.</div>
+    <div class="cov">Not in a phase. It would arrive as a new item kind, which the data model
+      supports cheaply.</div>
+  </li>
+
+  <li data-coverage="none">
+    <div class="li-name">AI assistance on the canvas <span class="badge b-no">Not in MVP</span></div>
+    <div class="li-who">Miro AI, MockFlow IdeaBoard and Kosmik ship AI features.</div>
+    <div class="li-sent"><b>Sentiment:</b> Mixed. Miro AI credits do not roll over, and users must
+      contact sales past the limit. That metering draws complaints.</div>
+    <div class="why">Ranked ninth. High interest in the market, but the complaint is about the
+      selling model more than the feature.</div>
+    <div class="cov">Not in a phase, but the plan already makes room for it. The network rule allows
+      a call the user starts, using the user's own key. That answers the metering complaint by
+      design.</div>
+  </li>
+
+  <li data-coverage="none">
+    <div class="li-name">Backlinks and a graph view of connections <span class="badge b-no">Not in MVP</span></div>
+    <div class="li-who">Obsidian, Heptabase and Scrintal connect canvas items to a wider note graph.</div>
+    <div class="li-sent"><b>Sentiment:</b> Heptabase scores highest of the group for visual research,
+      which reviewers credit to this linking.</div>
+    <div class="why">Ranked tenth. Strong for research users. It is a second product idea on top of
+      the canvas.</div>
+    <div class="cov">Not in a phase. The MVP data model prepares for it. Items live once in a project
+      library, so relationships between items can be added later without moving the canvas
+      connections, which join placements.</div>
+  </li>
+
+</ol>
+
+<h2>Other <span class="tag">Recorded backlog · unranked</span></h2>
+<div class="card">
+
+  <div class="row" data-coverage="none">
+    <div class="name">Reusable shaped items: characters, tropes, themes
+      <span class="badge b-no">Not in MVP</span>
+      <span class="src">From interview</span></div>
+    <div class="who">Heptabase and Scrintal support typed notes. No comparable ships story-specific
+      item types.</div>
+    <div class="sent"><b>Sentiment:</b> Not found in research. This came from the interview, where
+      the user named characters, tropes and themes as a planned use, with one canvas per chapter.</div>
+    <div class="cov">Not in a phase. This row shaped the MVP data model even though it is not built.
+      A card is a placement pointing at a library item, so the same character can appear on many
+      chapter canvases. Adding this later is a new item kind with its own payload and editor, not a
+      rewrite.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">A library screen <span class="badge b-no">Not in MVP</span>
+      <span class="src">From interview</span></div>
+    <div class="who">Milanote, Heptabase and Kosmik all show a list of everything in a workspace.</div>
+    <div class="sent"><b>Sentiment:</b> Not found in research. Raised in the interview as the missing
+      piece that makes reusable items usable.</div>
+    <div class="cov">Not in a phase. Because there is no library screen, the MVP deletes an item when
+      its last card is deleted. That rule stops items the user could never see or remove. The rule
+      changes when this screen is built.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Offline one-time licence key <span class="badge b-no">Not in MVP</span>
+      <span class="src">From interview</span></div>
+    <div class="who">Obsidian sells a commercial licence. tldraw and Excalidraw are open.</div>
+    <div class="sent"><b>Sentiment:</b> Subscription cost is a market-wide complaint. A one-time
+      payment is the named alternative users ask for.</div>
+    <div class="cov">Not in a phase. The user stated that any sale would be a download with a
+      one-time key. The key is checked offline. This does not reopen accounts or billing, which stay
+      on the "never" list.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Templates and starter boards <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">Milanote, Miro, Mural and FigJam ship large template libraries.</div>
+    <div class="sent"><b>Sentiment:</b> Templates are named as a reason new users get started fast.
+      Milanote's steep learning curve is a repeated complaint that templates soften.</div>
+    <div class="cov">Not in a phase.</div>
+  </div>
+
+  <div class="row" data-coverage="never">
+    <div class="name">Comments and annotation threads <span class="badge b-never">Never</span></div>
+    <div class="who">Miro, FigJam, Mural and Milanote ship comments.</div>
+    <div class="sent"><b>Sentiment:</b> No specific sentiment found.</div>
+    <div class="cov">Ruled out. Collaboration is on the "never" list. Comments need more than one
+      user to be worth anything. Off the backlog permanently.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Version history and restore <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">Miro, Figma and Milanote keep history on paid plans.</div>
+    <div class="sent"><b>Sentiment:</b> No specific sentiment found.</div>
+    <div class="cov">Not in a phase. The MVP undo stack is session-only and is cleared when the
+      project closes. Saving that stack in the database is the first step toward this row.</div>
+  </div>
+
+  <div class="row" data-coverage="never">
+    <div class="name">Presentation and share-link publishing <span class="badge b-never">Never</span></div>
+    <div class="who">Miro, FigJam and Milanote publish a read-only view by link.</div>
+    <div class="sent"><b>Sentiment:</b> No specific sentiment found.</div>
+    <div class="cov">Ruled out. Share links are collaboration, and they need cloud storage of user
+      data. Both are on the "never" list. Off the backlog permanently.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">PDF import and annotation <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">Heptabase and Kosmik ship it. Reviewers call it a Heptabase strength.</div>
+    <div class="sent"><b>Sentiment:</b> Named as a reason research users choose Heptabase.</div>
+    <div class="cov">Not in a phase. It would arrive as a new item kind.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Tags, colours and card metadata <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">Milanote, Kinopio and Kosmik colour and tag cards.</div>
+    <div class="sent"><b>Sentiment:</b> No specific sentiment found.</div>
+    <div class="cov">Not in a phase.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Task lists and column boards <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">Milanote ships to-do lists and column layouts. Miro ships kanban frames.</div>
+    <div class="sent"><b>Sentiment:</b> No specific sentiment found.</div>
+    <div class="cov">Not in a phase. The MVP core loop is free placement, so an automatic column
+      layout would fight it.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Built-in web browser inside the canvas <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">Kosmik ships one. Reviewers list it as its main draw.</div>
+    <div class="sent"><b>Sentiment:</b> Named as the standout Kosmik feature.</div>
+    <div class="cov">Not in a phase. The Tauri shell already carries a browser engine, so this is
+      cheaper here than it would be in a native application.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Font and typography choice <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">FigJam and Miro allow font choice. Milanote does not.</div>
+    <div class="sent"><b>Sentiment:</b> Milanote users say font choice "would be cool".</div>
+    <div class="cov">Not in a phase. Note cards get basic formatting only.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Import from other tools <span class="badge b-no">Not in MVP</span></div>
+    <div class="who">Miro imports from Mural and others. Scrintal and Heptabase import Markdown.</div>
+    <div class="sent"><b>Sentiment:</b> Users leaving a capped free plan need this to move.</div>
+    <div class="cov">Not in a phase. It pairs naturally with export, which is also deferred.</div>
+  </div>
+
+  <div class="row" data-coverage="never">
+    <div class="name">Facilitation tools: voting, timers, private mode <span class="badge b-never">Never</span></div>
+    <div class="who">Mural leads here. Miro and FigJam ship a lighter set.</div>
+    <div class="sent"><b>Sentiment:</b> Reviewers call Mural's set the reason to choose it for
+      design sprints.</div>
+    <div class="cov">Ruled out. These exist only for a group in a meeting. Collaboration is on the
+      "never" list. Off the backlog permanently.</div>
+  </div>
+
+  <div class="row" data-coverage="never">
+    <div class="name">User accounts, roles and permissions <span class="badge b-never">Never</span></div>
+    <div class="who">Every hosted comparable ships accounts. Obsidian and tldraw local files do not.</div>
+    <div class="sent"><b>Sentiment:</b> Milanote billing draws complaints about surprise charges and
+      hard cancellation.</div>
+    <div class="cov">Ruled out. Accounts and in-application billing are both on the "never" list.
+      Off the backlog permanently.</div>
+  </div>
+
+  <div class="row" data-coverage="partial" data-phase="1">
+    <div class="name">Keyboard shortcuts and command palette <span class="badge b-part">Partial · P1</span></div>
+    <div class="who">tldraw, Figma and Obsidian ship deep shortcut sets.</div>
+    <div class="sent"><b>Sentiment:</b> No specific sentiment found. Milanote's learning curve is a
+      repeated complaint that shortcuts do not solve.</div>
+    <div class="cov">P1 Canvas core, with a few keys in later phases. In: a 14-key shortcut set, each
+      key printed on a context menu or the search footer, so the application must honour it —
+      <code>N</code>, <code>I</code>, <code>C</code>, <code>Enter</code>, <code>Esc</code>,
+      <code>Del</code>, <code>↑</code> <code>↓</code>, and <code>Ctrl</code> with
+      <code>D</code> <code>C</code> <code>V</code> <code>A</code> <code>0</code> <code>]</code>
+      <code>[</code>, plus <code>Ctrl+Z</code> and <code>Ctrl+Y</code>. Left out: a command palette,
+      and any user rebinding. <i>Re-badged 2026-09-05 by <code>dev-ui-update</code>: the design
+      handoff prints these keys on screen, so the row is no longer "Not in MVP".</i></div>
+  </div>
+
+</div>
+
+<h2>Legend and tally</h2>
+<table>
+  <tr><th>Badge</th><th>Meaning</th><th>Rows</th></tr>
+  <tr><td><span class="badge b-in">In MVP · P#</span></td>
+      <td>Built in the plan, at the scope the row describes</td><td>9</td></tr>
+  <tr><td><span class="badge b-part">Partial · P#</span></td>
+      <td>In the plan, at a narrower scope than the market version</td><td>5</td></tr>
+  <tr><td><span class="badge b-no">Not in MVP</span></td>
+      <td>In no phase. Still backlog for <code>dev-add-feature</code></td><td>18</td></tr>
+  <tr><td><span class="badge b-never">Never</span></td>
+      <td>Ruled out by the plan's "never" list. Off the backlog</td><td>6</td></tr>
+</table>
+<p class="sub">Total rows: 37. Required 12, Top 10 ten, Other 15.
+Three Other rows came from the interview, not from research. They carry a
+<span class="src">From interview</span> mark.</p>
+
+<h3>Phase key</h3>
+<table>
+  <tr><th>Phase</th><th>Name</th><th>Purpose</th></tr>
+  <tr><td>P1</td><td>Canvas core</td><td>Proves the riskiest assumption: canvas speed</td></tr>
+  <tr><td>P2</td><td>Connections</td><td>Completes the core loop</td></tr>
+  <tr><td>P3</td><td>Rich cards</td><td>Pictures, web links, video</td></tr>
+  <tr><td>P4</td><td>Library</td><td>Projects, canvas list, search</td></tr>
+</table>
+
+<footer>
+  <p><b>Sources.</b>
+    <a href="https://www.capterra.com/p/165790/Milanote/reviews/">Capterra — Milanote reviews</a> ·
+    <a href="https://www.producthunt.com/products/milanote/reviews">Product Hunt — Milanote reviews</a> ·
+    <a href="https://thedigitalprojectmanager.com/tools/milanote-review/">The Digital Project Manager — Milanote review</a> ·
+    <a href="https://kingpinstudio.net/en/milanote/">Kingpin Studio — Milanote on phones</a> ·
+    <a href="https://forum.obsidian.md/t/frame-rate-drop-when-panning-and-zooming-in-canvas/52342">Obsidian Forum — Canvas frame rate drop</a> ·
+    <a href="https://forum.obsidian.md/t/why-is-obsidian-canvas-laggy-but-e-g-clover-canvas-smooth/62135">Obsidian Forum — Canvas lag</a> ·
+    <a href="https://github.com/Qbject/obsidian-canvas-performance-patch">Obsidian Canvas performance patch</a> ·
+    <a href="https://www.kosmik.app/blog/milanote-alternatives">Kosmik — Milanote alternatives</a> ·
+    <a href="https://storyflow.so/blog/best-milanote-alternatives-2026">Storyflow — Milanote alternatives</a> ·
+    <a href="https://omnicanvasnotes.com/blog/reviews/milanote-alternatives">OmniCanvas — Milanote alternatives</a> ·
+    <a href="https://scrintal.com/comparisons/heptabase-alternative">Scrintal — Heptabase comparison</a> ·
+    <a href="https://www.gend.co/blog/miro-vs-figjam-vs-mural">Gend — Miro vs FigJam vs Mural</a> ·
+    <a href="https://hackceleration.com/labs/review/miro">Hack'celeration — Miro review and billing</a> ·
+    <a href="https://milanote.com/product/moodboarding">Milanote — web clipper and moodboards</a>
+  </p>
+  <p><b>Marking passes.</b><br>
+    2026-09-05 — research prepared. Ten comparables surveyed.<br>
+    2026-09-05 — coverage pass run against <code>docs/mvp-plan.html</code>. All 37 rows marked.
+    Three rows added from the interview. Four under-met table stakes flagged and confirmed as
+    deliberate.<br>
+    Re-run this pass whenever a phase is added or rescoped.</p>
+</footer>
+
+</div>
+</body>
+</html>

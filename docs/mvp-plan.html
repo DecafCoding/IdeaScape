@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IdeaScape — MVP Plan</title>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f6f8fa; --line:#d8dee4; --fg:#1f2328;
+    --dim:#59636e; --accent:#0969da; --warn:#9a6700; --warnbg:#fff8c5;
+    --ok:#1a7f37;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.65 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 90px}
+  h1{font-size:32px;margin:0 0 6px;letter-spacing:-.01em}
+  h2{font-size:22px;margin:46px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:17px;margin:28px 0 8px}
+  p{margin:0 0 12px}
+  .sub{color:var(--dim);font-size:17px;margin:0 0 20px}
+  .meta{color:var(--dim);font-size:13px;background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;padding:12px 15px;margin:0 0 14px}
+  .callout{background:var(--warnbg);border:1px solid #d4a72c66;border-left:4px solid var(--warn);
+    border-radius:6px;padding:14px 16px;margin:0 0 18px}
+  .callout b{color:var(--warn)}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin:0 0 6px}
+  ul.checklist{list-style:none;padding-left:0}
+  ul.checklist li{padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+    margin:0 0 7px;background:var(--panel)}
+  ul.checklist li[data-checked="true"]::before{content:"✔ ";color:var(--ok);font-weight:700}
+  ul.checklist li[data-checked="false"]::before{content:"✘ ";color:var(--dim);font-weight:700}
+  ul.checklist li[data-checked="false"]{color:var(--dim);background:#fff}
+  table{width:100%;border-collapse:collapse;border:1px solid var(--line);
+    border-radius:8px;overflow:hidden;margin:0 0 18px}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);
+    font-size:15px;vertical-align:top}
+  th{background:var(--panel);font-size:12px;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--dim)}
+  tr:last-child td{border-bottom:none}
+  code{background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;font-size:14px}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:14px 16px;overflow-x:auto;margin:0 0 18px}
+  pre code{background:none;border:none;padding:0;font-size:13.5px;line-height:1.6}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-left:8px;
+    background:#ddf4ff;color:var(--accent);border:1px solid #54aeff66;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>IdeaScape — MVP Plan</h1>
+<p class="sub">A desktop canvas application. You place small ideas on a canvas and connect them to
+build a larger concept.</p>
+
+<div class="meta">
+  <b>Status:</b> scope agreed. Ready for <code>dev-architecture</code>.<br>
+  <b>Written:</b> 2026-09-05, from the initial requirements interview.<br>
+  <b>Companion research:</b> <code>docs/competitive-scan.html</code> (10 comparable applications).<br>
+  <b>Technical authority:</b> <code>docs/architecture.html</code>.<br>
+  <b>Visual authority:</b> <code>docs/design-system.html</code> — every colour, size, spacing,
+  screen layout and on-screen state. This document does not restate them.<br>
+  <b>This document is the scope authority.</b> Downstream skills read it at this fixed path.
+</div>
+
+<h2>1. Problem and users</h2>
+
+<h3>The user</h3>
+<p>One person. The author of this plan. The application runs on their own machine.</p>
+<p>There are no user accounts. There is no sharing. There is no team. This is settled and it is on
+the "never" list in section 3.</p>
+
+<h3>The problem</h3>
+<p>The user gathers raw pieces of an idea. Those pieces are notes, pictures, web links and videos.
+The pieces sit in different places today. Some are in a browser bookmark list. Some are in a notes
+application. Some are in a folder of pictures.</p>
+<p>Nothing holds the relationship between the pieces. The user cannot see how one piece supports
+another. The bigger concept stays in the user's head.</p>
+
+<h3>What "solved" looks like</h3>
+<p>The user opens one canvas. Every piece of one idea is on it. The lines between the pieces show
+how the idea holds together. The user can look at the canvas and see the concept, not just the
+parts.</p>
+
+<h3>Two example projects the user named</h3>
+<ul>
+  <li><b>Research.</b> Collect pictures, notes and web pages about building a generation spaceship.
+    Pieces are mostly used once.</li>
+  <li><b>Story building.</b> One project for a story. One canvas per chapter. Characters, tropes and
+    themes get reused across chapters. This drives the data model in section 4.</li>
+</ul>
+
+<h3>What this is not</h3>
+<p>This is not a moodboard tool for collecting references. Collecting is supported. The purpose is
+to develop a concept. Connections carry meaning.</p>
+
+<h2>2. Core loop</h2>
+<p>The user repeats this all day. Everything else in the application supports it.</p>
+<ol>
+  <li>Add a card anywhere on the canvas.</li>
+  <li>Drag it to where it belongs.</li>
+  <li>Draw a line from it to another card.</li>
+</ol>
+<p>Placement is free. The application never moves a card for the user. The application never
+creates a card in a position it chose. The user owns the layout.</p>
+<p>This rules out an automatic mind-map layout, where a new card appears already attached to its
+parent. That shape is on the backlog as a shortcut, not as the core loop.</p>
+
+<h2>3. Scope</h2>
+
+<h3>In the MVP</h3>
+<ul class="checklist">
+  <li data-checked="true">Pan and zoom canvas, with free placement</li>
+  <li data-checked="true">Note cards, with plain text and basic formatting</li>
+  <li data-checked="true">Image cards, by file drop, file picker and clipboard paste</li>
+  <li data-checked="true">Web link cards, showing title, icon and preview picture</li>
+  <li data-checked="true">Video cards, showing title and thumbnail, opening in the browser on
+    click. <b>YouTube only</b></li>
+  <li data-checked="true">Connections between two cards on one canvas, with arrow direction and an
+    optional text label</li>
+  <li data-checked="true">Move, resize, multi-select, delete and z-order for cards</li>
+  <li data-checked="true">Automatic save after every change</li>
+  <li data-checked="true">Undo and redo, for the current session</li>
+  <li data-checked="true">Projects, each holding many canvases</li>
+  <li data-checked="true">A flat list of canvases inside a project, with create, rename and delete</li>
+  <li data-checked="true">Text search over canvas names and card text, with canvas names ranked first</li>
+  <li data-checked="true">Works with no internet, except for link previews and video thumbnails</li>
+  <li data-checked="true">Duplicate a card, from the element menu and from the properties panel</li>
+  <li data-checked="true">A keyboard shortcut set — the 14 keys printed on the context menus and the
+    search footer. See <code>docs/design-system.html</code> §11.6</li>
+  <li data-checked="true">A Settings screen, applied as changes are made, holding: the project
+    folder (read-only), auto-save cadence, snap to grid, zoom with, and theme</li>
+  <li data-checked="true">A light and a dark theme, chosen as Light, Dark or System</li>
+</ul>
+<div class="callout">
+  <b>2026-09-05 — four items added by <code>dev-ui-update</code>.</b> Duplicate, the shortcut set,
+  the Settings screen and the dark theme arrived with the design handoff and were accepted into
+  scope. Settings and the theme were flagged by the designer as knowingly ahead of this plan. They
+  build in the new phase <b>P5</b> in section 9; Duplicate and the shortcuts spread across the
+  phases that own each action.
+</div>
+
+<h3>Deferred</h3>
+<p>These are not in the MVP. They stay on the backlog. The ranked backlog lives in
+<code>docs/competitive-scan.html</code>.</p>
+<ul class="checklist">
+  <li data-checked="false">Export a project to an open file format — <b>a table stake the MVP does
+    not meet. This is a deliberate choice.</b> See section 11</li>
+  <li data-checked="false">Video that plays inside its card — <b>a table stake the MVP meets only in
+    part. This is a deliberate choice.</b> See section 11</li>
+  <li data-checked="false">Vimeo video cards — <b>removed from the MVP on 2026-09-06.</b> YouTube
+    only. A Vimeo address still works: it becomes an ordinary link card. The
+    <code>provider</code> field in the video payload already exists, so adding Vimeo back is one
+    glyph and one address rule</li>
+  <li data-checked="false">A library screen, showing every item in a project and its unplaced items</li>
+  <li data-checked="false">Reusable shaped items, such as characters, tropes and themes, each with
+    its own payload and its own editor</li>
+  <li data-checked="false">Relationships between library items, and a graph view of them</li>
+  <li data-checked="false">Boards nested inside a canvas</li>
+  <li data-checked="false">A browser extension web clipper</li>
+  <li data-checked="false">AI features, started by the user, using the user's own key</li>
+  <li data-checked="false">Freehand drawing and an ink layer</li>
+  <li data-checked="false">Templates and starter canvases</li>
+  <li data-checked="false">Version history and restore</li>
+  <li data-checked="false">PDF cards and PDF annotation</li>
+  <li data-checked="false">Tags, colours and card metadata</li>
+  <li data-checked="false">Task lists and column layouts</li>
+  <li data-checked="false">Font and typography choice</li>
+  <li data-checked="false">Import from other tools</li>
+  <li data-checked="false">A mobile application</li>
+  <li data-checked="false">Operating systems other than Windows</li>
+  <li data-checked="false">A one-time licence key check, for a paid download. This is checked
+    offline. It is not billing</li>
+</ul>
+
+<h3>Never</h3>
+<p>These are ruled out permanently. They leave the backlog. They are not offered again.</p>
+<ul class="checklist">
+  <li data-checked="false">User accounts and sign-in</li>
+  <li data-checked="false">In-application billing and subscriptions</li>
+  <li data-checked="false">Collaboration, including real-time shared editing, comments and
+    share links</li>
+  <li data-checked="false">Cloud storage of the user's project data</li>
+  <li data-checked="false">Usage tracking, analytics and any call the user did not start</li>
+</ul>
+<p>If the application is ever sold, it is sold as a download with a one-time key. The key is checked
+offline. That does not reopen accounts or billing.</p>
+
+<h2>4. Data model</h2>
+
+<h3>Shape</h3>
+<pre><code>Project
+ ├── Canvas          (many per project)
+ │    ├── Placement  (many per canvas) ──► Item
+ │    └── Connection (many per canvas) ──► two Placements
+ └── Item            (the project library; many per project)</code></pre>
+
+<h3>The key decision: a card is a placement, not the content</h3>
+<p>A card on a canvas holds position and size. It points at an item. The item holds the content.
+The item lives in the project library.</p>
+<p>Most items have exactly one placement. That is a picture used once. It feels simple and the user
+never thinks about the library.</p>
+<p>A reused item has two or more placements. That is a character in a story, shown on three chapter
+canvases. It is the same record and the same code path.</p>
+<p>This costs one extra table now. Without it, adding reusable characters later would need a rewrite
+of the data model, and that rewrite would take every existing canvas with it.</p>
+
+<h3>Entities</h3>
+<table>
+  <tr><th>Entity</th><th>Fields</th><th>Notes</th></tr>
+  <tr>
+    <td><code>project</code></td>
+    <td>id, name, created_at, updated_at</td>
+    <td>One project is one folder on disk. See section 6</td>
+  </tr>
+  <tr>
+    <td><code>canvas</code></td>
+    <td>id, project_id, name, sort_order, view_x, view_y, view_zoom, created_at, updated_at</td>
+    <td>The view fields remember where the user was looking</td>
+  </tr>
+  <tr>
+    <td><code>item</code></td>
+    <td>id, project_id, kind, payload, created_at, updated_at</td>
+    <td><code>kind</code> is note, image, link or video. <code>payload</code> is typed per kind</td>
+  </tr>
+  <tr>
+    <td><code>placement</code></td>
+    <td>id, canvas_id, item_id, x, y, width, height, z_order</td>
+    <td>One card on one canvas</td>
+  </tr>
+  <tr>
+    <td><code>connection</code></td>
+    <td>id, canvas_id, from_placement_id, to_placement_id, label, directed</td>
+    <td>Joins two placements on the same canvas</td>
+  </tr>
+</table>
+
+<h3>Item payload, by kind</h3>
+<pre><code>note   { title, text }
+image  { asset, natural_width, natural_height, alt }
+link   { url, title, description, favicon_asset, thumbnail_asset, fetched_at }
+video  { url, provider, title, thumbnail_asset, fetched_at }</code></pre>
+<p>An <code>asset</code> value is a file name inside the project's <code>assets</code> folder.
+It is never an absolute path.</p>
+<p>A note carries a <code>title</code> as well as its body <code>text</code>. The title is a plain
+string, not Markdown. It is what the card shows at the top, and what a search result names. Both
+fields are searched. <i>Added 2026-09-05 by <code>dev-ui-update</code>: every note card in the
+design handoff has a title, and the earlier payload had nowhere to put it.</i></p>
+<p>The <code>kind</code> field with a typed payload is what lets a fifth kind be added cheaply. A
+character kind later brings its own payload and its own editor. Behaviour stays per kind.</p>
+
+<h3>Connections join placements, not items</h3>
+<p>A line lives on one canvas. Placing the same item on a second canvas brings no lines with it.
+What the user sees is what the user drew.</p>
+<p>Relationships between items are a different idea. They are deferred. They arrive with the graph
+view.</p>
+
+<h3>Ownership and lifecycle</h3>
+<ul>
+  <li>Deleting a project deletes its folder, which holds the database and every asset file.</li>
+  <li>Deleting a canvas deletes its placements and its connections. Items are then checked, and the
+    rule below applies.</li>
+  <li>Deleting a placement deletes the connections attached to it.</li>
+  <li>Deleting the last placement of an item deletes the item and its asset files.</li>
+</ul>
+<p>The last rule stops invisible junk. The MVP has no library screen, so an item with no placement
+could never be seen or removed. Undo restores the item, the placement and the asset files together.</p>
+
+<h2>5. Interfaces</h2>
+
+<h3>Surface</h3>
+<p>One desktop application window on Windows. It is installed. It runs with no internet.</p>
+<p>There is no command line, no web page and no public interface for other programs.</p>
+
+<h3>Screens</h3>
+<p>Every screen below is drawn and measured in <code>docs/design-system.html</code> §9. That
+document is the visual authority; the table here names only what each screen is for.</p>
+<table>
+  <tr><th>Screen</th><th>Purpose</th></tr>
+  <tr><td>Project picker</td><td>Open a project folder. Create a new one</td></tr>
+  <tr><td>Canvas view</td><td>The main screen. This is where the core loop happens</td></tr>
+  <tr><td>Empty canvas</td><td>The state right after a new project. It says how to add the first card</td></tr>
+  <tr><td>Left column</td><td>A fixed panel beside the canvas. It holds the canvas list, search,
+      the tools, the add and history actions, and Settings</td></tr>
+  <tr><td>Properties panel</td><td>A fixed panel on the other side. It edits the selected card:
+      position, size, per-kind fields, z-order, duplicate and delete. It collapses when nothing is
+      selected</td></tr>
+  <tr><td>Search</td><td>A box in the left column. It opens results over the canvas. Results name
+      canvases first, then cards</td></tr>
+  <tr><td>Settings</td><td>A full page replacing the canvas. Changes apply as they are made. There
+      is no Save and no Cancel</td></tr>
+</table>
+<p>The <b>left column</b> is the name used in every document. It was called the "canvas list"
+before 2026-09-05, and the design handoff also calls it "the rail". Use <i>left column</i>.</p>
+
+<h3>Inputs</h3>
+<ul>
+  <li>Mouse. Drag to move. Handles to resize. Drag on empty space to select many.</li>
+  <li>Keyboard. The full shortcut set is in <code>docs/design-system.html</code> §11.6 — 14 keys,
+    each of them printed on a context menu or the search footer, so the application must honour
+    them. In short: <code>N</code> note, <code>I</code> image, <code>C</code> connect,
+    <code>Enter</code> edit or open, <code>Esc</code> clear or close, <code>Del</code> delete,
+    <code>↑</code> <code>↓</code> move through results, and
+    <code>Ctrl</code> + <code>D</code> <code>C</code> <code>V</code> <code>A</code>
+    <code>0</code> <code>]</code> <code>[</code>. Undo and redo use the Windows convention,
+    <code>Ctrl+Z</code> and <code>Ctrl+Y</code>.</li>
+  <li>File drop from Windows Explorer, for pictures.</li>
+  <li>Clipboard paste, for pictures, plain text and web addresses. A pasted address becomes a link
+    card or a video card, chosen by the address.</li>
+</ul>
+
+<h3>Outputs</h3>
+<p>None in the MVP. Export is deferred. The user's data is still theirs, because the project folder
+holds a readable database and the original picture files.</p>
+
+<h2>6. Architecture</h2>
+
+<h3>Runtime</h3>
+<table>
+  <tr><th>Part</th><th>Choice</th><th>Reason</th></tr>
+  <tr><td>Desktop shell</td><td>Tauri</td>
+      <td>Uses the browser engine already in Windows. The download is about 10 MB, against about
+      150 MB for Electron. Lower memory use helps the speed target</td></tr>
+  <tr><td>Backend</td><td>Rust, inside Tauri</td>
+      <td>It comes with the shell. It owns the database and the files</td></tr>
+  <tr><td>Interface</td><td>Web technology in the Tauri window</td>
+      <td>Web link previews and rich text need a browser engine. A native application would have to
+      embed one anyway</td></tr>
+  <tr><td>Storage</td><td>SQLite, one file per project</td>
+      <td>No server. Fast search. Small safe writes for automatic save</td></tr>
+</table>
+
+<h3>Drawing the canvas</h3>
+<p>Each card is a real element in the page. The canvas moves and scales with a transform.</p>
+<p>Only the cards inside the view window are drawn. A card outside the view is removed from the
+page. This is called culling.</p>
+<p>Obsidian Canvas is slow because it draws every card all the time, even far off screen. Culling is
+the direct answer to that. tldraw and Kinopio both use this approach and both stay smooth.</p>
+<p>Drawing everything with WebGL was considered and rejected. Text editing and rich content cannot
+be drawn that way, so page elements would be needed on top regardless.</p>
+
+<h3>Project folder on disk</h3>
+<pre><code>MyProject/
+  ideascape.db      SQLite. Canvases, items, placements, connections
+  assets/           Every picture file, copied in, named by content hash</code></pre>
+<p>Pictures are copied into the folder. They are never referenced where the user left them. This
+makes the folder self-contained, so it can be moved, zipped or backed up. It also stops the card
+breaking when the user moves or renames the original file.</p>
+
+<h3>External dependencies</h3>
+<ul>
+  <li>Microsoft Edge WebView2, for the browser engine. It ships with Windows 11.</li>
+  <li>Web page fetching, for link preview title, description and picture.</li>
+  <li>YouTube public metadata, for the video card title and thumbnail. <i>Vimeo was removed on
+    2026-09-06 — see the deferred list in section 3.</i></li>
+</ul>
+
+<h3>Deployment</h3>
+<p>A Windows installer. No server. No update service.</p>
+
+<h2>7. State and failure</h2>
+
+<h3>Saving</h3>
+<ul>
+  <li>Every change is written to SQLite. Rapid changes, such as dragging a card, are grouped and
+    written when the drag ends.</li>
+  <li>A change that touches several rows is written in one transaction. A crash part-way leaves no
+    half-finished state.</li>
+  <li>Closing the application saves the current view position and zoom for each canvas.</li>
+</ul>
+
+<h3>Undo</h3>
+<ul>
+  <li>Undo and redo hold the current session only. Closing the project clears them.</li>
+  <li>Undo restores deleted items, placements, connections and asset files together.</li>
+  <li>Persistent history is deferred. It arrives with version history.</li>
+</ul>
+
+<h3>Failure</h3>
+<table>
+  <tr><th>Failure</th><th>Behaviour</th></tr>
+  <tr><td>No internet when a link is pasted</td>
+      <td>The card is created at once, showing the address. It is marked as not fetched. A retry
+      button is shown</td></tr>
+  <tr><td>A web page will not load or has no preview data</td>
+      <td>The card keeps the address and the page title if there is one. No preview picture. This
+      is a normal state, not an error dialog</td></tr>
+  <tr><td>A preview fetch is slow</td>
+      <td>It is cut off after 5 seconds and treated as a failed fetch</td></tr>
+  <tr><td>An asset file is missing from the folder</td>
+      <td>The card shows a clear missing-file marker. The application does not crash and does not
+      delete the item</td></tr>
+  <tr><td>The database file is locked or damaged</td>
+      <td>The project does not open. A plain message names the file. No other project is
+      affected</td></tr>
+  <tr><td>The application is force-closed while editing</td>
+      <td>Everything is kept except the action in progress</td></tr>
+</table>
+<p>There is no concurrency problem to solve. One user, one machine, one open project at a time.</p>
+
+<h2>8. Non-functional requirements</h2>
+<table>
+  <tr><th>Area</th><th>Target</th></tr>
+  <tr><td>Canvas speed</td><td>60 frames per second while panning a canvas holding 250 cards</td></tr>
+  <tr><td>Canvas size</td><td>250 cards on one canvas</td></tr>
+  <tr><td>Project size</td><td>25 canvases in one project</td></tr>
+  <tr><td>Open time</td><td>A project opens in under 2 seconds</td></tr>
+  <tr><td>Link preview</td><td>The card appears at once. The preview fills in within 3 seconds, or
+      shows a clear failure state</td></tr>
+  <tr><td>Download size</td><td>Under 20 MB for the installer</td></tr>
+  <tr><td>Privacy</td><td>The application only makes a call the user started. That means a link
+      preview, a video thumbnail, and later an AI feature the user triggers with their own key.
+      No usage tracking. No update check. No other call, ever</td></tr>
+  <tr><td>Security</td><td>A web page is fetched for preview data only. Fetched pages are never
+      run as code inside the application</td></tr>
+  <tr><td>Cost</td><td>Zero running cost. There is no server</td></tr>
+</table>
+
+<h2>9. Milestones</h2>
+<p>Ordered so the riskiest assumption is proved first. That assumption is canvas speed. It is the
+loudest complaint in the whole competitive scan.</p>
+<p><code>docs/design-system.html</code> §16 holds the screen-to-phase map. Keep the two in step: a
+screen that moves phase here moves there too.</p>
+
+<h3>P1 — Canvas core <span class="tag">proves the riskiest assumption</span></h3>
+<ul>
+  <li>Tauri application shell and a Windows build</li>
+  <li>Project folder, SQLite database and the schema in section 4</li>
+  <li><b>The full token layer, both palettes</b>, and the theme attribute. The control that flips it
+    is P5; the tokens are needed here so the shell is not built twice</li>
+  <li><b>Vendored fonts and icons</b> — Source Serif 4 and the 34 Phosphor glyphs, both local, with
+    no network fetch. See <code>docs/design-system.html</code> §14</li>
+  <li><b>The application shell</b> — title bar, left column, canvas with its dot grid, zoom bar, and
+    the properties panel in both its expanded and collapsed forms</li>
+  <li>Pan and zoom canvas, with culling</li>
+  <li>Note cards only, with a title and a body</li>
+  <li>Move, resize, multi-select, delete and z-order</li>
+  <li>Duplicate a card</li>
+  <li><b>Both context menus</b>, and the empty-canvas state</li>
+  <li><b>The keyboard shortcuts these screens print:</b> <code>N</code>, <code>Enter</code>,
+    <code>Esc</code>, <code>Del</code>, <code>Ctrl+D</code>, <code>Ctrl+C</code>,
+    <code>Ctrl+A</code>, <code>Ctrl+0</code>, <code>Ctrl+]</code>, <code>Ctrl+[</code>,
+    <code>Ctrl+Z</code>, <code>Ctrl+Y</code></li>
+  <li>Automatic save</li>
+  <li>Undo and redo for the session</li>
+  <li><b>Gate:</b> 60 frames per second while panning 250 note cards. If this fails, the drawing
+    approach is changed before any other work starts</li>
+  <li><b>Gate:</b> the shell renders at the locked token values, in light and in dark</li>
+</ul>
+
+<h3>P2 — Connections <span class="tag">completes the core loop</span></h3>
+<ul>
+  <li>Draw a line from one card to another</li>
+  <li>Arrow direction</li>
+  <li>Optional text label on a line</li>
+  <li>Lines move with their cards, and are deleted with them</li>
+  <li>The <code>C</code> shortcut, and the Connect tool's active and unavailable states</li>
+  <li><b>Gate:</b> the application is usable for real thinking work, with notes and lines only</li>
+</ul>
+
+<h3>P3 — Rich cards</h3>
+<ul>
+  <li>Image cards, by file drop, file picker and clipboard paste. Files copied into
+    <code>assets</code></li>
+  <li>Web link cards, with title, icon and preview picture, and the failure states in section 7</li>
+  <li>Video cards, with title and thumbnail, opening in the browser on click</li>
+  <li>The <code>I</code> and <code>Ctrl+V</code> shortcuts</li>
+  <li><b>Gate:</b> the speed target still holds with 250 mixed cards</li>
+</ul>
+
+<h3>P4 — Library</h3>
+<ul>
+  <li>Project picker: create and open</li>
+  <li>The left column's canvas rows: create, rename, delete, switch</li>
+  <li>Text search over canvas names and card text, canvas names ranked first</li>
+  <li>The <code>↑</code> <code>↓</code> and <code>Enter</code> keys in the search results</li>
+  <li><b>Gate:</b> the done criteria in section 10 all pass</li>
+</ul>
+
+<h3>P5 — Settings and appearance <span class="tag">added 2026-09-05</span></h3>
+<p>New. It came in with the design handoff. It sits last so no earlier phase is renumbered.</p>
+<ul>
+  <li>The Settings page: project folder (read-only), auto-save cadence, snap to grid, zoom with,
+    theme</li>
+  <li>The segmented control and the toggle</li>
+  <li>The working theme switch — Light, Dark, System — writing to
+    <code>settings.json</code> under <code>%APPDATA%\IdeaScape</code></li>
+  <li><b>Gate:</b> every screen built in P1 to P4 renders correctly in the dark theme, at the locked
+    token values, with nothing moving between the two themes</li>
+</ul>
+
+<h2>10. Done criteria</h2>
+<p>The MVP is finished when every line below passes.</p>
+<ul class="checklist">
+  <li data-checked="false">Make a project. Make 3 canvases inside it</li>
+  <li data-checked="false">Put 250 mixed cards on one canvas. Panning holds 60 frames per second</li>
+  <li data-checked="false">That project opens in under 2 seconds</li>
+  <li data-checked="false">Paste a web address. A preview card fills in within 3 seconds, or shows a
+    clear failure card with a retry button</li>
+  <li data-checked="false">Paste a YouTube address. The card shows the video title and thumbnail.
+    Clicking it opens the video in the browser</li>
+  <li data-checked="false">Join cards with arrows. Put a label on an arrow</li>
+  <li data-checked="false">Close the application. Open it again. Everything is exactly as it was
+    left, including the view position</li>
+  <li data-checked="false">Search a canvas name. That canvas is the first result</li>
+  <li data-checked="false">Force-close the application while editing. Nothing is lost except the
+    action in progress</li>
+  <li data-checked="false">Delete the last card of an item. The item and its picture file are gone
+    from the folder. Undo brings both back</li>
+  <li data-checked="false">Set the theme to Dark. Every screen renders correctly. Nothing moves
+    between the two themes</li>
+  <li data-checked="false">Every screen matches <code>docs/design-system.html</code> at its locked
+    token values, in light and in dark</li>
+</ul>
+
+<h2>11. Open risks and assumptions</h2>
+
+<h3>Table stakes the MVP does not fully meet</h3>
+<div class="callout">
+  <p><b>Both gaps below were raised in the interview and accepted on purpose.</b> The stated reason
+  was to prove the rest of the application first, then add them.</p>
+  <ul>
+    <li><b>Export.</b> Every comparable application offers some export. Lock-in is a market-wide
+      complaint. IdeaScape has no export button in the MVP. The data is still the user's, because
+      the project folder holds a readable SQLite file and the original pictures. Moving to another
+      tool would still be hard.</li>
+    <li><b>Video.</b> Every comparable application plays video in place. IdeaScape shows a title, a
+      thumbnail and a link. This is a visible gap next to Milanote.</li>
+  </ul>
+</div>
+
+<h3>Risks</h3>
+<table>
+  <tr><th>Risk</th><th>Effect</th><th>Answer</th></tr>
+  <tr><td>Culling does not reach 60 frames per second</td>
+      <td>The main promise of the product fails</td>
+      <td>It is the P1 gate. It is proved before any other work</td></tr>
+  <tr><td>Rust and Tauri are unfamiliar</td>
+      <td>P1 takes longer than expected</td>
+      <td>Most of the work is in the web layer. The Rust side only handles the database and
+      files</td></tr>
+  <tr><td>WebView2 is missing on an older machine</td>
+      <td>The application will not start</td>
+      <td>The installer includes the WebView2 bootstrapper</td></tr>
+  <tr><td>Web pages block preview fetching, or give poor data</td>
+      <td>Link cards look plain</td>
+      <td>The failure states in section 7 are designed as normal states, not errors</td></tr>
+  <tr><td>YouTube changes its public metadata</td>
+      <td>Video cards lose title and thumbnail</td>
+      <td>The card falls back to the address. The card still works. Only one provider is
+      supported, so there is one thing to fix</td></tr>
+  <tr><td>The library has no screen in the MVP</td>
+      <td>Reusable items cannot be managed yet</td>
+      <td>The delete rule in section 4 stops junk building up until the screen exists</td></tr>
+</table>
+
+<h3>Assumptions</h3>
+<ul>
+  <li>The user works on one project at a time.</li>
+  <li>250 cards on one canvas is enough. The scan shows other applications struggle at a few
+    hundred, so this is already competitive.</li>
+  <li>Copying pictures into the project folder is acceptable disk use.</li>
+  <li>Windows 11 is the only target for the MVP.</li>
+</ul>
+
+<h3>Settled since this plan was written</h3>
+<p>This interview left three items open. All three were settled the same day by
+<code>dev-architecture</code>, in <code>docs/architecture.html</code>. Nothing here is open any
+more.</p>
+<table>
+  <tr><th>Item</th><th>Settled as</th><th>Where</th></tr>
+  <tr><td>The web interface framework</td><td>Svelte 5 with runes</td>
+      <td><code>docs/architecture.html</code> §2</td></tr>
+  <tr><td>The rich text approach for note cards</td>
+      <td>Markdown stored in the payload; a plain text box while editing</td>
+      <td><code>docs/architecture.html</code> §3</td></tr>
+  <tr><td>The exact search method inside SQLite</td>
+      <td>A plain <code>LIKE</code> scan, canvas names ranked first</td>
+      <td><code>docs/architecture.html</code> §3</td></tr>
+</table>
+<p>The visual design was also open by omission. It is now settled in
+<code>docs/design-system.html</code>. What is <i>still</i> undrawn is listed there in §15, not
+here.</p>
+
+<h2>Amendments</h2>
+<p class="meta"><b>2026-09-05 — created.</b> Written from the initial requirements interview.
+Ten branches closed: problem and user, core loop, scope, data model, interfaces, architecture,
+state and failure, non-functional, milestones, done criteria.</p>
+<p class="meta"><b>2026-09-05 — scope trimmed during the interview.</b> Video playing inside its card
+was reduced to title, thumbnail and link. Export was moved from the MVP to the backlog. Both were
+accepted as deliberate gaps against table stakes. The build order was set as core, connections, rich
+cards, library, so the core loop is complete at the end of P2.</p>
+<p class="meta"><b>2026-09-05 — design handoff folded in by <code>dev-ui-update</code>.</b>
+Source: <code>docs/handoff/</code>, the IdeaScape desktop UI bundle, 12 screens at high fidelity.
+The visual design now lives in <code>docs/design-system.html</code> and this plan points at it
+rather than restating it.<br>
+<b>Scope grew by four items:</b> Duplicate, the 14-key shortcut set, the Settings screen, and the
+light/dark/system theme. Settings and the theme were flagged by the designer as ahead of this plan
+and were accepted. They build in the new phase <b>P5</b>.<br>
+<b>The data model changed once:</b> the note payload became
+<code>note { title, text }</code>. Every note card in the handoff has a title and the old payload
+had nowhere to put it.<br>
+<b>Section 5 was rewritten:</b> the screen list grew from four to seven, and the panel formerly
+called the "canvas list" is now the <b>left column</b> in every document.<br>
+<b>Section 11's "Not yet decided" block was replaced</b> by a settled-items table. All three
+entries had been answered by <code>docs/architecture.html</code> on the same day and the block was
+stale.<br>
+No screen was removed. No phase was renumbered.</p>
+<p class="meta"><b>2026-09-06 &mdash; open design questions settled by <code>dev-ui-update</code>.</b>
+Ten of the twelve questions in <code>docs/design-system.html</code> §15 were answered. Two touch
+this plan.<br>
+<b>Scope reduced by one:</b> <b>Vimeo is out of the MVP</b> and moves to the deferred list. Video
+cards are YouTube only. A Vimeo address still works &mdash; it becomes an ordinary link card. The
+<code>provider</code> field in the video payload already exists, so adding Vimeo back later is one
+glyph and one address rule. This is the first scope reduction the design handoff has caused; the
+four earlier changes all added.<br>
+<b>Section 6 and section 11 follow:</b> the external dependency line and the provider risk row now
+name YouTube alone.<br>
+Scope now holds <b>17 in-scope items</b> and 20 deferred. No phase changed. Every other answer was
+visual and lives in <code>docs/design-system.html</code> &mdash; hover, pressed and motion values,
+the missing-file card, a 50px card minimum, a 350px minimum window, and the rule that a connection
+label is hidden under 50px of line.</p>
+
+</div>
+</body>
+</html>

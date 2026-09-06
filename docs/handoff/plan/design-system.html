@@ -1,0 +1,1518 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IdeaScape — Design System</title>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f6f8fa; --line:#d8dee4; --fg:#1f2328;
+    --dim:#59636e; --accent:#0969da; --warn:#9a6700; --warnbg:#fff8c5;
+    --ok:#1a7f37; --bad:#cf222e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.65 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 90px}
+  h1{font-size:32px;margin:0 0 6px;letter-spacing:-.01em}
+  h2{font-size:22px;margin:46px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:17px;margin:28px 0 8px}
+  h4{font-size:14px;margin:20px 0 6px;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.06em}
+  p{margin:0 0 12px}
+  .sub{color:var(--dim);font-size:17px;margin:0 0 20px}
+  .meta{color:var(--dim);font-size:13px;background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;padding:12px 15px;margin:0 0 14px}
+  .callout{background:var(--warnbg);border:1px solid #d4a72c66;border-left:4px solid var(--warn);
+    border-radius:6px;padding:14px 16px;margin:0 0 18px}
+  .callout b{color:var(--warn)}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:6px;padding:12px 15px;margin:0 0 18px;font-size:15px}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin:0 0 6px}
+  table{width:100%;border-collapse:collapse;border:1px solid var(--line);
+    border-radius:8px;overflow:hidden;margin:0 0 18px}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);
+    font-size:15px;vertical-align:top}
+  th{background:var(--panel);font-size:12px;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--dim)}
+  tr:last-child td{border-bottom:none}
+  code{background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;font-size:14px}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:14px 16px;overflow-x:auto;margin:0 0 18px}
+  pre code{background:none;border:none;padding:0;font-size:13.5px;line-height:1.6}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-left:8px;
+    background:#ddf4ff;color:var(--accent);border:1px solid #54aeff66;vertical-align:middle}
+  .tag.warn{background:var(--warnbg);color:var(--warn);border-color:#d4a72c66}
+  .tag.gap{background:#ffebe9;color:var(--bad);border-color:#ff818266}
+  .sw{display:inline-block;width:13px;height:13px;border-radius:3px;
+    border:1px solid #0003;vertical-align:-2px;margin-right:7px}
+  td code{font-size:13px}
+  .frames{font-size:13px;color:var(--dim);margin:-4px 0 12px}
+  .frames code{font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>IdeaScape — Design System</h1>
+<p class="sub">The single source of truth for everything visual. An implementer builds from this
+document alone.</p>
+
+<h2>1. Status and authority</h2>
+
+<div class="meta">
+  <b>Written:</b> 2026-09-05.<br>
+  <b>Consolidates:</b> <code>docs/handoff/</code> (2026-09-05) — the IdeaScape desktop UI bundle,
+  12 screens.<br>
+  <b>Fidelity:</b> high. Colours, type sizes, spacing, radii, shadows and copy are final.<br>
+  <b>Design system:</b> Broadsheet, bound at
+  <code>docs/handoff/_ds/broadsheet-ceab0636-4e8c-4494-8c93-3524fad568e6/</code>.
+</div>
+
+<h3>The authority rules</h3>
+<ol>
+  <li><b>This document wins over the handoff bundle.</b> Where a mockup, the bundle README and this
+    document disagree on anything visual, this document is correct.</li>
+  <li><b>The plan wins over this document on scope, data model and architecture.</b> The bundle
+    README states this rule itself. <code>docs/mvp-plan.html</code> owns <i>what</i> gets built.
+    <code>docs/architecture.html</code> owns <i>how</i> it is built. This document owns <i>what it
+    looks like and how it behaves on screen</i>.</li>
+  <li><b><code>docs/</code> wins over <code>docs/handoff/plan/</code>.</b> The copies in the
+    bundle's <code>plan/</code> folder are a frozen historical record of what the designer worked
+    against. They are never edited and never treated as current. (On 2026-09-05 they were
+    byte-identical to the live docs.)</li>
+  <li><b>A locked decision is never deleted.</b> It is superseded, dated, with its reason, in the
+    handoff log in section 2.</li>
+</ol>
+
+<h3>Two things the mockups are not</h3>
+<ul>
+  <li><b>Card heights are content-driven.</b> Where a card has no authored height it is as tall as
+    its text. The prototype's absolute <code>top</code>/<code>left</code> values are illustrative
+    placements. Real placements come from the <code>placement</code> table.</li>
+  <li><b>The 1180 × 720 frame is a mock viewport, not a window size.</b> The real window is
+    resizable. The left column, the properties panel and the title bar are fixed width. The canvas
+    takes the remainder.</li>
+</ul>
+
+<h2>2. Handoff log</h2>
+
+<p>One row per bundle ever folded into this document, plus every decision taken during
+consolidation. This table is the audit trail. Nothing leaves the body of this document without
+appearing here first.</p>
+
+<table>
+<thead><tr><th>Date</th><th>Bundle</th><th>Added</th><th>Changed / superseded</th></tr></thead>
+<tbody>
+<tr>
+  <td>2026-09-05</td>
+  <td><code>docs/handoff/</code><br><span class="frames">IdeaScape desktop UI</span></td>
+  <td><b>First handoff.</b> All 16 sections authored from scratch. 12 screens:
+    <code>14b</code> <code>15a</code> <code>16a</code> <code>17a</code> <code>17b</code>
+    <code>18a</code> <code>18b</code> <code>19a</code> <code>19b</code> <code>20a</code>
+    <code>20b</code> <code>20c</code>. Seven deliberate deviations from Broadsheet recorded in
+    section 3. Full light and dark palettes, the shell, four card kinds, connections, both context
+    menus, search, Settings and the project picker.</td>
+  <td>Nothing superseded — first run.</td>
+</tr>
+<tr>
+  <td>2026-09-05</td>
+  <td><span class="frames">consolidation decision</span></td>
+  <td>—</td>
+  <td><b>Superseded: the sans-serif chrome font.</b> Every mockup frame sets
+    <code>font-family: Verdana, Geneva, sans-serif</code>. The bundle README never names a font, so
+    the mockup was the only source. Broadsheet's guide says "do not introduce a sans-serif for UI
+    chrome; the serif is the chrome". <b>Decision (owner, 2026-09-05): drop the sans-serif.</b> The
+    chrome font is Broadsheet's <code>--font-body</code>, Source Serif 4. Reason: keep the app inside
+    its own design system rather than carry an eighth deviation. See the legibility caution in
+    section 6 and open question 2.</td>
+</tr>
+<tr>
+  <td>2026-09-05</td>
+  <td><span class="frames">consolidation decision</span></td>
+  <td>—</td>
+  <td><b>Resolved: the note card title.</b> Every note card in the mockups carries a title at 13px
+    weight 600 above its body, and search results list "the card title". The plan's note payload is
+    <code>note { text }</code> and has no title field. <b>Decision (owner, 2026-09-05): keep the
+    title.</b> The payload becomes <code>note { title, text }</code>. This is an amendment to
+    <code>docs/mvp-plan.html</code> §4, which owns the data model. See section 9.3.</td>
+</tr>
+<tr>
+  <td>2026-09-05</td>
+  <td><span class="frames">consolidation decision</span></td>
+  <td>—</td>
+  <td><b>Accepted into scope: Settings and the dark theme.</b> The bundle ships Settings
+    (<code>16a</code>) and a full dark theme (<code>18a</code>, <code>18b</code>). Neither appears in
+    the plan's scope list, screen list or milestones. The designer flagged both as knowingly ahead of
+    the plan. <b>Decision (owner, 2026-09-05): add both to the plan.</b> Proposed as a new milestone
+    <b>P5 — Settings and appearance</b>; the theme <i>tokens</i> still land in P1 with the shell.
+    See section 16.</td>
+</tr>
+<tr>
+  <td>2026-09-05</td>
+  <td><span class="frames">consolidation decision</span></td>
+  <td>—</td>
+  <td><b>Confirmed: the properties panel stays at 177px.</b> The panel is not in the plan's screen
+    list. <b>Decision (owner, 2026-09-05): keep it as designed</b>, 177px expanded and 32px
+    collapsed. Added to the plan's screen list. See section 8.5.</td>
+</tr>
+<tr>
+  <td>2026-09-05</td>
+  <td><span class="frames">consolidation decision</span></td>
+  <td>—</td>
+  <td><b>Confirmed: all seven Broadsheet deviations stand.</b> Icons at regular weight, structural
+    borders and boxes, the 3px radius, the tightened spacing scale, dark surfaces, both accents in
+    the panel footer, and six ad-hoc elevations. The list in section 3 is closed.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>3. Base system and deliberate deviations</h2>
+
+<p>The base system is <b>Broadsheet</b> — "newsprint set for the web". Its own guide is at
+<code>docs/handoff/_ds/broadsheet-…/readme.md</code>. Its tokens are at <code>…/styles.css</code>,
+which is the authority on every colour value.</p>
+
+<p>Broadsheet is an editorial system. IdeaScape is desktop application chrome. Seven of Broadsheet's
+rules are broken on purpose. <b>This list is closed.</b> Keep all seven. Add none. An eighth
+deviation is a design decision, not an implementation shortcut, and belongs in the handoff log
+first.</p>
+
+<table>
+<thead><tr><th>#</th><th>Broadsheet rule</th><th>What IdeaScape does</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>"Use Phosphor icons, in the <b>duotone</b> weight throughout."</td>
+  <td>Phosphor <b>regular</b> weight throughout.</td>
+  <td>Interface chrome runs at 12–16px. Duotone's second tone muddies at those sizes.</td></tr>
+<tr><td>2</td><td>"Do not structure the page with rules, borders or boxes." Reserve
+  <code>.card</code> for discrete items only.</td>
+  <td>Borders and boxes structure everything: a 34px title bar with a bottom border, a 168px left
+  column with a right border, a 177px properties panel with a left border, and a surface-filled
+  boxed card for every item on the canvas.</td>
+  <td>Application chrome needs region separation that whitespace cannot carry. A canvas card
+  <i>is</i> a discrete item, so that use stays inside the rule; the chrome borders do not.</td></tr>
+<tr><td>3</td><td>Radius scale is <code>--radius-sm</code> 1px, <code>--radius-md</code> 2px,
+  <code>--radius-lg</code> 4px. "Never hard-code a px value the tokens already carry."</td>
+  <td>Adds <b>3px</b> as the dominant radius — cards, menus, panels and most buttons.</td>
+  <td>2px reads as square at card size; 4px reads as soft. 3px is the app's own step. Add it as a
+  project token (section 5.2).</td></tr>
+<tr><td>4</td><td>Spacing scale 5 / 10 / 15 / 20 / 30 / 40px at density 1.25×. "Do not tighten the
+  airy spacing scale."</td>
+  <td>A tighter, finer scale: 2, 5, 6, 7, 9, 10, 12, 13, 14, 16, 22, 26, 34, 36, 44, 64px.</td>
+  <td>Desktop tool density. Broadsheet's scale is set for an editorial page with one reading column,
+  not for a 168px rail holding eleven rows.</td></tr>
+<tr><td>5</td><td>"This system shows no dark surfaces."</td>
+  <td>A full dark theme, adding six values that are not in the token sheet: #1a1817, #262322,
+  #302d2b, #3b3735, #ece9e6, #151312.</td>
+  <td>A canvas app is used for long sessions. The six values are extracted for this design and must
+  be added as project tokens (section 4.5).</td></tr>
+<tr><td>6</td><td>"Do not use both accents in the same small component."</td>
+  <td>The properties panel footer holds an accent-bordered Duplicate button and an accent-2 Delete
+  button in one <code>space-between</code> row.</td>
+  <td>Destructive must read as destructive, and it must sit beside its opposite so the pair is
+  scannable. This is the only place both accents meet.</td></tr>
+<tr><td>7</td><td>"For elevation use <code>--shadow-sm/md/lg</code> rather than ad-hoc
+  box-shadows."</td>
+  <td>Seven named shadows, six of them ad-hoc (section 5.3). Only the zoom bar's
+  <code>0 3px 10px rgba(45,43,43,.16)</code> is exactly <code>--shadow-md</code>.</td>
+  <td>The app has distinct elevations for card, selected card, picker card, zoom bar, menu, popover
+  and toggle knob. Broadsheet ships three steps. Add the rest as project tokens.</td></tr>
+</tbody>
+</table>
+
+<div class="note">
+<b>Reverted, not deviated.</b> An eighth deviation — a sans-serif chrome font — appeared in every
+mockup frame (<code>Verdana, Geneva, sans-serif</code>). It was reverted on 2026-09-05: the chrome
+font is Broadsheet's Source Serif 4. See section 6 and the handoff log.
+</div>
+
+<h2>4. Colour</h2>
+
+<p>Every value below is transcribed from
+<code>docs/handoff/_ds/broadsheet-…/styles.css</code>. Prefer the CSS variable over the hex
+everywhere. A value with no variable is marked <span class="tag gap">new token</span> and must be
+added to the project's own token layer.</p>
+
+<h3>4.1 Light theme — roles</h3>
+<table>
+<thead><tr><th>Token</th><th>Value</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td><code>--color-bg</code></td><td><span class="sw" style="background:#f3f2f2"></span>#f3f2f2</td>
+  <td>The canvas ground. Also the text colour on any accent fill.</td></tr>
+<tr><td><code>--color-surface</code></td><td><span class="sw" style="background:#eae9e9"></span>#eae9e9</td>
+  <td>All chrome (title bar, left column, properties panel) and every card, menu, popover and zoom
+  bar.</td></tr>
+<tr><td><code>--color-text</code></td><td><span class="sw" style="background:#201e1d"></span>#201e1d</td>
+  <td>All ink.</td></tr>
+<tr><td><code>--color-accent</code></td><td><span class="sw" style="background:#0088b0"></span>#0088b0</td>
+  <td>The one interactive colour. Selection outlines, active tool fill, primary button, focus ring,
+  resize handle borders, the search caret.</td></tr>
+<tr><td><code>--color-accent-2</code></td><td><span class="sw" style="background:#d6006c"></span>#d6006c</td>
+  <td>Destructive only. The Delete icon button and destructive context-menu rows. Nothing
+  else.</td></tr>
+<tr><td><code>--color-divider</code></td>
+  <td><code>color-mix(in srgb, #201e1d 16%, transparent)</code></td>
+  <td>Every hairline: region borders, input borders, menu separators, secondary button
+  borders.</td></tr>
+</tbody>
+</table>
+
+<h3>4.2 Accent ramp (cyan)</h3>
+<table>
+<thead><tr><th>Step</th><th>Hex</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>100</td><td><span class="sw" style="background:#e9f8ff"></span>#e9f8ff</td>
+  <td>Active canvas row fill; active text-format button fill; highlighted search row fill.</td></tr>
+<tr><td>200</td><td><span class="sw" style="background:#cbeeff"></span>#cbeeff</td>
+  <td>The link-card favicon placeholder square. Also the dark theme's accent-tint text.</td></tr>
+<tr><td>300</td><td><span class="sw" style="background:#99e0ff"></span>#99e0ff</td><td>Unused.</td></tr>
+<tr><td>400</td><td><span class="sw" style="background:#62c5ee"></span>#62c5ee</td>
+  <td><b>The dark theme's accent.</b> Also Broadsheet's pressed state on a dark ground.</td></tr>
+<tr><td>500</td><td><span class="sw" style="background:#38a6cf"></span>#38a6cf</td><td>Unused.</td></tr>
+<tr><td>600</td><td><span class="sw" style="background:#1186ac"></span>#1186ac</td>
+  <td>Broadsheet's pressed state on a light ground. Not drawn in any mockup — see section 11.</td></tr>
+<tr><td>700</td><td><span class="sw" style="background:#006786"></span>#006786</td>
+  <td><b>Accent text at paragraph sizes.</b> The Duplicate icon, the "New note" label, "Back to
+  canvas", "Refetch".</td></tr>
+<tr><td>800</td><td><span class="sw" style="background:#004961"></span>#004961</td>
+  <td>Text on an accent-100 fill: the active canvas row, the active text-format button.</td></tr>
+<tr><td>900</td><td><span class="sw" style="background:#0a303e"></span>#0a303e</td>
+  <td>The dark theme's accent-tint fill.</td></tr>
+</tbody>
+</table>
+
+<h3>4.3 Second accent ramp (magenta) — destructive only</h3>
+<table>
+<thead><tr><th>Step</th><th>Hex</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>100</td><td><span class="sw" style="background:#fff1f4"></span>#fff1f4</td><td>Unused.</td></tr>
+<tr><td>200</td><td><span class="sw" style="background:#ffdee6"></span>#ffdee6</td><td>Unused.</td></tr>
+<tr><td>300</td><td><span class="sw" style="background:#ffc0d0"></span>#ffc0d0</td><td>Unused.</td></tr>
+<tr><td>400</td><td><span class="sw" style="background:#ff90b1"></span>#ff90b1</td>
+  <td><b>The dark theme's destructive colour.</b></td></tr>
+<tr><td>500</td><td><span class="sw" style="background:#ff458e"></span>#ff458e</td><td>Unused.</td></tr>
+<tr><td>600</td><td><span class="sw" style="background:#d82071"></span>#d82071</td><td>Unused.</td></tr>
+<tr><td>700</td><td><span class="sw" style="background:#aa0b56"></span>#aa0b56</td><td>Unused.</td></tr>
+<tr><td>800</td><td><span class="sw" style="background:#790e3d"></span>#790e3d</td><td>Unused.</td></tr>
+<tr><td>900</td><td><span class="sw" style="background:#4b1528"></span>#4b1528</td><td>Unused.</td></tr>
+</tbody>
+</table>
+
+<h3>4.4 Neutral ramp</h3>
+<table>
+<thead><tr><th>Step</th><th>Hex</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>100</td><td><span class="sw" style="background:#f8f4f4"></span>#f8f4f4</td><td>Unused.</td></tr>
+<tr><td>200</td><td><span class="sw" style="background:#eae7e7"></span>#eae7e7</td>
+  <td><b>Raised fills.</b> The image-card placeholder ground; the link-card preview band.</td></tr>
+<tr><td>300</td><td><span class="sw" style="background:#d7d3d3"></span>#d7d3d3</td>
+  <td>The video-card thumbnail ground; the no-preview favicon square; the Settings toggle
+  track.</td></tr>
+<tr><td>400</td><td><span class="sw" style="background:#bab6b6"></span>#bab6b6</td><td>Unused.</td></tr>
+<tr><td>500</td><td><span class="sw" style="background:#9b9797"></span>#9b9797</td><td>Unused.</td></tr>
+<tr><td>600</td><td><span class="sw" style="background:#7d7979"></span>#7d7979</td><td>Unused.</td></tr>
+<tr><td>700</td><td><span class="sw" style="background:#605d5d"></span>#605d5d</td><td>Unused.</td></tr>
+<tr><td>800</td><td><span class="sw" style="background:#444141"></span>#444141</td><td>Unused.</td></tr>
+<tr><td>900</td><td><span class="sw" style="background:#2d2b2b"></span>#2d2b2b</td>
+  <td>The shadow ink. Every shadow in section 5.3 is <code>rgba(45,43,43,…)</code>, which is this
+  step.</td></tr>
+</tbody>
+</table>
+
+<p><code>--color-process-yellow</code> #edbb00 exists in the token sheet. It is a print-treatment
+colour for Broadsheet's own decks. <b>IdeaScape never uses it.</b></p>
+
+<h3>4.5 Dark theme <span class="frames">frames <code>18a</code>, <code>18b</code></span></h3>
+
+<p>Selected in <b>Settings · Appearance · Dark</b>. <b>Nothing moves.</b> Every measurement, group,
+control and position is identical to its light twin. Only the ground inverts.</p>
+
+<table>
+<thead><tr><th>Role</th><th>Light</th><th>Dark</th></tr></thead>
+<tbody>
+<tr><td>Canvas ground</td><td><code>--color-bg</code> #f3f2f2</td>
+  <td><span class="sw" style="background:#1a1817"></span>#1a1817 <span class="tag gap">new</span></td></tr>
+<tr><td>Chrome and cards</td><td><code>--color-surface</code> #eae9e9</td>
+  <td><span class="sw" style="background:#262322"></span>#262322 <span class="tag gap">new</span></td></tr>
+<tr><td>Raised fills (image placeholders, inputs)</td><td><code>--color-neutral-200</code> #eae7e7</td>
+  <td><span class="sw" style="background:#302d2b"></span>#302d2b <span class="tag gap">new</span></td></tr>
+<tr><td>Divider</td><td><code>--color-divider</code> (#201e1d at 16%)</td>
+  <td><span class="sw" style="background:#3b3735"></span>#3b3735 <span class="tag gap">new</span></td></tr>
+<tr><td>Ink</td><td><code>--color-text</code> #201e1d</td>
+  <td><span class="sw" style="background:#ece9e6"></span>#ece9e6 <span class="tag gap">new</span></td></tr>
+<tr><td>Accent</td><td><code>--color-accent</code> #0088b0</td>
+  <td><code>--color-accent-400</code> #62c5ee</td></tr>
+<tr><td>Text on the accent</td><td><code>--color-bg</code> #f3f2f2</td>
+  <td><span class="sw" style="background:#151312"></span>#151312 <span class="tag gap">new</span></td></tr>
+<tr><td>Accent tint (active pill, toolbar toggle)</td>
+  <td><code>--color-accent-100</code> fill / <code>--color-accent-800</code> text</td>
+  <td><code>--color-accent-900</code> fill / <code>--color-accent-200</code> text</td></tr>
+<tr><td>Destructive</td><td><code>--color-accent-2</code> #d6006c</td>
+  <td><code>--color-accent-2-400</code> #ff90b1</td></tr>
+<tr><td>Canvas dots</td><td><code>rgba(32,30,29,.16)</code></td><td><code>rgba(255,255,255,.16)</code></td></tr>
+<tr><td>Connection lines</td><td><code>rgba(32,30,29,.4)</code></td><td><code>rgba(236,233,230,.38)</code></td></tr>
+<tr><td>Connection arrowheads</td><td><code>rgba(32,30,29,.5)</code></td><td><code>rgba(236,233,230,.5)</code></td></tr>
+<tr><td>Card shadow</td><td><code>0 2px 8px rgba(45,43,43,.14)</code></td><td><code>0 2px 8px rgba(0,0,0,.42)</code></td></tr>
+<tr><td>Selected card shadow</td><td><code>0 4px 14px rgba(45,43,43,.18)</code></td><td><code>0 4px 14px rgba(0,0,0,.5)</code></td></tr>
+<tr><td>Zoom-bar shadow</td><td><code>0 3px 10px rgba(45,43,43,.16)</code></td><td><code>0 3px 10px rgba(0,0,0,.45)</code></td></tr>
+<tr><td>Placeholder ink</td><td><code>rgba(32,30,29,.5)</code></td><td><code>rgba(236,233,230,.42)</code></td></tr>
+</tbody>
+</table>
+
+<div class="note">
+<b>Two rules to carry into the implementation.</b><br>
+1. <b>The accent moves up its ramp on dark</b> (#0088b0 → #62c5ee) so it still reads as the active
+colour.<br>
+2. <b>Shadows do less separating work on a dark ground.</b> Card separation leans on the surface
+step (#262322 against #1a1817), not on the drop shadow.
+</div>
+
+<h3>4.6 Accent text at paragraph sizes</h3>
+<p>Broadsheet tunes the accent-to-ground pair to <b>at least 3:1</b>. That is enough for icons,
+large text and interface chrome — <b>not</b> for body copy. The rule:</p>
+<ul>
+  <li>On the light ground, accent text at paragraph size uses <code>--color-accent-700</code>
+    #006786, never <code>--color-accent</code>.</li>
+  <li>On the dark ground the accent is already <code>--color-accent-400</code> #62c5ee, a light step
+    on a dark ground, which carries paragraph text.</li>
+  <li><code>--color-accent</code> itself is for fills, outlines, borders and icons only.</li>
+</ul>
+
+<h2>5. Spacing, radius, elevation</h2>
+
+<h3>5.1 Spacing</h3>
+<p>The recurring steps, in px:</p>
+<pre><code>2  5  6  7  9  10  12  13  14  16  22  26  34  36  44  64</code></pre>
+<table>
+<thead><tr><th>Step</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td>2px</td><td>Text-format button gap.</td></tr>
+<tr><td>5px</td><td>Number-pair grid gap; File-row gap; note title-to-body; link title-to-description.</td></tr>
+<tr><td>6px</td><td>Save-state gap; search-box gap; group label to its content; menu separator margin.</td></tr>
+<tr><td>7px</td><td>Picker card inner gap; the "no preview" line offset.</td></tr>
+<tr><td>9px</td><td>Search-box wrapper bottom padding; search row gap; the "Fetching preview…" offset.</td></tr>
+<tr><td>10px</td><td>Context-menu row gap; tool-row gap; picker and empty-state button gap.</td></tr>
+<tr><td>12px</td><td>Left-column horizontal padding; collapsed-panel gap; Settings row gap.</td></tr>
+<tr><td>13px</td><td><b>Properties panel group gap.</b> Card horizontal padding.</td></tr>
+<tr><td>14px</td><td><b>Title-bar item gap.</b> Picker card-grid gap; empty-state stack gap.</td></tr>
+<tr><td>16px</td><td>Settings header gap; empty-state hint offset.</td></tr>
+<tr><td>22px</td><td>Canvas dot-grid pitch; picker footer bottom padding.</td></tr>
+<tr><td>26px</td><td>Picker sub-line bottom margin.</td></tr>
+<tr><td>34px</td><td>Settings grid row gap.</td></tr>
+<tr><td>36px</td><td>Picker actions row top offset.</td></tr>
+<tr><td>44px</td><td>Settings page horizontal padding.</td></tr>
+<tr><td>64px</td><td>Settings grid column gap; picker page horizontal padding.</td></tr>
+</tbody>
+</table>
+
+<h3>5.2 Radius</h3>
+<table>
+<thead><tr><th>Value</th><th>Token</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>1px</td><td><code>--radius-sm</code></td><td>Resize handles.</td></tr>
+<tr><td>2px</td><td><code>--radius-md</code></td>
+  <td>Inputs, connection label chips, the video duration chip, the favicon square, the text-format
+  buttons.</td></tr>
+<tr><td><b>3px</b></td><td><span class="tag gap">new token</span></td>
+  <td><b>The dominant radius.</b> Cards, context menus, the search popover, the zoom bar, the
+  properties-panel buttons, segmented controls, picker cards.</td></tr>
+<tr><td>4px</td><td><code>--radius-lg</code></td>
+  <td>Page-level buttons — the picker's New project / Open folder, the empty state's New note / Add
+  image, Settings' Back to canvas.</td></tr>
+<tr><td>10px</td><td>—</td><td>The Settings toggle track (34 × 19px).</td></tr>
+<tr><td>50%</td><td>—</td><td>The video play badge and the Settings toggle knob.</td></tr>
+</tbody>
+</table>
+
+<h3>5.3 Elevation</h3>
+<p>All shadow ink is <code>#2d2b2b</code> = <code>rgba(45,43,43,…)</code> =
+<code>--color-neutral-900</code>.</p>
+<table>
+<thead><tr><th>Elevation</th><th>Light</th><th>Dark</th><th>Broadsheet token</th></tr></thead>
+<tbody>
+<tr><td>Card</td><td><code>0 2px 8px rgba(45,43,43,.14)</code></td>
+  <td><code>0 2px 8px rgba(0,0,0,.42)</code></td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Selected card</td><td><code>0 4px 14px rgba(45,43,43,.18)</code></td>
+  <td><code>0 4px 14px rgba(0,0,0,.5)</code></td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Picker card</td><td><code>0 2px 8px rgba(45,43,43,.12)</code></td>
+  <td>not drawn — use the card value</td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Zoom bar</td><td><code>0 3px 10px rgba(45,43,43,.16)</code></td>
+  <td><code>0 3px 10px rgba(0,0,0,.45)</code></td><td><b><code>--shadow-md</code> — exact match</b></td></tr>
+<tr><td>Context menu</td><td><code>0 10px 28px rgba(45,43,43,.3)</code></td>
+  <td>not drawn — open question 6</td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Search popover</td><td><code>0 12px 30px rgba(45,43,43,.3)</code></td>
+  <td>not drawn — open question 6</td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Toggle knob</td><td><code>0 1px 3px rgba(45,43,43,.3)</code></td>
+  <td>not drawn — open question 6</td><td><span class="tag gap">new token</span></td></tr>
+</tbody>
+</table>
+
+<h2>6. Typography</h2>
+
+<h3>6.1 Family</h3>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Chrome font</td>
+  <td><code>var(--font-body)</code> = <code>"Source Serif 4", system-ui, sans-serif</code></td></tr>
+<tr><td>Headings</td>
+  <td><code>var(--font-heading)</code> — the same family, at <code>--font-heading-weight</code> 600</td></tr>
+<tr><td>Weights needed</td><td>400 regular, 600 semibold, 400 true italic</td></tr>
+<tr><td>Source</td>
+  <td>Google Fonts, imported at the top of Broadsheet's <code>styles.css</code>. <b>Vendor it</b> —
+  see section 14.</td></tr>
+<tr><td>Fallback</td><td><code>system-ui, sans-serif</code> — Segoe UI Variable on Windows 11</td></tr>
+</tbody>
+</table>
+
+<div class="callout">
+<b>Legibility caution.</b> The mockups were drawn in Verdana, a face built for small screen sizes.
+Source Serif 4 is a text serif. Nine of this design's roles sit at 12px or under, and the smallest
+is 9.5px. Check every role at or under 12.5px on real Windows 11 hardware, at 100% and 150%
+scaling, before the shell is signed off. If a role fails, <b>raise its size — do not reintroduce a
+second family</b>. See open question 2.
+</div>
+
+<h3>6.2 Role table</h3>
+<table>
+<thead><tr><th>Role</th><th>Size / weight</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Collapsed panel label</td><td>9.5px / 400</td>
+  <td><code>writing-mode: vertical-rl</code>, uppercase, letter-spacing .12em, opacity .38</td></tr>
+<tr><td>Section labels</td><td>10px / 400</td>
+  <td>Uppercase, letter-spacing .1em, opacity .45. Left-column groups, panel groups, search group
+  headings</td></tr>
+<tr><td>Card kicker</td><td>10px / 400</td>
+  <td>Uppercase, letter-spacing .06em, opacity .5. The link-card domain row, the video provider
+  row</td></tr>
+<tr><td>Chips</td><td>10px / 400</td>
+  <td>Connection labels (opacity .62); the video duration chip; search group counts (opacity
+  .4)</td></tr>
+<tr><td>Ids, hints, snippets</td><td>10.5px / 400</td>
+  <td>Panel item id (opacity .45); undo depth (opacity .6); search sub-lines (opacity .5) and
+  snippets (opacity .6, line-height 1.4); search keyboard hints (opacity .42)</td></tr>
+<tr><td>Helper and captions</td><td>11px / 400</td>
+  <td>Panel inputs, panel field letters (opacity .75), panel buttons, alt text, file meta (opacity
+  .45), the "Pasted here" caption (opacity .4), the panel footer note (opacity .42)</td></tr>
+<tr><td>Secondary chrome</td><td>11.5px / 400</td>
+  <td>Save state and counts (opacity .45); the search box (opacity .5); the zoom percentage (opacity
+  .75); segmented options; picker meta; Settings helper text (opacity .5) and footer (opacity
+  .42)</td></tr>
+<tr><td>Body / panel base</td><td>12px / 400</td>
+  <td>Note card body (line-height 1.5, opacity .8); canvas rows; the panel's base size; search
+  result titles; the breadcrumb (opacity .5); the not-fetched address (line-height 1.45, opacity
+  .85)</td></tr>
+<tr><td>Chrome base</td><td>12.5px / 400</td>
+  <td>The left column's base size; tool and action rows; context-menu rows; Settings row labels; the
+  picker sub-line (line-height 1.6, opacity .6)</td></tr>
+<tr><td>Brand</td><td>12.5px / 600</td><td>Letter-spacing .02em</td></tr>
+<tr><td>Card titles and page buttons</td><td>13px / 600</td>
+  <td>Note title; link title (line-height 1.35); video title (line-height 1.35); the panel's kind
+  name. Page-level button labels use 13px at weight 400</td></tr>
+<tr><td>Selected note title</td><td>13.5px / 600</td>
+  <td>The selected note widens its title by half a pixel and lifts its body to opacity .85</td></tr>
+<tr><td>Picker project name</td><td>14px / 600</td><td>Letter-spacing -.01em, ellipsized</td></tr>
+<tr><td>Empty-state heading</td><td>22px / 400</td><td>Letter-spacing -.02em</td></tr>
+<tr><td>Page heading</td><td>32px / 400</td><td>Letter-spacing -.02em. "Open a project", "Settings"</td></tr>
+</tbody>
+</table>
+
+<h3>6.3 Letter-spacing ladder</h3>
+<table>
+<thead><tr><th>Value</th><th>Applies to</th></tr></thead>
+<tbody>
+<tr><td>-.02em</td><td>22px and 32px headings</td></tr>
+<tr><td>-.01em</td><td>14px picker project names</td></tr>
+<tr><td>.02em</td><td>The brand mark</td></tr>
+<tr><td>.06em</td><td>Card kickers (domain and provider rows)</td></tr>
+<tr><td>.1em</td><td>Section labels</td></tr>
+<tr><td>.12em</td><td>The vertical collapsed-panel label</td></tr>
+</tbody>
+</table>
+
+<h3>6.4 Muted-opacity ladder</h3>
+<p>The design carries no grey text tokens. Everything muted is <code>--color-text</code> at an
+opacity. The full ladder, brightest first:</p>
+<table>
+<thead><tr><th>Opacity</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td>.85</td><td>Available tool rows; the selected note body; the raw address on a not-fetched card</td></tr>
+<tr><td>.8</td><td>Note card body</td></tr>
+<tr><td>.75</td><td>Panel field letters (X, Y, W, H); the image file path; the zoom percentage</td></tr>
+<tr><td>.72</td><td>Inactive canvas rows; the link-card description</td></tr>
+<tr><td>.7</td><td>Zoom-bar buttons; inactive text-format buttons; context-menu icons</td></tr>
+<tr><td>.62</td><td>Connection label chips</td></tr>
+<tr><td>.6</td><td>Inactive segmented options; undo depth; the picker sub-line and card meta; search snippets</td></tr>
+<tr><td>.55</td><td>Window controls; search row icons; "Fetching preview…"</td></tr>
+<tr><td>.5</td><td>The breadcrumb; section-label icons; the search box at rest; card kickers; the picker folder icon and path; Settings helper text; the collapsed-panel caret; placeholder ink on image cards</td></tr>
+<tr><td>.45</td><td>Save state and counts; section labels; the panel item id; file meta; menu shortcuts; the "no preview picture" line; the empty-state instruction; the disabled Refetch button</td></tr>
+<tr><td>.42</td><td>The panel footer note; the picker footer; the picker's last-opened time; Settings' footer and read-only marker; search keyboard hints</td></tr>
+<tr><td>.4</td><td>The empty-state hint; search group counts; the "Pasted here" caption; the link preview band icon</td></tr>
+<tr><td>.38</td><td>The vertical collapsed-panel label</td></tr>
+<tr><td>.35</td><td><b>Unavailable / disabled.</b> Greyed tool rows, greyed menu rows, the zoom "fit" button with nothing to fit</td></tr>
+</tbody>
+</table>
+<p>Broadsheet's own disabled step is 45%. This design uses <b>.35</b> for disabled rows and buttons.
+Use .35 — it is the drawn value. The one exception is the disabled Refetch button on frame
+<code>20b</code>, drawn at .45; keep that too, it is the drawn value there.</p>
+
+<h2>7. Icons</h2>
+
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Set</td><td>Phosphor Icons, <b>regular</b> weight</td></tr>
+<tr><td>Source</td><td><code>@phosphor-icons/web@2.1.1</code>, <code>src/regular/style.css</code></td></tr>
+<tr><td>Markup</td><td><code>&lt;i class="ph ph-note"&gt;&lt;/i&gt;</code></td></tr>
+<tr><td>Colour</td><td>Inherited. An icon takes its row's colour and opacity, never its own</td></tr>
+<tr><td>Reserved glyphs</td><td>None. There is no AI marker and no glyph held back for a future state</td></tr>
+</tbody>
+</table>
+
+<h3>7.1 Every glyph used — 33 in total</h3>
+<table>
+<thead><tr><th>Group</th><th>Glyphs</th></tr></thead>
+<tbody>
+<tr><td>Title bar</td>
+  <td><code>ph-check-circle</code> <code>ph-folder-open</code> <code>ph-minus</code>
+  <code>ph-square</code> <code>ph-x</code></td></tr>
+<tr><td>Left column</td>
+  <td><code>ph-magnifying-glass</code> <code>ph-x</code> <code>ph-plus</code>
+  <code>ph-square-half</code> <code>ph-cursor</code> <code>ph-hand</code> <code>ph-flow-arrow</code>
+  <code>ph-note</code> <code>ph-image</code> <code>ph-arrow-counter-clockwise</code>
+  <code>ph-arrow-clockwise</code> <code>ph-gear</code></td></tr>
+<tr><td>Zoom bar</td><td><code>ph-minus</code> <code>ph-plus</code> <code>ph-corners-out</code></td></tr>
+<tr><td>Properties panel</td>
+  <td><code>ph-arrow-line-up</code> <code>ph-arrow-line-down</code> <code>ph-copy</code>
+  <code>ph-trash</code> <code>ph-caret-left</code> <code>ph-text-b</code>
+  <code>ph-text-italic</code> <code>ph-list-bullets</code> <code>ph-list-numbers</code>
+  <code>ph-folder-open</code> <code>ph-arrow-clockwise</code></td></tr>
+<tr><td>Cards</td>
+  <td><code>ph-image</code> <code>ph-link-simple</code> <code>ph-circle-dashed</code>
+  <code>ph-play</code> <code>ph-youtube-logo</code></td></tr>
+<tr><td>Menus and pages</td>
+  <td><code>ph-cursor</code> <code>ph-flow-arrow</code> <code>ph-arrow-line-up</code>
+  <code>ph-arrow-line-down</code> <code>ph-folder-plus</code> <code>ph-folder</code>
+  <code>ph-arrow-left</code></td></tr>
+</tbody>
+</table>
+
+<h3>7.2 Size by context</h3>
+<table>
+<thead><tr><th>Size</th><th>Context</th></tr></thead>
+<tbody>
+<tr><td>12px</td><td>Window controls; the search box's clear <code>ph-x</code></td></tr>
+<tr><td>13px</td>
+  <td>The search magnifier; the Canvases <code>ph-plus</code>; canvas rows; the click-point
+  <code>ph-cursor</code>; "Show in folder"; Refetch; the not-fetched <code>ph-link-simple</code> and
+  <code>ph-circle-dashed</code>; the video provider logo; page-level button icons</td></tr>
+<tr><td>14px</td>
+  <td>The title-bar save state; the text-format buttons; search result rows; the collapsed-panel
+  caret</td></tr>
+<tr><td>15px</td><td>Context-menu rows</td></tr>
+<tr><td>16px</td><td>Picker card folder icons; the <code>ph-play</code> inside the video badge</td></tr>
+<tr><td>20px</td><td>The <code>ph-image</code> placeholder on a small image card</td></tr>
+<tr><td>22px</td><td>The <code>ph-image</code> in a link card's preview band</td></tr>
+<tr><td>26px</td><td>The <code>ph-image</code> placeholder on a large image card</td></tr>
+</tbody>
+</table>
+<p class="frames">Tool and action row icon size is not stated in the handoff. See open question 1.</p>
+
+<h2>8. The application shell</h2>
+
+<p>Every screen except the project picker uses the same three-part shell: a title bar across the
+top, then a row holding the left column, the canvas and the properties panel.</p>
+
+<h3>8.1 Window</h3>
+<ul>
+  <li><b>Resizable.</b> The title bar, the left column and the properties panel are fixed width.
+    The canvas takes the remainder.</li>
+  <li>Fixed chrome is <b>345px</b> wide (168 + 177) plus a 34px title bar. A minimum window size is
+    not specified — see open question 12.</li>
+</ul>
+
+<h3>8.2 Title bar — 34px</h3>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Height</td><td>34px, <code>flex: none</code></td></tr>
+<tr><td>Background</td><td><code>--color-surface</code> #eae9e9</td></tr>
+<tr><td>Bottom border</td><td>1px <code>--color-divider</code></td></tr>
+<tr><td>Padding</td><td><code>0 4px 0 14px</code></td></tr>
+<tr><td>Item gap</td><td>14px, <code>white-space: nowrap</code></td></tr>
+</tbody>
+</table>
+
+<p>Contents, left to right:</p>
+<ol>
+  <li><b>Brand</b> — <code>IdeaScape</code>, 12.5px, weight 600, letter-spacing .02em.</li>
+  <li><b>Breadcrumb</b> — <code>{project} / {canvas}</code>, 12px, opacity .5.</li>
+  <li><b>Save state</b> — <code>ph-check-circle</code> at 14px + <code>Saved 4s ago</code>, 11.5px,
+    opacity .45, gap 6px.</li>
+  <li><b>Counts</b> — <code>12 cards · 1 selected</code>, or <code>· none selected</code>, 11.5px,
+    opacity .45.</li>
+  <li><b>Window controls</b> — <code>margin-left: auto</code>, three 32 × 24 cells at 12px, opacity
+    .55: <code>ph-minus</code>, <code>ph-square</code>, <code>ph-x</code>.</li>
+</ol>
+
+<p>Two variants:</p>
+<ul>
+  <li><b>Empty project</b> (<code>15a</code>) — items 3 and 4 are replaced by a folder path
+    (<code>ph-folder-open</code> + <code>Documents/IdeaScape/Untitled project</code>) and
+    <code>0 cards</code>, because nothing has been saved yet.</li>
+  <li><b>Project picker</b> (<code>19a</code>) — items 1 and 5 only.</li>
+</ul>
+
+<h3>8.3 Left column — 168px</h3>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Width</td><td>168px, <code>flex: none</code></td></tr>
+<tr><td>Background</td><td><code>--color-surface</code></td></tr>
+<tr><td>Right border</td><td>1px <code>--color-divider</code></td></tr>
+<tr><td>Padding</td><td><code>10px 0 12px</code></td></tr>
+<tr><td>Base font</td><td>12.5px</td></tr>
+</tbody>
+</table>
+
+<h4>Search box</h4>
+<p>Wrapper padding <code>0 12px 9px</code>. The box is a flex row, gap 6px, padding
+<code>3px 8px</code>, 1px <code>--color-divider</code> border, radius 3px, 11.5px, opacity .5, with
+<code>ph-magnifying-glass</code> at 13px.</p>
+<p><b>With a query</b> — full opacity; the border and a 1px outline both in
+<code>--color-accent</code>; a 1 × 13px accent caret after the text; and <code>ph-x</code> at 12px
+opacity .45 pushed right.</p>
+
+<h4>Section labels</h4>
+<p>Four labels — <code>Canvases</code>, <code>Tools</code>, <code>Add</code>, <code>History</code> —
+at 10px, letter-spacing .1em, uppercase, opacity .45.</p>
+<ul>
+  <li><code>Canvases</code> — padding <code>0 12px 5px</code>, with a right-aligned
+    <code>ph-plus</code> at 13px opacity .5.</li>
+  <li><code>Tools</code>, <code>Add</code>, <code>History</code> — padding
+    <code>14px 14px 8px</code> or <code>16px 14px 8px</code>.</li>
+</ul>
+
+<h4>Canvas rows</h4>
+<p>Padding <code>5px 12px</code>, 12px, gap 8px, <code>ph-square-half</code> at 13px, name
+ellipsized.</p>
+<table>
+<thead><tr><th>State</th><th>Treatment</th></tr></thead>
+<tbody>
+<tr><td>Inactive</td><td>Opacity .72</td></tr>
+<tr><td><b>Active</b></td>
+  <td>Background <code>--color-accent-100</code> #e9f8ff, colour <code>--color-accent-800</code>
+  #004961, weight 600</td></tr>
+</tbody>
+</table>
+
+<h4>Tool and action rows</h4>
+<p>Padding <code>7px 14px</code>, 12.5px, gap 10px.</p>
+<table>
+<thead><tr><th>State</th><th>Treatment</th></tr></thead>
+<tbody>
+<tr><td><b>Active tool</b></td>
+  <td>Background <code>--color-accent</code> #0088b0, colour <code>--color-bg</code> #f3f2f2, weight
+  600</td></tr>
+<tr><td>Available</td><td>Opacity .85</td></tr>
+<tr><td>Unavailable</td><td>Opacity .35</td></tr>
+</tbody>
+</table>
+<p>Undo carries its depth right-aligned at 10.5px opacity .6.</p>
+
+<table>
+<thead><tr><th>Group</th><th>Rows and glyphs</th></tr></thead>
+<tbody>
+<tr><td>Tools</td>
+  <td>Select <code>ph-cursor</code> · Pan <code>ph-hand</code> · Connect <code>ph-flow-arrow</code></td></tr>
+<tr><td>Add</td><td>Note <code>ph-note</code> · Image <code>ph-image</code></td></tr>
+<tr><td>History</td>
+  <td>Undo <code>ph-arrow-counter-clockwise</code> · Redo <code>ph-arrow-clockwise</code></td></tr>
+<tr><td>(pinned)</td>
+  <td>Settings <code>ph-gear</code>, at the bottom with <code>margin-top: auto</code></td></tr>
+</tbody>
+</table>
+
+<h3>8.4 Canvas</h3>
+<pre><code>flex: 1; position: relative; overflow: hidden;
+background-color: var(--color-bg);
+background-image: radial-gradient(circle, rgba(32,30,29,.16) 1px, transparent 1.2px);
+background-size: 22px 22px;</code></pre>
+<p>The dot grid is <b>decorative</b>. It does not imply snapping — snap-to-grid is off by
+default.</p>
+
+<h4>Zoom bar</h4>
+<p>Absolute, <code>left: 18px; bottom: 14px</code>. Padding 3px, background
+<code>--color-surface</code>, radius 3px, shadow <code>0 3px 10px rgba(45,43,43,.16)</code>, 12px.</p>
+<p>Buttons are 26 × 24 grid-centred cells at opacity .7, in order: <code>ph-minus</code> · the
+percentage (min-width 42px, 11.5px, opacity .75, centred) · <code>ph-plus</code> · a 1 × 16px
+divider with 3px side margins · <code>ph-corners-out</code> (opacity .35 when there is nothing to
+fit).</p>
+
+<h3>8.5 Properties panel — 177px expanded, 32px collapsed</h3>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Width</td><td>177px expanded, 32px collapsed</td></tr>
+<tr><td>Background</td><td><code>--color-surface</code></td></tr>
+<tr><td>Left border</td><td>1px <code>--color-divider</code></td></tr>
+<tr><td>Padding</td><td><code>14px 12px 12px</code></td></tr>
+<tr><td>Group gap</td><td>13px</td></tr>
+<tr><td>Base font</td><td>12px</td></tr>
+</tbody>
+</table>
+
+<h4>Anatomy, top to bottom</h4>
+<ul>
+  <li><b>Header</b> — the kind name at 13px weight 600, and the item id below at 10.5px opacity .45
+    (<code>note-004</code>, <code>image-003</code>, <code>link-006</code>).</li>
+  <li><b>Group label</b> — 10px, .1em, uppercase, opacity .45, 6px above its content.</li>
+  <li><b>Number pairs</b> (Position X/Y, Size W/H) — a 2-column grid, gap 5px. Each cell is a
+    <code>&lt;label&gt;</code> at 11px opacity .75 holding the letter plus an <code>.input</code> at
+    11px, padding <code>2px 4px</code>, radius 2px, <code>flex: 1; min-width: 0</code>.</li>
+  <li><b>Order</b> — two buttons, <code>flex: 1</code>, 11px, padding <code>3px 4px</code>, radius
+    3px, transparent, 1px <code>--color-divider</code> border: <code>ph-arrow-line-up</code> Front,
+    <code>ph-arrow-line-down</code> Back.</li>
+  <li><b>Footer</b> — <code>margin-top: auto</code>, gap 8px. A <code>space-between</code> row with
+    Duplicate at one end (30 × 26, radius 3px, 1px <code>--color-accent</code> border,
+    <code>--color-accent-700</code> #006786 icon, <code>ph-copy</code>) and Delete at the other
+    (same box, 1px <code>--color-divider</code> border, <code>--color-accent-2</code> #d6006c icon,
+    <code>ph-trash</code>). Under them:
+    <code>Edits here are undoable · autosave in 2s</code>, 11px, opacity .42.</li>
+</ul>
+
+<h4>Collapsed state — nothing selected</h4>
+<p>32px wide, a centred column, padding <code>10px 0</code>, gap 12px: <code>ph-caret-left</code> in
+a 24 × 24 cell at 14px opacity .5, then <code>Nothing selected</code> in
+<code>writing-mode: vertical-rl</code> at 9.5px, letter-spacing .12em, uppercase, opacity .38.
+Clicking the caret reopens it.</p>
+<p>The panel collapses whenever the selection is empty — including while searching, because
+searching selects nothing.</p>
+
+<h2>9. Screens</h2>
+
+<p>Twelve frames. Card anatomy lives in 9.3 to 9.6 and is shared by every screen that shows a
+canvas.</p>
+
+<h3>9.1 Project picker <span class="frames">frame <code>19a</code></span></h3>
+<p><b>Purpose.</b> What opens when no project is open: choose a recent project folder, or make a new
+one.</p>
+<p>No left column and no canvas. The title bar shows the brand and the window controls only. The
+content column has padding <code>54px 64px 0</code>.</p>
+<ul>
+  <li><b>Heading</b> — <code>Open a project</code>, an <code>&lt;h2&gt;</code>, 32px, letter-spacing
+    -.02em, 7px below.</li>
+  <li><b>Sub-line</b> — 12.5px, line-height 1.6, opacity .6, <code>max-width: 62ch</code>, 26px
+    below: "A project is one folder on this machine. It holds <code>ideascape.db</code> and every
+    image you have added, copied in, so the folder can be moved, zipped or backed up whole."</li>
+  <li><b>Actions</b> — a flex row, gap 10px, 36px below.
+    <ul>
+      <li><i>Primary:</i> <code>New project…</code> with <code>ph-folder-plus</code>, 13px, padding
+        <code>7px 16px</code>, radius 4px, background and border <code>--color-accent</code>, colour
+        <code>--color-bg</code>.</li>
+      <li><i>Secondary:</i> <code>Open folder…</code> with <code>ph-folder-open</code>, transparent,
+        1px <code>--color-divider</code> border, <code>--color-text</code>.</li>
+    </ul></li>
+  <li><b>Recent</b> — the section label, then a <b>2 × 2 card grid</b>, gap 14px,
+    <code>max-width: 720px</code>. Each card: <code>--color-surface</code>, radius 3px, shadow
+    <code>0 2px 8px rgba(45,43,43,.12)</code>, padding <code>14px 16px 13px</code>, gap 7px,
+    <code>min-width: 0</code>. Inside:
+    <ul>
+      <li>a row with <code>ph-folder</code> at 16px opacity .5 and the project name at 14px weight
+        600 letter-spacing -.01em, ellipsized;</li>
+      <li>the folder path at 11px opacity .5, ellipsized;</li>
+      <li>a baseline row 3px down with <code>5 canvases · 214 cards</code> at 11.5px opacity .6, and
+        the last-opened time right-aligned at 11.5px opacity .42.</li>
+    </ul>
+    The selected card adds <code>outline: 2px solid var(--color-accent)</code>.</li>
+  <li><b>Footer</b> — <code>margin-top: auto</code>, padding-bottom 22px, gap 20px, 11.5px opacity
+    .42: <code>IdeaScape 0.1 · Windows</code> and
+    <code>No account, no sync — nothing leaves this machine</code>.</li>
+</ul>
+
+<h3>9.2 Empty project <span class="frames">frame <code>15a</code></span></h3>
+<p><b>Purpose.</b> The state right after <b>New project</b>: the folder exists, one canvas has been
+made, and it holds nothing.</p>
+<p>The left column lists one canvas (<code>Canvas 1</code>, active). Undo, Redo and <b>Connect</b>
+are all at opacity .35 — there is nothing to connect. The properties panel is collapsed.</p>
+<p>The canvas centre holds a stack, <code>align-items: center</code>, gap 14px, padding
+<code>0 40px</code>:</p>
+<ul>
+  <li><code>Nothing on the canvas yet</code> — 22px, letter-spacing -.02em.</li>
+  <li>Instruction — 13px, line-height 1.6, opacity .6, <code>max-width: 40ch</code>: "Press
+    <b>N</b> for a note or <b>I</b> for an image — or drag a JPEG or PNG in from anywhere and drop
+    it where you want it."</li>
+  <li>Two buttons, gap 10px, 4px down, both 13px, padding <code>6px 15px</code>, radius 4px,
+    transparent: <code>New note</code> with a <code>--color-accent</code> border and
+    <code>--color-accent-700</code> text; <code>Add image</code> with a
+    <code>--color-divider</code> border and <code>--color-text</code>.</li>
+  <li>Hint — 16px down, 11.5px, opacity .4, line-height 1.6: "Drag the background to pan · scroll to
+    zoom / right-click anywhere to add".</li>
+</ul>
+
+<h3>9.3 Canvas, note selected <span class="frames">frame <code>14b</code></span></h3>
+<p>The canonical working screen. Twelve cards, one note selected, the panel filled in.</p>
+
+<h4>Shared card shell — every kind</h4>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Background</td><td><code>--color-surface</code></td></tr>
+<tr><td>Radius</td><td>3px</td></tr>
+<tr><td>Shadow</td><td><code>0 2px 8px rgba(45,43,43,.14)</code></td></tr>
+</tbody>
+</table>
+<p><b>Selected</b> — the shadow deepens to <code>0 4px 14px rgba(45,43,43,.18)</code>, plus
+<code>outline: 2px solid var(--color-accent)</code> and four resize handles: 7 × 7px, background
+<code>--color-surface</code>, 2px <code>--color-accent</code> border, radius 1px, inset
+<code>-4px</code> at each corner.</p>
+
+<h4>Note card</h4>
+<p>Padding <code>11px 13px</code>. <b>Title</b> 13px weight 600, 5px below it. <b>Body</b> 12px,
+line-height 1.5, opacity .8. <code>&lt;b&gt;</code> and <code>&lt;i&gt;</code> render inline; bullet
+lines are plain text with <code>&lt;br&gt;</code> in the prototype and render from Markdown in the
+app. <b>Selected</b> — the title widens to 13.5px and the body lifts to opacity .85.</p>
+<div class="callout">
+<b>The note card has a title.</b> The plan's payload is <code>note { text }</code> and has no title
+field. This was resolved on 2026-09-05 in favour of the design: the payload becomes
+<code>note { title, text }</code>. That is an amendment to <code>docs/mvp-plan.html</code> §4, which
+owns the data model. The title is a plain string, not Markdown, and it is searched alongside the
+body (see 9.8).
+</div>
+
+<h4>Panel — the Text group</h4>
+<p>Groups on this screen: Position, Size, <b>Text</b>, Order.</p>
+<p>The Text group is four 28 × 26px cells, gap 2px, 14px icons, radius 2px:
+<code>ph-text-b</code>, <code>ph-text-italic</code>, <code>ph-list-bullets</code>,
+<code>ph-list-numbers</code>. The active one takes
+<code>background: var(--color-accent-100)</code> with <code>color: var(--color-accent-800)</code>;
+the rest sit at opacity .7.</p>
+
+<h3>9.4 Image card selected <span class="frames">frame <code>20a</code></span></h3>
+<h4>Card</h4>
+<p>Background <code>--color-neutral-200</code> #eae7e7,
+<code>display: grid; place-items: center</code>, colour <code>rgba(32,30,29,.5)</code>. Inside:
+<code>ph-image</code> at 20px (small cards) or 26px (large), then the file name at 11px, stacked
+with gap 5px.</p>
+<p><b>Width and height are both authored.</b> An image card has real dimensions from
+<code>natural_width</code> / <code>natural_height</code>.</p>
+
+<h4>Panel</h4>
+<p>Groups: Position, Size, <b>File</b>, <b>Alt text</b>, Order.</p>
+<ul>
+  <li><b>File</b> — the path at 11px, line-height 1.5, opacity .75, ellipsized
+    (<code>assets/truss-reference.jpg</code>); then
+    <code>1920 × 1280 · 412 KB · copied in</code> at 11px opacity .45; then a row, gap 5px:
+    <code>Replace</code> (<code>flex: 1</code>, 11px, padding <code>3px 4px</code>, radius 3px, 1px
+    <code>--color-divider</code> border) and a 28px-wide icon button holding
+    <code>ph-folder-open</code> at 13px, titled "Show in folder".</li>
+  <li><b>Alt text</b> — an <code>.input</code> textarea, 100% wide, 44px tall, 11px, line-height
+    1.45, padding <code>4px 5px</code>, radius 2px, <code>resize: none</code>,
+    <code>font-family: inherit</code>.</li>
+</ul>
+<p><b>Nothing points at where the original file used to live.</b> Images are copied into
+<code>assets/</code> and named by content hash, so a card cannot break when the user moves the
+original. Do not add an "original location" line.</p>
+
+<h3>9.5 Link card selected <span class="frames">frame <code>19b</code></span></h3>
+<h4>Card — fetched</h4>
+<p><code>overflow: hidden</code>, no padding on the shell.</p>
+<ul>
+  <li><b>Preview band</b> — 126px tall, <code>--color-neutral-200</code>, a centred
+    <code>ph-image</code> at 22px in <code>rgba(32,30,29,.4)</code>. Replaced by the fetched
+    picture.</li>
+  <li><b>Body</b> — padding <code>10px 13px 12px</code>:
+    <ul>
+      <li>Domain row: 10px, letter-spacing .06em, uppercase, opacity .5, gap 6px, 5px below. The
+        favicon is a 12 × 12px square, radius 2px, <code>--color-accent-200</code> #cbeeff as a
+        stand-in.</li>
+      <li>Title: 13px, weight 600, line-height 1.35, 4px below.</li>
+      <li>Description: 11.5px, line-height 1.45, opacity .72.</li>
+    </ul></li>
+</ul>
+
+<h4>Card — no preview data</h4>
+<p>This is <b>a normal state, not an error</b>. Drop the preview band; keep padding
+<code>11px 13px</code>; use a <code>--color-neutral-300</code> #d7d3d3 favicon square; and add
+<code>No preview picture on this page</code> at 11px opacity .45, 7px under the title.</p>
+
+<h4>Card — not fetched yet</h4>
+<p>The card exists the instant the address lands. The domain row uses <code>ph-link-simple</code> at
+13px. The body is the raw address at 12px, line-height 1.45, <code>word-break: break-all</code>,
+opacity .85. Below it, 9px down, <code>ph-circle-dashed</code> at 13px +
+<code>Fetching preview…</code> at 11px opacity .55.</p>
+
+<h4>Panel</h4>
+<p>Groups: Position, Size, <b>Source</b>, Order.</p>
+<p><b>Source</b> — a full-width <code>.input</code> holding the address at 11px, padding
+<code>2px 4px</code>, radius 2px; then <code>Preview fetched 2 min ago</code> at 11px opacity .45,
+line-height 1.45; then <code>Refetch</code> with <code>ph-arrow-clockwise</code>, 11px, padding
+<code>3px 8px</code>, radius 3px, 1px <code>--color-accent</code> border,
+<code>--color-accent-700</code> text.</p>
+
+<h3>9.6 Video card <span class="frames">frame <code>19b</code></span></h3>
+<p><code>overflow: hidden</code>.</p>
+<ul>
+  <li><b>Thumbnail</b> — 153px tall (16:9 at 272px wide), <code>--color-neutral-300</code>,
+    <code>position: relative</code>. A centred play badge: 38 × 38px,
+    <code>border-radius: 50%</code>, background <code>rgba(243,242,242,.92)</code>,
+    <code>ph-play</code> at 16px in #201e1d. A duration chip: absolute
+    <code>right: 7px; bottom: 7px</code>, background <code>rgba(32,30,29,.82)</code>, colour
+    #f3f2f2, 10px, padding <code>1px 5px</code>, radius 2px.</li>
+  <li><b>Body</b> — padding <code>10px 13px 12px</code>. The provider row is the link card's domain
+    row but with <code>ph-youtube-logo</code> at 13px. Title 13px weight 600, line-height 1.35.
+    Then <code>Click to open in your browser</code> at 11px opacity .45, 6px down.</li>
+</ul>
+<p><b>Video never plays in place.</b> Clicking opens the address in the system browser. This is a
+deliberate, documented gap against competitors — see <code>docs/mvp-plan.html</code> §11.</p>
+<p class="frames">Vimeo's provider glyph is not specified. See open question 7.</p>
+
+<h3>9.7 Paste, not yet fetched <span class="frames">frame <code>20b</code></span></h3>
+<p>The link panel with the fetch pending. The source line reads
+<code>Not fetched yet · 5s limit</code> and <b>Refetch is disabled</b> — 1px
+<code>--color-divider</code> border, <code>--color-text</code>, <code>opacity: .45</code>,
+<code>disabled</code> — until the first attempt finishes, or the five-second limit cuts it off.</p>
+<p>A caption <code>Pasted here · Ctrl+V</code> at 11px opacity .4 sits under the new card.</p>
+<div class="note">
+<b>The point of this screen.</b> The card is on the canvas <i>before</i> the network is consulted,
+so the wait never blocks the work. This is a hard rule — contract 2 in section 10.
+</div>
+
+<h3>9.8 Search <span class="frames">frame <code>20c</code></span></h3>
+<p>Typing in the left column's box opens a popover <b>over the canvas</b>, wider than the column:
+absolute <code>left: 156px; top: 34px</code>, width 318px, <code>--color-surface</code>, radius 3px,
+shadow <code>0 12px 30px rgba(45,43,43,.3)</code>, padding <code>6px 0 4px</code>.</p>
+<p>The properties panel is collapsed, because searching selects nothing.</p>
+<p>Two groups, each headed by a baseline row (a 10px .1em uppercase opacity .45 label plus a count
+at 10px opacity .4), separated by a 1px <code>--color-divider</code> rule with 6px margins.</p>
+<ul>
+  <li><b>Canvases first.</b> <i>This ranking is a requirement, not a preference.</i> Row:
+    <code>ph-square-half</code>, the name at 12px weight 600 line-height 1.35, a sub-line at 10.5px
+    opacity .5 (<code>32 cards · last opened 2 days ago</code>).</li>
+  <li><b>Cards second.</b> Row: <code>ph-note</code> or <code>ph-image</code>, the card title, a
+    sub-line naming kind and canvas (<code>Note · Hull studies</code>), then a snippet at 10.5px
+    line-height 1.4 opacity .6 with matched words in <code>&lt;b&gt;</code>.</li>
+</ul>
+<p>Rows are padding <code>7px 12px</code>, gap 9px, with a 14px icon at opacity .55 and a 1px top
+margin, and a text column at <code>flex: 1; min-width: 0</code>. Titles and sub-lines are
+ellipsized. The highlighted row takes <code>background: var(--color-accent-100)</code>.</p>
+<p><b>Footer</b> — a rule, then keyboard hints at 10.5px opacity .42:
+<code>↑↓ to move</code>, <code>Enter to open</code>, <code>Esc to close</code>
+(right-aligned).</p>
+
+<h3>9.9 Element context menu <span class="frames">frame <code>17a</code></span></h3>
+
+<h4>Shared menu grammar — both menus</h4>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Background</td><td><code>--color-surface</code></td></tr>
+<tr><td>Radius</td><td>3px</td></tr>
+<tr><td>Shadow</td><td><code>0 10px 28px rgba(45,43,43,.3)</code></td></tr>
+<tr><td>Padding</td><td><code>5px 0</code></td></tr>
+<tr><td>Font</td><td>12.5px</td></tr>
+<tr><td>Row</td><td>Padding <code>6px 14px</code>, gap 10px, <code>white-space: nowrap</code></td></tr>
+<tr><td>Row icon</td><td>15px, opacity .7</td></tr>
+<tr><td>Shortcut</td><td>Right-aligned, 11px, opacity .45</td></tr>
+<tr><td>Highlighted row</td>
+  <td>Background <code>--color-accent</code>, colour <code>--color-bg</code>; its shortcut goes to
+  opacity .8</td></tr>
+<tr><td>Destructive row</td><td><code>--color-accent-2</code> #d6006c, with no icon dimming</td></tr>
+<tr><td>Separator</td><td>1px <code>--color-divider</code>, <code>margin: 5px 0</code></td></tr>
+<tr><td>Click point</td>
+  <td>A 13px <code>ph-cursor</code>, 12px up and left of the menu corner</td></tr>
+</tbody>
+</table>
+
+<h4>Element menu — width 256px</h4>
+<table>
+<thead><tr><th>Row</th><th>Icon</th><th>Shortcut</th></tr></thead>
+<tbody>
+<tr><td>Edit text</td><td>—</td><td><code>Enter</code></td></tr>
+<tr><td>Connect from here</td><td><code>ph-flow-arrow</code></td><td><code>C</code></td></tr>
+<tr><td>Duplicate</td><td>—</td><td><code>Ctrl+D</code></td></tr>
+<tr><td>Copy</td><td>—</td><td><code>Ctrl+C</code></td></tr>
+<tr><td colspan="3"><i>separator</i></td></tr>
+<tr><td>Bring to front</td><td><code>ph-arrow-line-up</code></td><td><code>Ctrl+]</code></td></tr>
+<tr><td>Send to back</td><td><code>ph-arrow-line-down</code></td><td><code>Ctrl+[</code></td></tr>
+<tr><td colspan="3"><i>separator</i></td></tr>
+<tr><td>Delete <span class="tag gap">destructive</span></td><td>—</td><td><code>Del</code></td></tr>
+</tbody>
+</table>
+<p><b>Right-clicking a card selects it first</b>, so the properties panel fills in behind the
+menu.</p>
+
+<h3>9.10 Background context menu <span class="frames">frame <code>17b</code></span></h3>
+<p>Width 236px. Same grammar as 9.9.</p>
+<table>
+<thead><tr><th>Row</th><th>Shortcut</th></tr></thead>
+<tbody>
+<tr><td>New note here</td><td><code>N</code></td></tr>
+<tr><td>Add image…</td><td><code>I</code></td></tr>
+<tr><td>Paste</td><td><code>Ctrl+V</code></td></tr>
+<tr><td colspan="2"><i>separator</i></td></tr>
+<tr><td>Select all</td><td><code>Ctrl+A</code></td></tr>
+<tr><td>Zoom to fit</td><td><code>Ctrl+0</code></td></tr>
+<tr><td>Reset zoom</td><td><code>100%</code></td></tr>
+<tr><td colspan="2"><i>separator</i></td></tr>
+<tr><td>Background</td><td>—</td></tr>
+</tbody>
+</table>
+<ul>
+  <li><b>It creates at the pointer</b>, not at the canvas centre.</li>
+  <li><b>Paste</b> is greyed (opacity .35) when the clipboard holds nothing placeable.</li>
+</ul>
+<p><b>Neither menu is the only route to any action.</b> The left column and the properties panel
+cover the same ground.</p>
+
+<h3>9.11 Settings <span class="frames">frame <code>16a</code></span></h3>
+<p>A full-screen page replacing the canvas. The left column stays and its gear is the active row.
+<b>Changes apply as they are made — there is no Save and no Cancel.</b></p>
+<ul>
+  <li><b>Header</b> — padding <code>30px 44px 20px</code>, <code>align-items: flex-end</code>, gap
+    16px: <code>Settings</code> at 32px letter-spacing -.02em;
+    <code>Applied as you change them</code> at 12px opacity .5 with 8px bottom padding; then
+    <code>Back to canvas</code> pushed right (<code>ph-arrow-left</code>, 13px, padding
+    <code>5px 14px</code>, radius 4px, 1px <code>--color-accent</code> border,
+    <code>--color-accent-700</code> text).</li>
+  <li><b>Body</b> — a 2-column grid, <code>gap: 34px 64px</code>,
+    <code>align-content: start</code>, <code>max-width: 1000px</code>, padding
+    <code>0 44px 20px</code>, scrolls.</li>
+  <li><b>Rows</b> — <code>align-items: center</code>, gap 12px. Label 12.5px; helper text under it
+    at 11.5px opacity .5; the control right-aligned at <code>flex: none</code>.</li>
+  <li><b>Footer</b> — padding <code>0 44px 22px</code>, 11.5px opacity .42:
+    <code>settings.json · %APPDATA%\IdeaScape · nothing leaves this machine</code>.</li>
+</ul>
+
+<table>
+<thead><tr><th>Group</th><th>Row</th><th>Control</th><th>Helper</th></tr></thead>
+<tbody>
+<tr><td>Files</td><td>Project folder</td>
+  <td>The path, ellipsized, with <code>read-only</code> at 11.5px opacity .42</td><td>—</td></tr>
+<tr><td>Files</td><td>Auto-save</td>
+  <td>Segmented <code>1s</code> / <b><code>3s</code></b> / <code>10s</code></td>
+  <td>Written atomically; the canvas never blocks on a save.</td></tr>
+<tr><td>Canvas</td><td>Snap to grid</td><td>Toggle, <b>off</b></td>
+  <td>Off keeps free placement to the pixel.</td></tr>
+<tr><td>Canvas</td><td>Zoom with</td>
+  <td>Segmented <b><code>Scroll</code></b> / <code>Ctrl+scroll</code></td>
+  <td>Ctrl+scroll leaves the plain wheel free to pan.</td></tr>
+<tr><td>Appearance</td><td>Theme</td>
+  <td>Segmented <b><code>Light</code></b> / <code>Dark</code> / <code>System</code></td><td>—</td></tr>
+</tbody>
+</table>
+
+<h4>Segmented control</h4>
+<p><code>display: flex</code>, 11.5px, radius 3px, <code>overflow: hidden</code>, 1px
+<code>--color-divider</code> border. Options padding <code>4px 10px</code> (four-up) or
+<code>4px 12px</code> (two- and three-up). Inactive opacity .6. Active: background
+<code>--color-accent</code>, colour <code>--color-bg</code>, weight 600.</p>
+
+<h4>Toggle</h4>
+<p>34 × 19px, radius 10px, background <code>--color-neutral-300</code>. Knob 15 × 15px, radius 50%,
+background <code>--color-surface</code>, shadow <code>0 1px 3px rgba(45,43,43,.3)</code>, inset 2px.
+Off shows the knob left.</p>
+
+<div class="callout">
+<b>Settings is new scope.</b> It is not in the plan's screen list, scope list or milestones. It was
+accepted on 2026-09-05 and is proposed as milestone <b>P5</b>. It also introduces a persistence
+location the architecture does not cover — <code>settings.json</code> under
+<code>%APPDATA%\IdeaScape</code>, outside the project folder. That is correct (settings are
+per-machine, not per-project) but <code>docs/architecture.html</code> §3 needs a row for it.
+</div>
+
+<h3>9.12 Dark theme <span class="frames">frames <code>18a</code> (canvas), <code>18b</code> (Settings)</span></h3>
+<p>Not separate screens. They are <code>14b</code> and <code>16a</code> with the palette in section
+4.5 applied. Nothing moves. No measurement, group or control changes.</p>
+
+<h3>9.13 Connections <span class="frames">shown on <code>14b</code>, <code>18a</code></span></h3>
+<p>A connection is an SVG overlay that is a <b>sibling of the cards, placed before them in DOM
+order</b>, so cards always paint over the lines.</p>
+<pre><code>&lt;svg style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none"&gt;
+  &lt;defs&gt;
+    &lt;marker id="ar" viewBox="0 0 9 9" refX="8" refY="4.5"
+            markerWidth="6" markerHeight="6" orient="auto-start-reverse"&gt;
+      &lt;path d="M0.5,0.5 L8.5,4.5 L0.5,8.5 z" fill="rgba(32,30,29,.5)"&gt;&lt;/path&gt;
+    &lt;/marker&gt;
+  &lt;/defs&gt;
+  &lt;g stroke="rgba(32,30,29,.4)" stroke-width="1.5" fill="none"&gt;
+    &lt;path d="M140,142 L199,188" marker-end="url(#ar)"&gt;&lt;/path&gt;
+  &lt;/g&gt;
+&lt;/svg&gt;</code></pre>
+
+<table>
+<thead><tr><th>Property</th><th>Light</th><th>Dark</th></tr></thead>
+<tbody>
+<tr><td>Line stroke</td><td><code>rgba(32,30,29,.4)</code></td><td><code>rgba(236,233,230,.38)</code></td></tr>
+<tr><td>Stroke width</td><td colspan="2">1.5px</td></tr>
+<tr><td>Arrowhead fill</td><td><code>rgba(32,30,29,.5)</code></td><td><code>rgba(236,233,230,.5)</code></td></tr>
+<tr><td>Marker box</td>
+  <td colspan="2">viewBox <code>0 0 9 9</code>, refX 8, refY 4.5, 6 × 6,
+  <code>orient="auto-start-reverse"</code></td></tr>
+<tr><td>Label chip</td>
+  <td colspan="2">Background <code>--color-surface</code>, radius 2px, padding
+  <code>1px 5px</code>, 10px, opacity .62, <code>white-space: nowrap</code>, on the line's
+  midpoint</td></tr>
+</tbody>
+</table>
+
+<p>Rules that matter:</p>
+<ol>
+  <li><b>Endpoints sit on the card's real edge</b>, not on an assumed one. Derive them from the
+    placement rectangle, so a card that grows never leaves a line sprouting from its middle. (The
+    prototype hand-computed these and had to correct them twice.)</li>
+  <li><b>Direction comes from the arrowhead.</b> <code>orient="auto-start-reverse"</code> lets one
+    marker serve either end.</li>
+  <li><b>Labels are HTML chips, not SVG text</b>, so they can sit on an opaque ground. A chip must
+    clear both cards and anything drawn above it. An open menu will occlude one — that is correct
+    behaviour, but allow for it.</li>
+  <li><b>Lines are neutral ink, never the accent.</b> The accent means "selected".</li>
+  <li><b>A connection joins two <i>placements</i> on one canvas.</b> Placing the same item on
+    another canvas brings no lines with it.</li>
+</ol>
+<p>Entry points: the <b>Connect</b> tool in the left column, or <b>Connect from here</b>
+(<code>ph-flow-arrow</code>, shortcut <code>C</code>) in a card's context menu.</p>
+
+<h2>10. Cross-cutting interaction contracts</h2>
+
+<p>These hold on every screen. They are numbered so a phase doc or a review can cite them.</p>
+
+<ol>
+  <li><b>The application never moves a card and never chooses a position.</b> New cards land at the
+    pointer. Placement is free. This rules out any automatic layout.</li>
+  <li><b>A card exists before the network is consulted.</b> Pasting an address creates the card
+    immediately, marked not fetched. The wait never blocks the work.</li>
+  <li><b>A failure is drawn on the card, never in a dialog.</b> All six failure states in section
+    15.2 are normal UI in the visual language of this document.</li>
+  <li><b>Every fetch is cut off at 5 seconds</b> and treated as a failure.</li>
+  <li><b>There is no Save button and no manual save mode.</b> The title bar's save state is the only
+    affordance.</li>
+  <li><b>Settings apply as they are made.</b> No Save, no Cancel, no confirm.</li>
+  <li><b>Every edit is undoable.</b> Undo and redo hold the current session only and clear when the
+    project closes. The properties panel footer says so on every screen that shows it.</li>
+  <li><b>Nothing auto-commits a destructive act.</b> Delete is reachable from the panel footer and
+    from the element menu, and both are undoable. No timed deletion. No silent cleanup the user can
+    see happening.</li>
+  <li><b>The accent means "selected" or "active", and nothing else.</b> Connection lines, dividers
+    and card chrome never take it.</li>
+  <li><b>The second accent means "destructive", and nothing else.</b> It appears in exactly two
+    places: the panel's Delete button and destructive menu rows.</li>
+  <li><b>No route is the only route.</b> Every action in a context menu is also reachable from the
+    left column or the properties panel.</li>
+  <li><b>Canvas names always rank above cards in search.</b> A requirement, not a preference — it is
+    the direct answer to the loudest complaint in the competitive scan.</li>
+  <li><b>The properties panel collapses whenever the selection is empty</b>, including during a
+    search.</li>
+  <li><b>Only the view position and zoom persist per canvas</b> (<code>view_x</code>,
+    <code>view_y</code>, <code>view_zoom</code>). Selection, active tool and search state do
+    not.</li>
+</ol>
+
+<h2>11. Motion and interaction states</h2>
+
+<div class="callout">
+<b>Gap.</b> The handoff specifies <b>no durations, no easing curves, and no hover or pressed
+states</b>. Every mockup is a static rest state. What follows is the fallback: Broadsheet's own
+interaction rules, which the app inherits. Treat every value below as provisional until the designer
+confirms it. See open question 3.
+</div>
+
+<h3>11.1 States, from Broadsheet</h3>
+<table>
+<thead><tr><th>State</th><th>Light</th><th>Dark</th></tr></thead>
+<tbody>
+<tr><td>Hover</td><td>An accent tint on the row or control</td><td>The same, from the dark ramp</td></tr>
+<tr><td>Pressed</td><td><code>--color-accent-600</code> #1186ac</td>
+  <td><code>--color-accent-400</code> #62c5ee</td></tr>
+<tr><td>Focus (keyboard)</td>
+  <td colspan="2"><code>:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }</code>
+  — never the browser default</td></tr>
+<tr><td>Disabled</td>
+  <td colspan="2">Opacity <b>.35</b> (this design's value; Broadsheet's own is 45%)</td></tr>
+<tr><td>Text selection</td>
+  <td colspan="2">An accent tint, from Broadsheet's <code>::selection</code></td></tr>
+</tbody>
+</table>
+<p class="frames">The focus ring is 2px accent with a 2px offset. A selected card already carries a
+2px accent outline. The two must be told apart — see open question 4.</p>
+
+<h3>11.2 Keyboard map</h3>
+<table>
+<thead><tr><th>Key</th><th>Action</th><th>Where it is shown</th></tr></thead>
+<tbody>
+<tr><td><code>N</code></td><td>New note at the pointer</td><td>Empty state; background menu</td></tr>
+<tr><td><code>I</code></td><td>Add image</td><td>Empty state; background menu</td></tr>
+<tr><td><code>C</code></td><td>Connect from here</td><td>Element menu</td></tr>
+<tr><td><code>Enter</code></td><td>Edit text (a card) / open (a search result)</td>
+  <td>Element menu; search footer</td></tr>
+<tr><td><code>Esc</code></td><td>Clear the selection / close search</td><td>Search footer</td></tr>
+<tr><td><code>Del</code></td><td>Delete the selection</td><td>Element menu</td></tr>
+<tr><td><code>↑</code> <code>↓</code></td><td>Move through search results</td><td>Search footer</td></tr>
+<tr><td><code>Ctrl+D</code></td><td>Duplicate</td><td>Element menu</td></tr>
+<tr><td><code>Ctrl+C</code></td><td>Copy</td><td>Element menu</td></tr>
+<tr><td><code>Ctrl+V</code></td><td>Paste at the pointer</td>
+  <td>Background menu; the paste caption</td></tr>
+<tr><td><code>Ctrl+]</code></td><td>Bring to front</td><td>Element menu</td></tr>
+<tr><td><code>Ctrl+[</code></td><td>Send to back</td><td>Element menu</td></tr>
+<tr><td><code>Ctrl+A</code></td><td>Select all</td><td>Background menu</td></tr>
+<tr><td><code>Ctrl+0</code></td><td>Zoom to fit</td><td>Background menu; the zoom bar</td></tr>
+<tr><td>Undo / redo</td>
+  <td colspan="2"><span class="tag gap">not drawn</span> The left column has Undo and Redo rows but
+  shows no shortcut. Use the Windows convention: <code>Ctrl+Z</code> and <code>Ctrl+Y</code>.</td></tr>
+</tbody>
+</table>
+
+<h3>11.3 Pointer</h3>
+<ul>
+  <li>Drag the background to pan.</li>
+  <li>Scroll to zoom, or Ctrl+scroll — set by <b>Settings · Canvas · Zoom with</b>.</li>
+  <li>Drag on empty space to marquee-select several cards.</li>
+  <li>Handles resize. The panel's X / Y / W / H fields are the typed equivalent.</li>
+  <li>Right-click a card to select it <i>and</i> open the element menu. Right-click the background
+    for the background menu.</li>
+</ul>
+
+<h3>11.4 Reduced motion</h3>
+<p>No animation is specified anywhere in this design, so
+<code>prefers-reduced-motion: reduce</code> currently changes nothing. If motion is added later — a
+panel collapse, a menu open, a zoom ease — it must be removable under that query, and the end state
+must be identical with and without it.</p>
+
+<h2>12. Accessibility</h2>
+
+<ol>
+  <li><b>The accent pair is tuned to 3:1, not 4.5:1.</b> That is enough for icons, large text and
+    interface chrome. For accent text at paragraph size use <code>--color-accent-700</code> on
+    light. Never <code>--color-accent</code>.</li>
+  <li><b>The opacity ladder is the main contrast risk.</b> Twelve roles sit at .5 or below and four
+    sit at .4 or below. <code>--color-text</code> at .35 on <code>--color-surface</code> will not
+    reach 4.5:1. Those roles are disabled states and decorative hints, which is defensible — but the
+    .42 panel footer, the .4 empty-state hint and the .38 vertical label carry real information.
+    <b>Measure all three before sign-off.</b></li>
+  <li><b>Keyboard focus is a 2px accent ring with a 2px offset</b>, on every interactive element.
+    Never the browser default.</li>
+  <li><b>Every action has a keyboard route.</b> The map in 11.2 is the contract.</li>
+  <li><b>Image cards carry alt text</b>, edited in the panel's Alt text group. It is a real
+    <code>alt</code> value, not a tooltip.</li>
+  <li><b>Icon-only buttons need an accessible name.</b> Thirteen controls are icon-only: the three
+    window controls, the zoom bar's four, the panel's Duplicate, Delete, Front, Back and "Show in
+    folder", and the collapsed-panel caret. Give each one a label. "Show in folder" already has a
+    <code>title</code>; the rest do not.</li>
+  <li><b>Colour is never the only signal.</b> The active tool row carries weight 600 plus a fill.
+    The active canvas row carries weight 600 plus a fill. Disabled rows carry opacity plus a
+    disabled attribute.</li>
+  <li><b>Rendered Markdown is cleaned before it goes into the page.</b> A note card can never run
+    script. Fetched Open Graph values are plain text and are never inserted as markup. (From
+    <code>docs/architecture.html</code> §8.)</li>
+  <li><b>The dark theme is a real theme, not a filter.</b> It carries its own contrast obligations.
+    <code>--color-accent-2-400</code> #ff90b1 on #262322 is unmeasured — see open question 6.</li>
+</ol>
+
+<h2>13. State sketch</h2>
+
+<p>The view-model each screen needs. Presentation state only. The data model lives in
+<code>docs/mvp-plan.html</code> §4 and is not restated here. Per
+<code>docs/architecture.html</code> §2 and §4 this is one shared store,
+<code>src/stores/canvasStore.svelte.ts</code>, using Svelte 5 runes.</p>
+
+<h3>13.1 The shared store</h3>
+<pre><code>project        { id, name, folderPath }
+canvas         { id, name }                          // the open one
+canvases       [ { id, name, cardCount, lastOpenedAt } ]
+view           { x, y, zoom }                        // persisted per canvas
+selection      Set&lt;placementId&gt;
+activeTool     'select' | 'pan' | 'connect'
+pendingLink    { fromPlacementId, pointer } | null   // a line mid-draw
+fetchStatus    Map&lt;itemId, 'idle' | 'fetching' | 'ok' | 'failed'&gt;
+search         { query, canvasHits[], cardHits[], highlightedIndex }
+settings       { autoSaveMs, snapToGrid, zoomWith, theme }
+undo           { stack[], redo[], depth }
+saveState      { status: 'saved' | 'saving', lastSavedAt }</code></pre>
+
+<h3>13.2 Per screen</h3>
+<table>
+<thead><tr><th>Screen</th><th>Reads</th><th>Screen-local state</th></tr></thead>
+<tbody>
+<tr><td>Project picker <code>19a</code></td><td>—</td>
+  <td><code>recents[]</code>, <code>selectedRecentId</code></td></tr>
+<tr><td>Title bar</td>
+  <td><code>project</code>, <code>canvas</code>, <code>saveState</code>, the card count,
+  <code>selection.size</code></td><td>—</td></tr>
+<tr><td>Left column</td>
+  <td><code>canvases</code>, <code>canvas.id</code>, <code>activeTool</code>,
+  <code>undo.depth</code>, <code>search.query</code></td><td>—</td></tr>
+<tr><td>Canvas</td>
+  <td><code>view</code>, the visible placements, connections, <code>selection</code></td>
+  <td>The culled set; the marquee rectangle</td></tr>
+<tr><td>Zoom bar</td><td><code>view.zoom</code>, whether anything exists to fit</td><td>—</td></tr>
+<tr><td>Properties panel</td>
+  <td><code>selection</code> (the single selected placement and its item),
+  <code>saveState</code></td><td>Field draft values while typing</td></tr>
+<tr><td>Empty project <code>15a</code></td><td>Card count = 0</td><td>—</td></tr>
+<tr><td>Search <code>20c</code></td><td><code>search</code></td><td>Popover open / closed</td></tr>
+<tr><td>Context menus <code>17a</code> <code>17b</code></td>
+  <td><code>selection</code>, clipboard placeability</td>
+  <td>The anchor point; the highlighted row</td></tr>
+<tr><td>Settings <code>16a</code></td>
+  <td><code>settings</code>, <code>project.folderPath</code></td><td>—</td></tr>
+<tr><td>Link and video cards</td><td><code>fetchStatus</code> for that item</td><td>—</td></tr>
+</tbody>
+</table>
+
+<h2>14. Assets</h2>
+
+<table>
+<thead><tr><th>Asset</th><th>What</th><th>How it ships</th></tr></thead>
+<tbody>
+<tr><td>Source Serif 4</td><td>The chrome font. Weights 400 and 600, plus the true 400 italic.</td>
+  <td><b>Must be vendored.</b> Broadsheet's <code>styles.css</code> pulls it from Google Fonts with
+  an <code>@import</code>. The app runs with no internet and makes no call the user did not start
+  (<code>docs/mvp-plan.html</code> §8, Privacy). Download the woff2 files into the bundle and replace
+  the <code>@import</code> with a local <code>@font-face</code>. <b>Removing that
+  <code>@import</code> is not optional.</b> Licence: SIL Open Font Licence 1.1 — free to
+  embed.</td></tr>
+<tr><td>Phosphor Icons, regular</td><td>33 glyphs (section 7.1).</td>
+  <td><b>Must be vendored</b>, for the same reason. Take the regular-weight font file and its CSS
+  from <code>@phosphor-icons/web@2.1.1</code>. Licence: MIT. Consider subsetting to the 33 glyphs —
+  the installer has a 20 MB budget.</td></tr>
+<tr><td>Broadsheet <code>styles.css</code></td><td>The token sheet.</td>
+  <td>Copy the <code>:root</code> token block into the app's own theme file, and add the new tokens
+  marked in sections 4.5, 5.2 and 5.3. <b>Do not ship the component layer</b> —
+  <code>.cmyk</code>, <code>.halftone</code>, <code>.cmyk-num</code> and
+  <code>print-plates.js</code> are print treatments for Broadsheet's own decks. IdeaScape uses none
+  of them.</td></tr>
+<tr><td>Images</td><td>None.</td>
+  <td><b>The design ships no picture files.</b> Every picture in the prototype is a placeholder:
+  image cards are neutral fills with an icon and a file name; link previews and video thumbnails are
+  neutral bands; the link favicon is a 12px tinted square. Real content comes from
+  <code>assets/</code> and from fetched metadata.</td></tr>
+<tr><td>WebView2</td><td>The browser engine.</td>
+  <td>A system resource on Windows 11. The installer ships the bootstrapper
+  (<code>docs/architecture.html</code> §9).</td></tr>
+</tbody>
+</table>
+
+<h2>15. Not yet designed</h2>
+
+<h3>15.1 The gap list</h3>
+<p>Named by the handoff as specified in the plan but not drawn. Each needs a design pass before the
+phase that builds it.</p>
+<ol>
+  <li>Drawing a line mid-drag.</li>
+  <li>A connection selected — the panel showing its label and direction.</li>
+  <li>Marquee multi-select, and the panel's multi-selection state.</li>
+  <li>A note mid-edit.</li>
+  <li>An image mid-drop from Explorer.</li>
+  <li>The New project dialog.</li>
+  <li>Inline canvas rename, and the canvas delete confirm.</li>
+  <li>The canvas zoomed out over 250 cards — the P1 performance gate.</li>
+</ol>
+
+<h3>15.2 The six failure states</h3>
+<p>All six are specified in <code>docs/mvp-plan.html</code> §7 and
+<code>docs/architecture.html</code> §6, and <b>none is drawn</b>. Build them in the visual language
+of this document, as normal UI, never as error dialogs (contract 3).</p>
+<table>
+<thead><tr><th>Failure</th><th>Behaviour</th><th>Nearest drawn state</th></tr></thead>
+<tbody>
+<tr><td>No internet when a link is pasted</td>
+  <td>The card is created showing the address, marked not fetched, with a retry button</td>
+  <td>9.5 "not fetched yet" + 9.7's disabled Refetch</td></tr>
+<tr><td>The page has no preview data</td><td>Keep the address and any title; no preview picture</td>
+  <td>9.5 "no preview data" — drawn</td></tr>
+<tr><td>The fetch is slower than 5s</td><td>Cut off, treated as a failed fetch</td><td>9.7</td></tr>
+<tr><td>An asset file is missing from the folder</td>
+  <td>The card shows a clear missing-file marker. Nothing is deleted. Nothing crashes</td>
+  <td><span class="tag gap">nothing drawn</span></td></tr>
+<tr><td>The database is locked or damaged</td>
+  <td>The project does not open. A plain message names the file. Other projects are unaffected</td>
+  <td><span class="tag gap">nothing drawn</span> — it belongs on the project picker</td></tr>
+<tr><td>Force-closed while editing</td><td>Everything is kept except the action in progress</td>
+  <td>No UI needed</td></tr>
+</tbody>
+</table>
+
+<h3>15.3 Open questions for the implementer</h3>
+<ol>
+  <li><b>Tool and action row icon size.</b> The handoff gives the row padding, font size and gap but
+    not the icon size. Canvas rows are 13px. Use 13px unless the designer says otherwise.</li>
+  <li><b>Source Serif 4 at 9.5px to 12.5px on Windows.</b> The mockups were drawn in Verdana, which
+    is built for small sizes. Check every role at or under 12.5px on real hardware, at 100% and 150%
+    scaling, before the shell is signed off. See the caution in section 6.1.</li>
+  <li><b>No hover, pressed or transition values exist anywhere.</b> Section 11 falls back to
+    Broadsheet's rules. Confirm them, or have them drawn.</li>
+  <li><b>The focus ring and the selected-card outline are both 2px accent.</b> A focused, selected
+    card would show two nearly identical rings. Decide how they differ.</li>
+  <li><b>The note title is a new payload field.</b> Confirm the amendment to
+    <code>docs/mvp-plan.html</code> §4, and decide whether search matches the title, the body, or
+    both. This document assumes both.</li>
+  <li><b>Dark-theme values that are not drawn:</b> the context-menu shadow, the search-popover
+    shadow, the toggle-knob shadow, and the picker-card shadow. Also unmeasured:
+    <code>--color-accent-2-400</code> #ff90b1 on #262322.</li>
+  <li><b>Vimeo's provider glyph.</b> The video card shows <code>ph-youtube-logo</code>. The plan
+    supports Vimeo too. <code>ph-vimeo-logo</code> exists in Phosphor — confirm it.</li>
+  <li><b>Card minimum and maximum width.</b> Not stated. A note card resized to 40px would break its
+    13px title.</li>
+  <li><b>Scrollbar styling.</b> The left column, the properties panel and the Settings body all
+    scroll. No scrollbar is drawn.</li>
+  <li><b>The missing-asset marker</b> has no visual at all (see 15.2).</li>
+  <li><b>Connection label chips on a very short line.</b> Two cards 30px apart leave no room for a
+    chip. Collision and clipping behaviour is unstated.</li>
+  <li><b>Minimum window size.</b> Chrome is 345px wide before the canvas gets a pixel. Not
+    stated.</li>
+</ol>
+
+<h2>16. Screen → phase map</h2>
+
+<p>Keyed to the milestones in <code>docs/mvp-plan.html</code> §9. Keep this table current in both
+directions: a phase that moves here moves there too.</p>
+
+<table>
+<thead><tr><th>Phase</th><th>Screens and pieces</th><th>Frames</th></tr></thead>
+<tbody>
+<tr><td><b>P1 — Canvas core</b></td>
+  <td>The full token layer, <b>both palettes</b>, and the <code>data-theme</code> switch (the
+  switch's <i>UI</i> is P5; the tokens are P1). The whole shell: title bar, left column, canvas with
+  its dot grid, zoom bar, properties panel expanded and collapsed. The shared card shell and its
+  selected state. The note card. The empty-project state. Both context menus. Vendored fonts and
+  icons.</td>
+  <td><code>15a</code> <code>14b</code> <code>17a</code> <code>17b</code></td></tr>
+<tr><td><b>P2 — Connections</b></td>
+  <td>The SVG overlay, the arrowhead marker, the label chip, and both themes' line colours. The
+  Connect tool's active and unavailable states.</td>
+  <td>(shown on <code>14b</code>, <code>18a</code>)</td></tr>
+<tr><td><b>P3 — Rich cards</b></td>
+  <td>The image card and its File / Alt text panel groups. The link card in all three states, and
+  its Source group. The video card. The paste-pending state.</td>
+  <td><code>20a</code> <code>19b</code> <code>20b</code></td></tr>
+<tr><td><b>P4 — Library</b></td>
+  <td>The project picker. The search popover and its ranking. Canvas rows, create, rename and delete
+  in the left column.</td>
+  <td><code>19a</code> <code>20c</code></td></tr>
+<tr><td><b>P5 — Settings and appearance</b> <span class="tag warn">new</span></td>
+  <td>The Settings page, the segmented control, the toggle, and the working theme switch. The dark
+  theme signed off end to end.</td>
+  <td><code>16a</code> <code>18a</code> <code>18b</code></td></tr>
+</tbody>
+</table>
+
+<div class="note">
+<b>Three notes on this map.</b><br>
+1. <b>P5 is new.</b> The plan has four milestones. Settings and the dark theme were accepted into
+scope on 2026-09-05 and need a home. P5 sits at the end so no existing phase is renumbered.<br>
+2. <b>The theme tokens are P1, not P5.</b> Building the shell twice is wasteful. Ship both palettes
+and the <code>data-theme</code> attribute in P1; ship the control that flips it in P5.<br>
+3. <b>The project picker is P4, but you need a way into a project at P1.</b> The plan puts the
+picker in P4 on purpose. Use a developer path — a fixed folder or a command-line argument — until
+P4. This is a sequencing observation, not a change.
+</div>
+
+<p class="frames" style="margin-top:34px">End of document. Written 2026-09-05 by
+<code>dev-ui-update</code> from <code>docs/handoff/</code>.</p>
+
+</div>
+</body>
+</html>
