@@ -18,7 +18,7 @@
     rectEdgePoint,
   } from '../../lib/connectionGeometry';
   import { CULL_MARGIN_PX, recordConnectionCullCounts } from '../../lib/culling';
-  import type { Point, Rect } from '../../lib/geometry';
+  import { viewportWorldRect, type Point, type Rect } from '../../lib/geometry';
   import {
     DIRECTED_BACK,
     DIRECTED_BOTH,
@@ -90,6 +90,23 @@
 
   const total = $derived(canvasStore.connections.size);
 
+  /**
+   * The svg's own box, in world units: the slice of the world the viewport shows, with the
+   * same margin the cull uses.
+   *
+   * It cannot be sized in percentages. `.world` holds nothing but absolutely positioned
+   * children, so its box is 0 x 0, and `width: 100%` of that is a 0 x 0 svg viewport — which
+   * a browser does not render AT ALL. That is why no line was ever drawn while the cards and
+   * the label chips, which are ordinary HTML and paint outside a zero-size box quite happily,
+   * were fine.
+   *
+   * `viewBox` is set to the same rectangle, so one user unit stays one world unit and every
+   * path below is still written in plain world coordinates.
+   */
+  const frame = $derived(
+    viewportWorldRect(canvasStore.view, canvasStore.viewportSize, CULL_MARGIN_PX),
+  );
+
   // The drawn count is the first number to read: if it is close to the total, the line cull
   // is broken and the frame rate beside it means nothing.
   $effect(() => recordConnectionCullCounts(total, drawn.length));
@@ -141,9 +158,19 @@
     return selected ? 'url(#ideascape-arrow-selected)' : 'url(#ideascape-arrow)';
   }
 
+  /**
+   * Picking a line happens on the PRESS, not on the click.
+   *
+   * A press that reaches the canvas surface makes the surface take the pointer capture and
+   * open a marquee, and the release then runs its background handler, which clears the
+   * selection. Worse, that capture re-targets the click away from this path, so a handler
+   * waiting for a click never ran at all — a line could be selected only by drawing it, never
+   * by pointing at it. Stopping the press here prevents both.
+   *
+   * `onclick` stays alongside `onpointerdown` because assistive technology dispatches a click
+   * with no press behind it. Choosing the same line twice is harmless.
+   */
   function choose(event: Event, id: number) {
-    // Without this the press also reaches the surface's background handler, which would
-    // clear the very selection this click just made.
     event.stopPropagation();
     onSelect(id);
   }
@@ -162,7 +189,9 @@
   data-total={total}
   aria-hidden={drawn.length === 0}
   overflow="visible"
-  style="pointer-events: none;"
+  viewBox="{frame.x} {frame.y} {frame.width} {frame.height}"
+  style="left: {frame.x}px; top: {frame.y}px; width: {frame.width}px; height: {frame.height}px;
+         pointer-events: none;"
 >
   <defs>
     <!-- Copied verbatim from design-system §9.13. auto-start-reverse is what lets this one
@@ -213,6 +242,7 @@
         tabindex="0"
         aria-label="Connection from {row.fromLabel} to {row.toLabel}"
         aria-pressed={selected}
+        onpointerdown={(event) => choose(event, row.connection.id)}
         onclick={(event) => choose(event, row.connection.id)}
         onkeydown={(event) => onKeyDown(event, row.connection.id)}
       />
@@ -242,14 +272,14 @@
 <style>
   .connection-layer {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    /* The box and the viewBox are both set inline, in world units — see `frame`. A
+       percentage size here would be a percentage of a zero-size parent, and a zero-size svg
+       viewport is not rendered. */
     /* Without this the overlay swallows every pan, marquee and card drag. It is also set
        inline on the element, so the rule cannot be lost to stylesheet ordering. */
     pointer-events: none;
-    /* Lines run to negative world coordinates; without this they are clipped away. */
+    /* A line whose box only clips the frame may run past its edge. The frame already sits a
+       cull margin outside the viewport, so this is only ever belt and braces. */
     overflow: visible;
     z-index: var(--z-connections);
   }
