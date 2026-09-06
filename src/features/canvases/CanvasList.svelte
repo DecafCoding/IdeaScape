@@ -209,7 +209,7 @@
   }
 
   .canvas-row.active:hover {
-    background: var(--color-accent-200);
+    background: var(--color-accent-tint-hover);
   }
 
   /* Inline rename (undrawn — §15.1): the row's text becomes a box in place, at the same font

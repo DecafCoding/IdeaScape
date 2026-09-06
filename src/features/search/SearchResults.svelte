@@ -209,7 +209,7 @@
   }
 
   .row.highlighted {
-    background: var(--color-accent-100);
+    background: var(--color-accent-tint-fill);
   }
 
   .text {

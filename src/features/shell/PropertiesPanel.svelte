@@ -9,7 +9,7 @@
   import Icon from '../../lib/Icon.svelte';
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import { assetStatus } from '../../lib/assets';
-  import { autoSaveFooterText } from '../../lib/settings';
+  import { autoSaveFooterText } from '../../lib/settings.svelte';
   import { MIN_CARD_SIZE } from '../../lib/geometry';
   import { relativeTime } from '../../lib/relativeTime';
   import {
@@ -537,7 +537,7 @@
 
   .icon-button.duplicate {
     border: 1px solid var(--color-accent);
-    color: var(--color-accent-700);
+    color: var(--color-accent-text);
   }
 
   .icon-button.duplicate:hover {

@@ -172,6 +172,6 @@
   }
 
   .control.close:active {
-    background: var(--color-accent-2-700);
+    background: var(--color-accent-2-hover);
   }
 </style>

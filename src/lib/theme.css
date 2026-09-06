@@ -18,6 +18,25 @@
   --color-on-accent: #151312;
   --color-accent-tint-fill: #0a303e;
   --color-accent-tint-text: #cbeeff;
+  /* Phase 5's four role tokens. The accent moves UP its ramp on dark (§4.5 rule 1), so the
+     accent as text is accent-300 #99e0ff rather than the #62c5ee that is the dark accent
+     itself; the hovered accent fill is the same step, because going darker on hover under
+     --color-on-accent #151312 ink would read as disabled. The two inset values are §4.5's
+     own raised and divider steps, so no new hex is introduced. --color-accent-text and
+     --color-accent-hover share a dark value: they are different roles that land on the same
+     step, and neither may be collapsed into the other because their light values differ. */
+  --color-accent-text: #99e0ff;
+  --color-accent-hover: #99e0ff;
+  --color-inset: #302d2b;
+  --color-inset-hover: #3b3735;
+  /* The same rule again: a hover on dark moves UP the ramp, never down. The tint row's hover
+     is accent-800 over the accent-900 tint fill; the destructive fill's hover and the failure
+     strip's ink are accent-2-300, and the strip's ground is accent-2-900. Every value is an
+     existing ramp step, so no new hex enters the palette. */
+  --color-accent-tint-hover: #004961;
+  --color-accent-2-hover: #ffc0d0;
+  --color-accent-2-tint-fill: #4b1528;
+  --color-accent-2-tint-text: #ffc0d0;
 
   --color-dot: rgba(255, 255, 255, 0.16);
   --color-connection: rgba(236, 233, 230, 0.38);
@@ -28,12 +47,22 @@
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.42);
   --shadow-card-selected: 0 4px 14px rgba(0, 0, 0, 0.5);
   --shadow-zoom-bar: 0 3px 10px rgba(0, 0, 0, 0.45);
-  /* Undrawn on dark; §15.4's interim rule applies until Phase 5 signs the dark theme off:
-     same offsets and blur, black ink, roughly triple the alpha. */
-  --shadow-picker-card: 0 2px 8px rgba(0, 0, 0, 0.36);
-  --shadow-context-menu: 0 10px 28px rgba(0, 0, 0, 0.62);
-  --shadow-search-popover: 0 12px 30px rgba(0, 0, 0, 0.62);
-  --shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.62);
+  /* Undrawn on dark in §4.5; settled in Phase 5, which closes design-system §15.4 item 1.
+     Offsets and blur are unchanged, as §15.4 requires — only the alphas were open.
+     §15.4's interim "roughly triple the alpha" rule was calibrated on the three shadows
+     §4.5 DOES give, whose light alphas are .14/.18/.16; these four start at .30 and .12,
+     where tripling overshoots (and .30 × 3 exceeds 1). §4.5's second rule caps the band —
+     shadows do less separating work on a dark ground — and the three drawn dark values
+     occupy .42–.50. So: the two overlays keep their light ordering by sitting just above
+     the card at .55; the knob, a 3 px blur on a small control, sits at the top of the drawn
+     band at .50; and §5.3 already says the picker card is "not drawn — use the card value",
+     which on dark is .42. --shadow-card-drag, --shadow-textbar and --shadow-dialog are
+     Phase 1 and Phase 4 project additions rather than part of §15.4's four, and keep their
+     values: the dialog is the highest surface in the product. */
+  --shadow-picker-card: 0 2px 8px rgba(0, 0, 0, 0.42);
+  --shadow-context-menu: 0 10px 28px rgba(0, 0, 0, 0.55);
+  --shadow-search-popover: 0 12px 30px rgba(0, 0, 0, 0.55);
+  --shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.5);
   --shadow-card-drag: 0 8px 22px rgba(0, 0, 0, 0.58);
   --shadow-textbar: 0 6px 18px rgba(0, 0, 0, 0.6);
   --shadow-dialog: 0 18px 44px rgba(0, 0, 0, 0.7);
@@ -65,6 +94,14 @@
     --color-on-accent: #151312;
     --color-accent-tint-fill: #0a303e;
     --color-accent-tint-text: #cbeeff;
+    --color-accent-text: #99e0ff;
+    --color-accent-hover: #99e0ff;
+    --color-inset: #302d2b;
+    --color-inset-hover: #3b3735;
+    --color-accent-tint-hover: #004961;
+    --color-accent-2-hover: #ffc0d0;
+    --color-accent-2-tint-fill: #4b1528;
+    --color-accent-2-tint-text: #ffc0d0;
 
     --color-dot: rgba(255, 255, 255, 0.16);
     --color-connection: rgba(236, 233, 230, 0.38);
@@ -75,10 +112,10 @@
     --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.42);
     --shadow-card-selected: 0 4px 14px rgba(0, 0, 0, 0.5);
     --shadow-zoom-bar: 0 3px 10px rgba(0, 0, 0, 0.45);
-    --shadow-picker-card: 0 2px 8px rgba(0, 0, 0, 0.36);
-    --shadow-context-menu: 0 10px 28px rgba(0, 0, 0, 0.62);
-    --shadow-search-popover: 0 12px 30px rgba(0, 0, 0, 0.62);
-    --shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.62);
+    --shadow-picker-card: 0 2px 8px rgba(0, 0, 0, 0.42);
+    --shadow-context-menu: 0 10px 28px rgba(0, 0, 0, 0.55);
+    --shadow-search-popover: 0 12px 30px rgba(0, 0, 0, 0.55);
+    --shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.5);
     --shadow-card-drag: 0 8px 22px rgba(0, 0, 0, 0.58);
     --shadow-textbar: 0 6px 18px rgba(0, 0, 0, 0.6);
     --shadow-dialog: 0 18px 44px rgba(0, 0, 0, 0.7);

@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 5: Settings and appearance</title>
+  <style>
+    :root { --fg:#1a1a1a; --muted:#666; --accent:#2563eb; --done:#16a34a; --warn:#dc2626; --rule:#e5e7eb; }
+    body { font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:62rem; margin:2rem auto; padding:0 1.25rem; }
+    h1 { font-size:2rem; border-bottom:2px solid var(--rule); padding-bottom:.3rem; }
+    h2 { font-size:1.5rem; margin-top:2.5rem; border-bottom:1px solid var(--rule); padding-bottom:.2rem; }
+    h3.milestone { font-size:1.25rem; margin-top:2rem; color:var(--accent); }
+    h4.task { font-size:1.1rem; margin-top:1.5rem; }
+    dl.phase-meta { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; }
+    dl.phase-meta dt { font-weight:600; color:var(--muted); }
+    code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    pre { background:#f6f8fa; padding:1rem; border-radius:6px; overflow:auto; }
+    code { background:#f6f8fa; padding:.1rem .3rem; border-radius:4px; }
+    pre code { background:none; padding:0; }
+    ul.checklist { list-style:none; padding-left:0; }
+    ul.checklist > li::before { content:"\2610 "; color:var(--muted); }
+    ul.checklist > li[data-checked="true"]::before { content:"\2611 "; color:var(--done); }
+    .validate { color:var(--done); font-weight:600; }
+  </style>
+</head>
+<body>
+
+<h1 data-phase="5">Phase 5: Settings and appearance</h1>
+
+<p>The following plan should be complete, but validate documentation, codebase patterns, and task
+sanity before implementing. Pay special attention to naming of existing utils, types, and models —
+import from the right files.</p>
+
+<h2>Phase Description</h2>
+
+<p>Phase 5 is the last phase: it hands the user the four settings the application has been reading
+from hard-coded defaults since Phase 1, gives <code>settings.json</code> its real home under
+<code>%APPDATA%\IdeaScape</code>, and signs the dark theme off end to end across every screen
+Phases 1–4 built.</p>
+
+<p>Four pieces of work, in the order PRD §11's Phase 5 deliverable list gives them:</p>
+
+<ul>
+  <li><strong>The Settings page</strong> (design-system §9.11, frame <code>16a</code>) — a full-screen
+    page replacing the canvas, with five rows in three groups: the read-only project folder,
+    Auto-save, Snap to grid, Zoom with, and Theme. Changes apply as they are made; there is no Save
+    and no Cancel.</li>
+  <li><strong>The segmented control and the toggle</strong> — the two controls the product has never
+    had. Both are drawn in §9.11 down to the pixel and both need their hover, pressed, focus and
+    disabled behaviour from §11.2 and §11.4.</li>
+  <li><strong>The working theme switch</strong> — Light, Dark, System — persisting to
+    <code>settings.json</code> and setting (or removing) <code>data-theme</code> on the root element.
+    The palette and both <code>data-theme</code> blocks already ship from Phase 1; this phase ships
+    the control that flips them and the file that remembers.</li>
+  <li><strong>The dark theme's four unmeasured shadows and the
+    <code>--color-accent-2-400</code> contrast check</strong> — design-system §15.4's remaining open
+    question, assigned to this phase. Signing the theme off also means walking every Phase 1–4 screen
+    on the dark ground, which is where the phase's real risk lives: the shipped components resolve
+    several colours through <em>ramp</em> tokens (<code>--color-accent-700</code>,
+    <code>--color-accent-600</code>, <code>--color-neutral-200</code>,
+    <code>--color-neutral-300</code>) that do not move between palettes, so they are wrong on dark
+    today.</li>
+</ul>
+
+<p>After this phase every feature folder the architecture named is filled, every command area in
+<code>src-tauri/src/commands/</code> exists, and every line in PRD §10.2 passes — including the two
+dark-theme lines Phase 4's gate deliberately excluded.</p>
+
+<h2>User Stories</h2>
+
+<p><strong>As</strong> the one person who uses IdeaScape<br>
+<strong>I want</strong> to choose how often my work is flushed to disk, whether cards snap to the
+grid, and whether the plain wheel zooms or pans<br>
+<strong>So that</strong> the canvas behaves the way my hand expects rather than the way a default
+decided.</p>
+
+<p><strong>As</strong> someone who works at night<br>
+<strong>I want</strong> to switch the application to the dark theme, or let it follow Windows<br>
+<strong>So that</strong> a bright grey page is not the only thing on the screen — and nothing on any
+screen moves, disappears or becomes unreadable when I do.</p>
+
+<p><strong>As</strong> the person whose machine this is<br>
+<strong>I want</strong> the Settings page to tell me exactly which file holds these four values<br>
+<strong>So that</strong> I can read it, copy it or delete it, and know that nothing left the
+machine.</p>
+
+<h2>Problem Statement</h2>
+
+<p>Three problems, all left standing by Phases 1–4.</p>
+
+<ol>
+  <li><strong>The four settings exist but cannot be changed.</strong>
+    <code>src/lib/settings.ts</code> ships frozen defaults and three consumers read them —
+    <code>CanvasSurface.svelte:165</code> for the zoom modifier,
+    <code>CardLayer.svelte:152</code> for snap to grid, and
+    <code>PropertiesPanel.svelte:214</code>/<code>:332</code> for the auto-save footer copy. There is
+    no file, no screen and no way to set any of them. The left column's gear row has been drawn and
+    <code>disabled</code> since Phase 1.</li>
+  <li><strong>The theme cannot be switched.</strong> <code>src/lib/theme.css</code> holds the whole
+    dark palette twice — once under <code>:root[data-theme='dark']</code> and once under
+    <code>@media (prefers-color-scheme: dark) :root:not([data-theme='light'])</code> — and no code
+    anywhere sets that attribute. The <code>theme</code> field has zero runtime consumers.</li>
+  <li><strong>The dark theme has never been looked at.</strong> Four of its shadow values are still
+    the interim guess Phase 1 wrote against §15.4's "roughly triple the alpha" rule, one contrast
+    pair is unmeasured, and several shipped components reach past the role tokens into the accent and
+    neutral ramps, which do not flip. Nobody has rendered any of it, because until this phase there
+    was no way to.</li>
+</ol>
+
+<h2>Solution Statement</h2>
+
+<p>The settings file follows the template <code>recent.json</code> already established in the same
+folder: a small serde struct, <code>std::fs</code>, a directory taken as a parameter so no test
+writes to the real <code>%APPDATA%</code>, and a missing or corrupt file that reads as defaults
+rather than an error. It is written atomically — temp file plus rename — because §9.11's own helper
+text promises exactly that. Two commands read and write it; a third reports the folder so the footer
+prints a true path rather than a hard-coded one.</p>
+
+<p><code>src/lib/settings.ts</code> becomes <code>src/lib/settings.svelte.ts</code>: the same
+accessor names, now backed by <code>$state</code>, loaded once at boot through the seam and written
+through the seam on every change. Nothing about the three existing call sites changes except the
+import path.</p>
+
+<p>The theme applicator is four lines and no <code>matchMedia</code>: <code>light</code> and
+<code>dark</code> set <code>data-theme</code>, <code>system</code> removes it, and the browser
+re-evaluates the existing media query live when Windows changes. That is why the Phase 1 palette was
+written as two guarded blocks.</p>
+
+<p>The page itself is a third branch of the root's one screen conditional, built from two new
+components — a segmented control and a toggle — that exist nowhere in the product yet. Four new role
+tokens carry the colours the ramp tokens were doing badly, and §15.4's four dark shadows are settled
+into the band the three <em>drawn</em> dark shadows actually occupy. The contrast check is computed
+in a unit test from the token files, so the answer is recorded rather than eyeballed, and the whole
+theme is then walked screen by screen in the running application.</p>
+
+<h2>Phase Metadata</h2>
+
+<dl class="phase-meta">
+  <dt>Phase Type</dt><dd data-field="type">New Capability</dd>
+  <dt>Estimated Complexity</dt><dd data-field="complexity">Medium</dd>
+  <dt>Primary Systems Affected</dt><dd data-field="systems">Rust commands layer (new <code>commands/settings.rs</code>); the token layer (<code>src/lib/tokens.css</code>, <code>src/lib/theme.css</code>); <code>src/lib/</code> (settings module, new theme module, save scheduler); a new <code>src/features/settings/</code>; the shell (<code>app.svelte</code>, <code>LeftColumn.svelte</code>); and the styles of eight Phase 1–4 components during the dark-theme audit</dd>
+  <dt>Dependencies</dt><dd data-field="dependencies">Phase 1 (canvas core) — complete: the token layer, both palettes, the two <code>data-theme</code> blocks and <code>src/lib/settings.ts</code>; Phase 2 (connections) — complete; Phase 3 (rich cards) — complete: the card kinds whose ramp-token styles the dark audit corrects; Phase 4 (library) — complete: <code>app_data_dir()</code>, the <code>recent.json</code> read/write template, the picker branch this phase adds a sibling to, and the <code>--shadow-dialog</code>/<code>--scrim</code> precedent for flagging a token addition. No new npm package, no new Rust crate, no new migration and no new Tauri capability permission.</dd>
+</dl>
+
+<h2>Context References</h2>
+
+<h3>Relevant Codebase Files — READ THESE BEFORE IMPLEMENTING</h3>
+
+<ul>
+  <li><code>src/lib/settings.ts</code> (all 51 lines) — Why: the module this phase grows. Its doc
+    comment names this phase explicitly ("Phase 5 adds the file behind the same accessor"), and
+    <code>DEFAULT_SETTINGS</code>, <code>Theme</code>, <code>ZoomModifier</code> and
+    <code>autoSaveFooterText</code> all survive unchanged.</li>
+  <li><code>src-tauri/src/commands/project.rs</code> (lines 16–21, 71–118, 503–511) — Why: the exact
+    template for the settings file. <code>app_data_dir()</code> is already <code>pub</code> and
+    already resolves <code>%APPDATA%\IdeaScape</code> rather than Tauri's
+    <code>app_config_dir()</code>; <code>read_recent</code>/<code>record_recent</code> show the
+    directory-as-parameter shape; <code>read_recent_missing_file_is_empty</code> is the test to
+    mirror.</li>
+  <li><code>src/lib/theme.css</code> (lines 1–8, 10–54, 56–98) — Why: the whole dark palette, written
+    twice on purpose. Lines 31–32 carry the interim note this phase closes. Anything added to one
+    block must be added to the other.</li>
+  <li><code>src/lib/tokens.css</code> (lines 8–20 roles, 30–38 neutral ramp, 40–49 accent ramp, 91–110
+    elevation, 112–115 tints, 166 <code>color-scheme</code>) — Why: every new token is declared here
+    first, in the light palette, or the token test fails.</li>
+  <li><code>src/lib/__tests__/tokens.test.ts</code> (all 95 lines) — Why: the rules a token addition
+    must satisfy — declared once in <code>tokens.css</code>, twice in <code>theme.css</code>, and
+    never a measurement token.</li>
+  <li><code>src/features/shell/__tests__/shell.test.ts</code> (lines 190–231) — Why: the
+    <code>theme parity</code> block. It is the "nothing moves between the two themes" assertion and
+    must stay green.</li>
+  <li><code>src/app.svelte</code> (lines 110–145 state, 1043–1120 shortcut maps, 1300–1420 markup) —
+    Why: the one screen conditional this phase adds a branch to, the two shortcut maps it adds a third
+    to, and the drag-over handlers that must go inert on the Settings page.</li>
+  <li><code>src/features/shell/LeftColumn.svelte</code> (lines 1–41 props, 146–158 the pinned rows,
+    220–232 the active-row style) — Why: the disabled gear row is the drawn entry point; it gains an
+    <code>onSettings</code> prop and an <code>active</code> state.</li>
+  <li><code>src/features/canvases/DeleteCanvasDialog.svelte</code> (whole file, 143 lines) — Why: the
+    house component shape to mirror — doc comment citing the design-system section, local
+    <code>interface Props</code>, destructured <code>const { … }: Props = $props()</code>,
+    <code>data-testid</code>, and a scoped <code>&lt;style&gt;</code> in which every value is a
+    token.</li>
+  <li><code>src/features/projects/projects.svelte.ts</code> (whole file) — Why: the rune-backed
+    feature-state class shape, and the way it keeps every call behind <code>invokeSafe</code>.</li>
+  <li><code>src/lib/ipc.ts</code> (all 37 lines) — Why: <code>invokeSafe</code> is the only route to
+    Rust. Nothing else may import <code>@tauri-apps/api/core</code>.</li>
+  <li><code>src-tauri/src/lib.rs</code> (lines 21–64 and 67–105) — Why: <strong>two</strong>
+    <code>invoke_handler</code> lists. A command registered in one and not the other fails silently in
+    the other build profile.</li>
+  <li><code>src-tauri/src/error.rs</code> (whole file) — Why: <code>From&lt;std::io::Error&gt;</code>
+    maps to <code>DatabaseOpen</code>, whose message says "the project database could not be opened".
+    That is the wrong sentence for a settings write, so the settings path must not lean on
+    <code>?</code> over an io error.</li>
+  <li><code>src/lib/save.ts</code> (lines 20–53) — Why: <code>pending</code>,
+    <code>flushPlacements</code> and <code>pendingCount</code> are what the auto-save cadence becomes
+    a ceiling over.</li>
+  <li><code>src/features/cards/CardLayer.svelte</code> (line 152), <code>src/features/canvas/CanvasSurface.svelte</code>
+    (line 165), <code>src/features/shell/PropertiesPanel.svelte</code> (lines 12, 214, 332) — Why: the
+    three existing <code>getSettings()</code> call sites; their import path changes and nothing
+    else.</li>
+  <li><code>src/features/cards/ImageCard.svelte</code> (106, 112),
+    <code>src/features/cards/LinkCard.svelte</code> (116, 172, 248),
+    <code>src/features/cards/VideoCard.svelte</code> (100),
+    <code>src/features/cards/NoteCard.svelte</code> (83),
+    <code>src/features/canvas/EmptyCanvas.svelte</code> (75),
+    <code>src/features/shell/PropertiesPanel.svelte</code> (540),
+    <code>src/features/shell/LeftColumn.svelte</code> (226),
+    <code>src/features/shell/ContextMenu.svelte</code> (156),
+    <code>src/features/projects/ProjectPicker.svelte</code> (160–161),
+    <code>src/features/projects/NewProjectDialog.svelte</code> (264–265) — Why: every ramp-token use in
+    the product. These eleven lines are the whole surface of the dark-theme audit.</li>
+  <li><code>scripts/phase-4-session.md</code> — Why: the shape and wording of the recorded session
+    artefact, including its <code>Gate: PASS</code> line and the measured figures the Level 4 block
+    reads back.</li>
+  <li><code>src/lib/shortcuts.ts</code> (lines 10–51, 125–146) — Why: <code>Action</code> and
+    <code>SHORTCUT_LABELS</code> are exhaustive records; <code>registerShortcuts</code> returns its own
+    teardown. <code>Escape</code> always dispatches as <code>cancel</code>, even from a text box.</li>
+</ul>
+
+<h3>New Files to Create</h3>
+
+<ul>
+  <li><code>src-tauri/src/commands/settings.rs</code> — the settings file: the stored struct, the
+    sanitizing reader, the atomic writer, three commands and their tests.</li>
+  <li><code>src/lib/settings.svelte.ts</code> — the reactive replacement for
+    <code>src/lib/settings.ts</code> (which is deleted): the same exported names, plus
+    <code>loadSettings</code>, <code>setSetting</code>, <code>sanitizeSettings</code> and
+    <code>settingsLocation</code>.</li>
+  <li><code>src/lib/theme.ts</code> — <code>applyTheme(theme, root?)</code>. Four lines and no
+    <code>matchMedia</code>.</li>
+  <li><code>src/features/settings/SegmentedControl.svelte</code> — the three-, three- and two-up
+    control from §9.11.</li>
+  <li><code>src/features/settings/Toggle.svelte</code> — the 34 × 19 px switch from §9.11.</li>
+  <li><code>src/features/settings/SettingsPage.svelte</code> — frame <code>16a</code>: header, the
+    two-column grid of three groups, and the footer.</li>
+  <li><code>src/features/settings/__tests__/settingsPage.test.ts</code>,
+    <code>src/features/settings/__tests__/controls.test.ts</code>,
+    <code>src/features/settings/__tests__/session.test.ts</code> — the feature's tests.</li>
+  <li><code>src/lib/__tests__/settings.test.ts</code>, <code>src/lib/__tests__/theme.test.ts</code>,
+    <code>src/lib/__tests__/contrast.test.ts</code> — the module and measurement tests.</li>
+  <li><code>scripts/phase-5-session.md</code> — the recorded dark-theme sign-off and the re-measured
+    gate.</li>
+</ul>
+
+<h3>Relevant Documentation — READ BEFORE IMPLEMENTING</h3>
+
+<ul>
+  <li><a href="../design-system.html">docs/design-system.html</a> §9.11 (lines 1173–1228) — the
+    Settings page, the segmented control and the toggle, at their locked values. <em>Why:</em> this is
+    the whole visual specification for the phase. Do not invent a value.</li>
+  <li><a href="../design-system.html">docs/design-system.html</a> §4.5 (lines 353–397) — the dark
+    palette and its two rules ("the accent moves up its ramp on dark"; "shadows do less separating
+    work on a dark ground"). <em>Why:</em> it decides both the new role tokens and the settled shadow
+    alphas.</li>
+  <li><a href="../design-system.html">docs/design-system.html</a> §11.1–§11.4 (lines 1334–1482) — the
+    tints, the per-control hover and pressed table (the segmented control and the toggle both have
+    rows), the motion durations (theme change 0 ms, knob travel 110 ms) and the focus ring.
+    <em>Why:</em> the two new controls have no other source for their states.</li>
+  <li><a href="../design-system.html">docs/design-system.html</a> §15.4 (lines 1735–1749) — the two
+    remaining open questions. Item 1 is this phase's; item 2 (scrollbars) was settled in Phase 1 by
+    the <code>.scroll-thin</code> class, which the Settings body must use.</li>
+  <li><a href="../design-system.html">docs/design-system.html</a> §12 (lines 1541–1570) — the
+    accessibility contract, including "measure all three" for the .42/.40/.38 opacity steps and the
+    unmeasured <code>--color-accent-2-400</code> pair.</li>
+  <li><a href="../prd.html">docs/prd.html</a> §8.2, §10.2, §11 (Phase 5) — the configuration contract,
+    the acceptance checklist including its two dark-theme lines, and the deliverable list.</li>
+  <li><a href="../architecture.html">docs/architecture.html</a> §3 (<code>settings-storage</code>),
+    §6 (<code>ipc-contract</code>), §7 (<code>persistence-strategy</code>). <em>Why:</em> the settled
+    decisions this phase must conform to.</li>
+  <li><a href="https://svelte.dev/docs/svelte/svelte-js-files">svelte.dev — <code>.svelte.js</code> and
+    <code>.svelte.ts</code> files</a> — <em>Why:</em> runes only work in a file with that extension,
+    which is why <code>settings.ts</code> is renamed rather than edited in place.</li>
+  <li><a href="https://svelte.dev/docs/svelte/typescript#Generic-$props">svelte.dev — generic
+    <code>$props</code></a> — <em>Why:</em> the segmented control is generic over its option value
+    type; the syntax is <code>&lt;script lang="ts" generics="T extends string"&gt;</code>.</li>
+  <li><a href="https://www.w3.org/WAI/ARIA/apg/patterns/radio/">W3C ARIA APG — radio group pattern</a>
+    — <em>Why:</em> the segmented control is a radio group; roving <code>tabindex</code> and the arrow
+    keys come from here, not from the design system, which draws only the resting states.</li>
+  <li><a href="https://www.w3.org/WAI/ARIA/apg/patterns/switch/">W3C ARIA APG — switch pattern</a> —
+    <em>Why:</em> the toggle is <code>role="switch"</code> with <code>aria-checked</code>.</li>
+  <li><a href="https://www.w3.org/TR/WCAG21/#dfn-contrast-ratio">WCAG 2.1 — contrast ratio
+    definition</a> — <em>Why:</em> Task 5 computes this formula in a test to settle §15.4's unmeasured
+    pair rather than guessing at it.</li>
+  <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-color-scheme">MDN —
+    <code>prefers-color-scheme</code></a> — <em>Why:</em> it confirms the media query re-evaluates
+    live when the OS theme changes, which is why the System theme needs no JavaScript listener.</li>
+</ul>
+
+<h3>Patterns to Follow</h3>
+
+<h4>Naming Conventions</h4>
+
+<p>Rust: <code>snake_case</code> functions and fields, <code>fn name_condition_expected()</code>
+tests. TypeScript: <code>camelCase</code>, <code>methodName_condition_expectedResult</code> tests.
+UI text is Title Case for labels and buttons; helper text, validation messages and log messages stay
+in sentence case — §9.11's drawn strings already follow this ("Snap to grid" is the drawn label and
+is kept exactly as drawn; "Off keeps free placement to the pixel." is helper text).</p>
+
+<h4>A file in <code>%APPDATA%\IdeaScape</code></h4>
+
+<pre><code>// src-tauri/src/commands/project.rs:93-118 — the template Task 1 mirrors.
+pub fn read_recent(dir: &amp;Path) -&gt; Vec&lt;RecentProject&gt; {
+    let Ok(text) = std::fs::read_to_string(dir.join(RECENT_FILE_NAME)) else {
+        return Vec::new();
+    };
+    serde_json::from_str::&lt;RecentFile&gt;(&amp;text)
+        .map(|f| f.projects)
+        .unwrap_or_default()
+}
+
+pub fn record_recent(dir: &amp;Path, entry: RecentProject) -&gt; AppResult&lt;()&gt; {
+    let mut projects = read_recent(dir);
+    // …
+    std::fs::create_dir_all(dir)?;
+    let text = serde_json::to_string_pretty(&amp;RecentFile { projects })?;
+    std::fs::write(dir.join(RECENT_FILE_NAME), text)?;
+    Ok(())
+}</code></pre>
+
+<h4>A component: props, state and tokens</h4>
+
+<pre><code>&lt;!-- src/features/canvases/DeleteCanvasDialog.svelte — the shape every new component follows. --&gt;
+&lt;script lang="ts"&gt;
+  import { SHORTCUT_LABELS } from '../../lib/shortcuts';
+
+  interface Props {
+    name: string;
+    cardCount: number;
+    onConfirm?: () =&gt; void;
+    onCancel?: () =&gt; void;
+  }
+
+  const { name, cardCount, onConfirm, onCancel }: Props = $props();
+
+  let confirmButton = $state&lt;HTMLButtonElement | null&gt;(null);
+
+  $effect(() =&gt; {
+    confirmButton?.focus();
+  });
+
+  const cards = $derived(`${cardCount} ${cardCount === 1 ? 'card' : 'cards'}`);
+&lt;/script&gt;</code></pre>
+
+<h4>Error handling</h4>
+
+<pre><code>// src/app.svelte:165-174 — every failing action goes through this. Failure is drawn in the
+// shell, never in a dialog.
+async function guard(work: () =&gt; Promise&lt;void&gt;) {
+  try {
+    await work();
+    errorMessage = null;
+  } catch (error) {
+    errorMessage = error instanceof IpcError ? error.message : 'Something went wrong.';
+    logError('an action failed', error);
+  }
+}</code></pre>
+
+<h4>Logging</h4>
+
+<pre><code>// Front end: src/lib/logger.ts only — logError / logWarn / logInfo. Never console.log.
+// Rust: the `log` crate only — log::warn!(…). Never println!.
+// A settings read or write that fails is logWarn/log::warn! and never an error dialog:
+// this file holds no user data (PRD §8.2).</code></pre>
+
+<h4>A Tauri mock in a unit test</h4>
+
+<pre><code>// src/lib/__tests__/ipc.test.ts — the mocking idiom every front-end test uses.
+const invoke = vi.fn();
+vi.mock('@tauri-apps/api/core', () =&gt; ({ invoke: (...args: unknown[]) =&gt; invoke(...args) }));
+vi.mock('../logger', () =&gt; ({ logError: vi.fn(), logInfo: vi.fn(), logWarn: vi.fn() }));
+
+const { invokeSafe, IpcError } = await import('../ipc');</code></pre>
+
+<h2>Implementation Plan</h2>
+
+<p><strong>Rendering:</strong> Milestones — see Step 6.</p>
+
+<p><strong>Rationale:</strong> Thirteen tasks across four genuine sub-layers — the persistence seam,
+the token layer, the page and its two new controls, and the sign-off — plus the shipping milestone.
+Each checkpoint asserts something no single task's VALIDATE reaches: a setting surviving a whole
+write-and-reload cycle through the real command path, the token files agreeing across three theme
+states at once, a change made on the page arriving in the file and on the root element together, and
+a measurement taken in the running application. That is the same call Phases 1–4 all made.</p>
+
+<h3 class="milestone" data-milestone="1">Milestone 1: The settings file and the seam</h3>
+
+<p>Everything that has to exist before anything is drawn: the file under
+<code>%APPDATA%\IdeaScape</code>, the reactive accessor in front of it, and the four-line theme
+applicator.</p>
+
+<p><strong>Validation checkpoint:</strong> one Rust test drives a whole settings lifecycle against a
+real temp directory — read from an empty folder and get the four drawn defaults with no file created;
+write a non-default value for each of the four and assert the file on disk is
+<code>settings.json</code>, is pretty-printed camelCase JSON, contains exactly four keys, and leaves
+no <code>.tmp</code> sibling; read it back and get what was written; then corrupt one field to a value
+outside its allowed set, read again, and assert only that field fell back while the other three
+survived. No single task's VALIDATE crosses the writer, the sanitizer and the atomic-rename together.</p>
+
+<h4 class="task" data-task="1">Task 1: The settings file, atomically written</h4>
+<p>The one configuration file the product has. It is written by the application, has working
+defaults, and is never required to exist.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/commands/settings.rs</code> with
+    <code>const SETTINGS_FILE_NAME: &amp;str = "settings.json";</code> and
+    <code>#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase", default)] pub struct StoredSettings { pub auto_save_ms: i64,
+    pub snap_to_grid: bool, pub zoom_with: String, pub theme: String }</code> with a hand-written
+    <code>impl Default</code> returning <code>3000</code>, <code>false</code>,
+    <code>"scroll"</code>, <code>"light"</code> — design-system §9.11's drawn defaults, which
+    <code>DEFAULT_SETTINGS</code> in <code>src/lib/settings.ts</code> already carries.</li>
+  <li><strong>IMPLEMENT:</strong> <code>fn sanitize(mut s: StoredSettings) -&gt; StoredSettings</code>
+    — a pure function that replaces any field outside its allowed set with that field's default, and
+    only that field: <code>auto_save_ms</code> must be one of <code>1000</code>, <code>3000</code>,
+    <code>10000</code>; <code>zoom_with</code> one of <code>"scroll"</code>,
+    <code>"ctrl-scroll"</code>; <code>theme</code> one of <code>"light"</code>, <code>"dark"</code>,
+    <code>"system"</code>. <code>snap_to_grid</code> is a bool and cannot be out of range.</li>
+  <li><strong>IMPLEMENT:</strong> <code>pub fn read_settings_at(dir: &amp;Path) -&gt;
+    StoredSettings</code> — a missing, empty or unparseable file returns
+    <code>StoredSettings::default()</code> and is never an error, mirroring
+    <code>read_recent</code>; the parsed value is passed through <code>sanitize</code>.</li>
+  <li><strong>IMPLEMENT:</strong> <code>pub fn write_settings_at(dir: &amp;Path, s: &amp;StoredSettings)
+    -&gt; AppResult&lt;()&gt;</code> — <code>create_dir_all</code>, write
+    <code>serde_json::to_string_pretty</code> to <code>settings.json.tmp</code>, then
+    <code>std::fs::rename</code> over <code>settings.json</code>. §9.11's helper text promises
+    "written atomically"; a rename within one directory is that promise on Windows.</li>
+  <li><strong>ADD:</strong> three commands — <code>read_settings() -&gt; AppResult&lt;StoredSettings&gt;</code>,
+    <code>write_settings(settings: StoredSettings) -&gt; AppResult&lt;()&gt;</code> (which sanitizes
+    before writing, so a bad value can never reach the file), and
+    <code>settings_location() -&gt; AppResult&lt;String&gt;</code> returning
+    <code>app_data_dir()</code> as a display string. All three call
+    <code>crate::commands::project::app_data_dir()</code>, which is already <code>pub</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/mod.rs</code> — add
+    <code>pub mod settings;</code>. <code>src-tauri/src/lib.rs</code> — register all three commands in
+    <strong>both</strong> <code>invoke_handler!</code> lists.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/project.rs:93-118</code> for the
+    read/write pair, and <code>:503-511</code> for the "junk in the file is the same as no file"
+    test.</li>
+  <li><strong>IMPORTS:</strong> <code>serde::{Deserialize, Serialize}</code>,
+    <code>std::path::Path</code>, <code>crate::commands::project::app_data_dir</code>,
+    <code>crate::error::{AppError, AppResult}</code>. Nothing new in <code>Cargo.toml</code> —
+    <code>serde</code>, <code>serde_json</code> and <code>tempfile</code> are all present.</li>
+  <li><strong>GOTCHA:</strong> do not let <code>?</code> convert a <code>std::io::Error</code> here.
+    <code>From&lt;std::io::Error&gt;</code> in <code>error.rs</code> maps to
+    <code>AppError::DatabaseOpen</code>, whose message is "the project database could not be
+    opened" — a false sentence about a settings write. Map io failures explicitly with
+    <code>.map_err(|e| AppError::Invalid(format!("settings could not be written: {e}")))</code>.</li>
+  <li><strong>GOTCHA:</strong> <code>#[serde(rename_all = "camelCase")]</code> is required. Tauri does
+    not rename struct fields on the way out, and <code>Settings</code> in
+    <code>src/lib/settings.ts</code> is camelCase. <code>RecentProject</code> is snake_case on both
+    sides; this struct is deliberately not, because its TypeScript twin already shipped in Phase 1.</li>
+  <li><strong>GOTCHA:</strong> both functions take the directory as a parameter, exactly as
+    <code>read_recent</code> does, so no test ever writes to this machine's real
+    <code>%APPDATA%</code>.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml settings</code> — tests:
+    <code>read_settings_at_missing_file_is_defaults</code>,
+    <code>read_settings_at_junk_file_is_defaults</code>,
+    <code>sanitize_out_of_range_cadence_falls_back_to_three_seconds</code>,
+    <code>sanitize_unknown_theme_falls_back_to_light</code>,
+    <code>sanitize_one_bad_field_keeps_the_other_three</code>,
+    <code>write_settings_at_then_read_round_trips</code>,
+    <code>write_settings_at_leaves_no_temp_file</code>,
+    <code>write_settings_at_missing_folder_creates_it</code>.</li>
+</ul>
+
+<h4 class="task" data-task="2">Task 2: The reactive settings accessor</h4>
+<p>The module Phase 1 wrote as a placeholder becomes the real one: the same names, now backed by a
+rune and by the file.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/settings.svelte.ts</code>, and
+    <strong>REMOVE</strong> <code>src/lib/settings.ts</code>. Runes only work in a
+    <code>.svelte.ts</code> module, so this is a rename, not an edit.</li>
+  <li><strong>IMPLEMENT:</strong> keep <code>Theme</code>, <code>ZoomModifier</code>,
+    <code>Settings</code>, <code>DEFAULT_SETTINGS</code>, <code>resetSettings</code> and
+    <code>autoSaveFooterText</code> exactly as they are. Replace the module-level
+    <code>let current</code> with <code>const store = $state&lt;Settings&gt;({ ...DEFAULT_SETTINGS })</code>
+    and have <code>getSettings()</code> return it, so a component that reads it re-renders when it
+    changes.</li>
+  <li><strong>ADD:</strong> <code>export const AUTO_SAVE_OPTIONS = [1000, 3000, 10000] as const;</code>
+    and <code>export function sanitizeSettings(raw: unknown): Settings</code> — a pure function with
+    the same allowed sets as the Rust <code>sanitize</code>, so a hand-edited file cannot put the UI
+    into a state no control can show.</li>
+  <li><strong>ADD:</strong> <code>export async function loadSettings(): Promise&lt;Readonly&lt;Settings&gt;&gt;</code>
+    — <code>invokeSafe&lt;unknown&gt;('read_settings')</code>, sanitize, <code>applySettings</code>. A
+    failure is <code>logWarn</code> plus the defaults; it never throws and never reaches
+    <code>errorMessage</code>.</li>
+  <li><strong>ADD:</strong> <code>export async function setSetting&lt;K extends keyof Settings&gt;(key: K,
+    value: Settings[K]): Promise&lt;void&gt;</code> — apply to the store <em>first</em> so the page
+    responds instantly (§10 contract 6: settings apply as they are made), then
+    <code>invokeSafe('write_settings', { settings: { ...getSettings() } })</code>. A failed write is
+    <code>logWarn</code> only: the value stays applied for the session, and no dialog appears.</li>
+  <li><strong>ADD:</strong> <code>export async function settingsLocation(): Promise&lt;string&gt;</code>
+    — <code>invokeSafe&lt;string&gt;('settings_location')</code>, falling back to the literal
+    <code>'%APPDATA%\\IdeaScape'</code> on failure so the footer always has something true to
+    print.</li>
+  <li><strong>UPDATE:</strong> the three existing import sites —
+    <code>src/features/canvas/CanvasSurface.svelte:26</code>,
+    <code>src/features/cards/CardLayer.svelte:21</code>,
+    <code>src/features/shell/PropertiesPanel.svelte:12</code> — change
+    <code>'../../lib/settings'</code> to <code>'../../lib/settings.svelte'</code>. Nothing else about
+    those files changes in this task.</li>
+  <li><strong>PATTERN:</strong> the rune-backed module shape in
+    <code>src/features/projects/projects.svelte.ts</code>; the <code>invokeSafe</code> discipline in
+    <code>src/lib/ipc.ts</code>.</li>
+  <li><strong>GOTCHA:</strong> spread the store when it crosses the seam
+    (<code>{ ...getSettings() }</code>). Passing a <code>$state</code> proxy straight into
+    <code>invoke</code> hands the structured-clone algorithm a Proxy and throws at runtime, not at
+    build time.</li>
+  <li><strong>GOTCHA:</strong> <code>lib/</code> may not import from any feature
+    (<code>import-direction</code>). This module imports <code>ipc</code> and <code>logger</code> and
+    nothing else.</li>
+  <li><strong>GOTCHA:</strong> <code>vitest.config.ts</code> already runs the Svelte plugin, so
+    <code>.svelte.ts</code> compiles in tests. <code>npm run check</code> will fail on any import path
+    left pointing at the deleted file — that is the point of the VALIDATE below.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/settings.test.ts &amp;&amp; npm run check</code> — tests:
+    <code>sanitizeSettings_emptyObject_isTheDrawnDefaults</code>,
+    <code>sanitizeSettings_unknownTheme_fallsBackToLight</code>,
+    <code>sanitizeSettings_cadenceOffTheLadder_fallsBackTo3000</code>,
+    <code>sanitizeSettings_oneBadField_keepsTheOtherThree</code>,
+    <code>loadSettings_readCommandFails_keepsTheDefaultsAndDoesNotThrow</code>,
+    <code>setSetting_anyKey_appliesBeforeItWrites</code>,
+    <code>setSetting_writeFails_leavesTheValueApplied</code>,
+    <code>setSetting_anyKey_sendsAPlainObjectNotAProxy</code>,
+    <code>autoSaveFooterText_tenSeconds_readsAutosaveIn10s</code>.</li>
+</ul>
+
+<h4 class="task" data-task="3">Task 3: The theme applicator</h4>
+<p>The four lines Phase 1 left out on purpose. There is no <code>matchMedia</code> anywhere in this
+task, and that is the design.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/theme.ts</code> exporting
+    <code>applyTheme(theme: Theme, root: HTMLElement = document.documentElement): void</code> —
+    <code>'system'</code> removes the <code>data-theme</code> attribute, <code>'light'</code> and
+    <code>'dark'</code> set it to that value.</li>
+  <li><strong>IMPLEMENT:</strong> a doc comment stating <em>why</em> there is no listener: the two
+    blocks in <code>src/lib/theme.css</code> are written as
+    <code>:root[data-theme='dark']</code> and
+    <code>@media (prefers-color-scheme: dark) :root:not([data-theme='light'])</code>, so an absent
+    attribute already means "follow Windows" and the browser re-evaluates the query live. Adding a
+    <code>matchMedia</code> listener would be a second source of truth for the same fact.</li>
+  <li><strong>PATTERN:</strong> the module doc-comment style of <code>src/lib/save.ts:1-12</code> —
+    say how the module is used and what was deliberately not done.</li>
+  <li><strong>GOTCHA:</strong> <code>data-theme="light"</code> must actually be written, not left
+    absent. Absent is System, and a user on a dark Windows who chose Light would otherwise get
+    dark.</li>
+  <li><strong>GOTCHA:</strong> design-system §11.3 gives the theme change a duration of
+    <strong>0 ms</strong> — "it is a repaint, not a transition". Do not add a transition to
+    <code>background</code> or <code>color</code> anywhere to smooth it.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/theme.test.ts</code> — tests:
+    <code>applyTheme_dark_setsTheAttribute</code>,
+    <code>applyTheme_light_setsTheAttributeRatherThanRemovingIt</code>,
+    <code>applyTheme_system_removesTheAttribute</code>,
+    <code>applyTheme_darkThenSystem_leavesNoAttributeBehind</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="2">Milestone 2: The token layer, finished</h3>
+
+<p>Four new role tokens for the colours the ramp tokens were doing badly, and design-system §15.4's
+last open question settled with a number rather than a guess.</p>
+
+<p><strong>Validation checkpoint:</strong> the extended token test proves the three theme states agree
+— every new token is declared once in <code>tokens.css</code> and twice in <code>theme.css</code>, the
+dark blocks still redefine no measurement, radius, duration, type step or spacing token, the two dark
+blocks are byte-identical in the set of tokens they declare, and the computed WCAG contrast of
+<code>--color-accent-2-400</code> on the dark surface and of the dark on-accent ink over it are both
+recorded as numbers in the test output. No individual task compares the two dark blocks against each
+other.</p>
+
+<h4 class="task" data-task="4">Task 4: Four role tokens, so the dark theme is a theme and not a filter</h4>
+<p>Eleven lines across nine shipped components reach past the role tokens into the accent and neutral
+ramps. Ramps do not move between palettes, so those eleven lines are wrong on dark. This task adds the
+four role tokens that fix them; Task 11 does the replacing.</p>
+<ul>
+  <li><strong>ADD to <code>src/lib/tokens.css</code></strong> (in the Roles block, with a comment
+    naming this phase and flagging them for the owner exactly as Phase 1 and Phase 4 flagged
+    theirs):
+    <ul>
+      <li><code>--color-accent-text: #006786;</code> — the accent as <em>text or a border</em> on a
+        surface. Light is <code>--color-accent-700</code>, the value the five sites already use.</li>
+      <li><code>--color-accent-hover: #1186ac;</code> — an accent-<em>filled</em> control, hovered.
+        Light is <code>--color-accent-600</code>, the value the four sites already use.</li>
+      <li><code>--color-inset: #d7d3d3;</code> — the recessed ground §4.4 names for
+        <code>--color-neutral-300</code>: the video thumbnail ground, the no-preview favicon square,
+        the missing-file marker, and the Settings toggle track.</li>
+      <li><code>--color-inset-hover: #bab6b6;</code> — the same, hovered; §11.2's toggle row calls for
+        <code>--color-neutral-400</code> when the switch is off.</li>
+    </ul></li>
+  <li><strong>ADD to <code>src/lib/theme.css</code>, in <em>both</em> dark blocks:</strong>
+    <code>--color-accent-text: #99e0ff;</code> (accent-300 — §4.5 rule 1, the accent moves up its ramp
+    on dark; #62c5ee is the dark accent itself and one step further up is what keeps text legible on
+    #262322), <code>--color-accent-hover: #99e0ff;</code> (a lighter step under
+    <code>--color-on-accent</code> #151312, since going darker on hover would read as disabled),
+    <code>--color-inset: #302d2b;</code> and <code>--color-inset-hover: #3b3735;</code>. Both are from
+    §4.5's approved six dark values — the raised step and the divider step — so this task introduces
+    no new hex the design document has not already blessed.</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/__tests__/tokens.test.ts</code> — extend the Phase 4
+    "declared twice in <code>theme.css</code>" list with the four new names, and add an assertion that
+    the set of token names declared in the <code>[data-theme='dark']</code> block is <em>equal</em> to
+    the set declared in the <code>prefers-color-scheme</code> block. That is the invariant the
+    per-name count was approximating, and it is the one that keeps the System theme from disagreeing
+    with the explicit one.</li>
+  <li><strong>PATTERN:</strong> the Phase 4 additions at <code>src/lib/tokens.css:100-109</code> —
+    a comment saying which phase added the token, why, and that it is flagged for the owner.</li>
+  <li><strong>GOTCHA:</strong> declare each token in <code>tokens.css</code> first. The token test
+    refuses a dark-block token the light block does not declare.</li>
+  <li><strong>GOTCHA:</strong> <code>--color-accent-text</code> and <code>--color-accent-hover</code>
+    share the dark value #99e0ff. That is correct — they are different roles that happen to land on
+    the same step — and neither may be collapsed into the other, because their light values differ.</li>
+  <li><strong>GOTCHA:</strong> do not touch <code>--color-neutral-*</code> or
+    <code>--color-accent-*</code> in <code>theme.css</code>. Redefining a ramp is what §4.5 forbids;
+    the role tokens are the whole mechanism.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/tokens.test.ts</code> — including the new
+    <code>tokens_everyNewRoleToken_isDeclaredOnceLightAndTwiceDark</code> and
+    <code>tokens_theTwoDarkBlocks_declareTheSameTokenNames</code>.</li>
+</ul>
+
+<h4 class="task" data-task="5">Task 5: Settle §15.4 — four dark shadows and the unmeasured contrast pair</h4>
+<p>The last open question in the design system. It is assigned to this phase and it is a measurement,
+not a redesign.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/lib/theme.css</code>, in <em>both</em> dark blocks, replacing
+    the Phase 1 interim values with the settled ones and rewriting the comment above them from "the
+    interim rule applies until Phase 5" to a record of what was settled and why:
+    <ul>
+      <li><code>--shadow-context-menu: 0 10px 28px rgba(0, 0, 0, 0.55);</code> (was 0.62)</li>
+      <li><code>--shadow-search-popover: 0 12px 30px rgba(0, 0, 0, 0.55);</code> (was 0.62)</li>
+      <li><code>--shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.5);</code> (was 0.62)</li>
+      <li><code>--shadow-picker-card: 0 2px 8px rgba(0, 0, 0, 0.42);</code> (was 0.36)</li>
+    </ul>
+    Offsets and blur are unchanged, as §15.4 requires. The reasoning to record in the comment: §15.4's
+    interim "roughly triple the alpha" rule was written against the three shadows §4.5 <em>does</em>
+    give, whose light alphas are .14/.18/.16; the four undrawn ones start at .30 and .12, where
+    tripling overshoots. §4.5's second rule — shadows do less separating work on a dark ground —
+    caps the band, and the three drawn dark values occupy .42–.50. The two overlays keep their light
+    ordering by sitting just above the card at .55; the knob, a 3 px blur on a small control, sits at
+    the top of the drawn band at .50; and §5.3 already says the picker card is "not drawn — use the
+    card value", which on dark is .42.</li>
+  <li><strong>CREATE:</strong> <code>src/lib/__tests__/contrast.test.ts</code> — a test-local
+    implementation of the WCAG 2.1 relative-luminance and contrast-ratio formulas, applied to the two
+    pairs §15.4 and §12.9 leave unmeasured, reading the hex values out of the token files rather than
+    retyping them: <code>--color-accent-2-400</code> #ff90b1 as ink on the dark surface #262322, and
+    <code>--color-on-accent</code> #151312 as ink on a #ff90b1 fill. Both must clear 4.5:1. The
+    expected figures are ≈7.3:1 and ≈8.8:1, so the open question resolves as a pass with no token
+    change — but the test computes it rather than asserting the number by hand, and it will fail if a
+    later palette edit breaks the pair.</li>
+  <li><strong>ADD:</strong> the same test file also measures the three opacity steps §12.2 asks to be
+    checked before sign-off — .42, .40 and .38 of <code>--color-text</code> over
+    <code>--color-bg</code>, in both palettes — and records their ratios in the test name output. These
+    are informational: they are asserted only to be present and computable, because the design has
+    already committed to them and this phase's job is to have measured them.</li>
+  <li><strong>PATTERN:</strong> <code>src/lib/__tests__/tokens.test.ts:11-18</code> — read the CSS with
+    <code>readFileSync(resolve('src/lib/theme.css'), 'utf8')</code> and match declarations with a
+    regular expression. No CSS parser is added.</li>
+  <li><strong>GOTCHA:</strong> <code>--color-divider</code> and the tints are
+    <code>color-mix()</code> expressions, not hexes. The contrast test must only pick up the tokens it
+    names, never scan for "the next hex".</li>
+  <li><strong>GOTCHA:</strong> <code>--shadow-card-drag</code>, <code>--shadow-textbar</code> and
+    <code>--shadow-dialog</code> are Phase 1 and Phase 4 project additions, not part of §15.4's four.
+    Leave them at .58, .60 and .70 — the dialog is the highest surface in the product and its heavier
+    ink is the correct ordering.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/contrast.test.ts src/lib/__tests__/tokens.test.ts</code> —
+    tests: <code>contrast_accent2On400OnTheDarkSurface_clears4point5</code>,
+    <code>contrast_darkOnAccentInkOnTheDestructiveFill_clears4point5</code>,
+    <code>contrast_theThreeOpacitySteps_areMeasurableInBothPalettes</code>, plus
+    <code>theme_theFourSettledShadows_useTheRecordedAlphas</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="3">Milestone 3: The Settings page</h3>
+
+<p>Frame <code>16a</code>: two controls the product has never had, the page they sit on, and the route
+into it.</p>
+
+<p><strong>Validation checkpoint:</strong> a component test renders the whole page with a mocked seam,
+clicks each of the three segmented controls and the toggle in turn, and asserts for every one of them
+that (a) the store changed, (b) exactly one <code>write_settings</code> went through the seam carrying
+all four values, (c) the drawn active option moved, and (d) for the Theme row specifically that
+<code>document.documentElement</code> gained <code>data-theme="dark"</code> and then lost it again on
+System. It then tabs through the page and asserts every control is reachable and that the arrow keys
+move within a segmented group rather than out of it. No single task's VALIDATE crosses a control, the
+store, the seam and the root element together.</p>
+
+<h4 class="task" data-task="6">Task 6: The segmented control</h4>
+<p>Three of the five Settings rows are this control. It is the first shared form control in the
+product, so it is built once and built properly.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/settings/SegmentedControl.svelte</code> with
+    <code>&lt;script lang="ts" generics="T extends string"&gt;</code> and
+    <code>interface Props&lt;T&gt; { options: { value: T; label: string }[]; value: T; label: string;
+    onChange: (value: T) =&gt; void; }</code>. <code>label</code> is the accessible name for the
+    group — the visible row label is not inside this component.</li>
+  <li><strong>IMPLEMENT:</strong> a <code>&lt;div role="radiogroup" aria-label={label}&gt;</code>
+    containing one <code>&lt;button type="button" role="radio" aria-checked={…}&gt;</code> per option.
+    Roving <code>tabindex</code>: the checked option is <code>0</code>, the rest <code>-1</code>.
+    <code>ArrowLeft</code>/<code>ArrowUp</code> and <code>ArrowRight</code>/<code>ArrowDown</code>
+    move and select, wrapping at both ends; <code>Home</code> and <code>End</code> jump. Moving focus
+    also selects, which is the APG's own rule for a radio group.</li>
+  <li><strong>IMPLEMENT:</strong> the locked values from §9.11, every one through a token —
+    <code>display: flex</code>, <code>font-size: var(--text-11-5)</code>,
+    <code>border-radius: var(--radius-card)</code> (3 px), <code>overflow: hidden</code>,
+    <code>1px solid var(--color-divider)</code>; each option <code>padding: 4px var(--space-12)</code>
+    (every Settings segmented is two- or three-up, so §9.11's four-up 10 px padding is not used);
+    inactive <code>opacity: .6</code>; active <code>background: var(--color-accent); color:
+    var(--color-on-accent); font-weight: 600; opacity: 1</code>.</li>
+  <li><strong>IMPLEMENT:</strong> the states from §11.2 and §11.4 — inactive hover
+    <code>opacity: .9</code> plus <code>background: var(--tint-accent-hover)</code>, inactive pressed
+    <code>var(--tint-accent-press)</code>, <strong>the active option gets no hover and no pressed
+    response at all</strong> ("it is already the answer"), focus
+    <code>:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }</code>,
+    <code>cursor: pointer</code>, and <code>transition: background var(--duration-90) var(--ease),
+    opacity var(--duration-90) var(--ease)</code>.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/shell/LeftColumn.svelte:220-232</code> for the
+    active-row treatment, and <code>src/features/canvases/DeleteCanvasDialog.svelte</code> for the
+    props and <code>data-testid</code> shape. Give the group
+    <code>data-testid="segmented-{label-slug}"</code> and each option
+    <code>data-testid="segmented-option"</code>.</li>
+  <li><strong>GOTCHA:</strong> <code>overflow: hidden</code> on the group clips the 2 px offset focus
+    ring on the first and last options. Put the ring on the group's own
+    <code>:focus-within</code> instead, or set <code>overflow: visible</code> and clip the option
+    corners with <code>border-radius: inherit</code> on the first and last child. Either is fine;
+    losing the ring is not — §12 makes the focus ring a contract.</li>
+  <li><strong>GOTCHA:</strong> generic <code>$props</code> needs the <code>generics</code> attribute on
+    the <code>&lt;script&gt;</code> tag; without it <code>npm run check</code> fails on the
+    <code>Props&lt;T&gt;</code> reference rather than at build time.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/settings/__tests__/controls.test.ts -t segmented</code> — tests:
+    <code>segmented_click_callsOnChangeWithThatOptionOnce</code>,
+    <code>segmented_clickTheActiveOption_stillReportsItWithoutError</code>,
+    <code>segmented_arrowRightOnTheLastOption_wrapsToTheFirst</code>,
+    <code>segmented_render_marksExactlyOneOptionAriaCheckedAndTabbable</code>,
+    <code>segmented_render_usesNoLiteralColourValue</code>.</li>
+</ul>
+
+<h4 class="task" data-task="7">Task 7: The toggle</h4>
+<p>One row is a switch. It is the only toggle in the product and the only consumer of
+<code>--shadow-toggle-knob</code>.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/settings/Toggle.svelte</code> with
+    <code>interface Props { checked: boolean; label: string; onChange: (checked: boolean) =&gt; void; }</code>,
+    rendered as <code>&lt;button type="button" role="switch" aria-checked={checked}
+    aria-label={label}&gt;</code> containing one knob span.</li>
+  <li><strong>IMPLEMENT:</strong> §9.11's locked values — track 34 × 19 px,
+    <code>border-radius: 10px</code>, <code>background: var(--color-inset)</code> when off and
+    <code>var(--color-accent)</code> when on; knob 15 × 15 px, <code>border-radius: 50%</code>,
+    <code>background: var(--color-surface)</code>, <code>box-shadow: var(--shadow-toggle-knob)</code>,
+    <code>inset: 2px</code>, at <code>left: 2px</code> when off and translated
+    <code>15px</code> when on (34 − 15 − 2 − 2).</li>
+  <li><strong>IMPLEMENT:</strong> §11.2's row — hover moves the track to
+    <code>var(--color-inset-hover)</code> when off and <code>var(--color-accent-hover)</code> when on;
+    pressed narrows the knob to 13 px for the press duration; the knob travels in
+    <code>var(--duration-110) var(--ease)</code>; focus is the standard 2 px offset ring;
+    <code>cursor: pointer</code>. <code>Space</code> and <code>Enter</code> toggle, which a
+    <code>&lt;button&gt;</code> gives for free.</li>
+  <li><strong>PATTERN:</strong> the token-only <code>&lt;style&gt;</code> discipline of every existing
+    component — <code>10px</code>, <code>34px</code>, <code>19px</code>, <code>15px</code>,
+    <code>13px</code> and <code>2px</code> are the control's own drawn geometry and are written
+    literally, exactly as <code>ZoomBar.svelte</code> writes its 26 × 24 cells; a literal
+    <em>colour</em> is what is forbidden.</li>
+  <li><strong>GOTCHA:</strong> the design system draws no resting "on" track colour — only the hovered
+    one (<code>--color-accent-600</code>). <code>var(--color-accent)</code> is the resting value and
+    <code>var(--color-accent-hover)</code> the hovered one, which reproduces the drawn hover step
+    exactly in light and moves in the right direction on dark. Flag this in the PR body as a state
+    designed in this phase.</li>
+  <li><strong>GOTCHA:</strong> animate <code>transform: translateX()</code>, never <code>left</code>.
+    A layout-animating knob is the one place in this phase that could put work on the compositor's
+    slow path.</li>
+  <li><strong>GOTCHA:</strong> the whole control is one button. Do not nest an
+    <code>&lt;input type="checkbox"&gt;</code> inside it — a control inside a button is invalid and
+    the global keydown listener would see the key twice.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/settings/__tests__/controls.test.ts -t toggle</code> — tests:
+    <code>toggle_click_callsOnChangeWithTheOppositeValue</code>,
+    <code>toggle_render_reportsRoleSwitchAndAriaChecked</code>,
+    <code>toggle_spaceKey_togglesIt</code>,
+    <code>toggle_render_usesNoLiteralColourValue</code>.</li>
+</ul>
+
+<h4 class="task" data-task="8">Task 8: The Settings page</h4>
+<p>Frame <code>16a</code>: a full-screen page replacing the canvas, with five rows in three groups.
+There is no Save and no Cancel.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/settings/SettingsPage.svelte</code> with
+    <code>interface Props { folderPath: string | null; onBack: () =&gt; void; }</code>. Everything else
+    it needs it reads from <code>getSettings()</code> and writes through <code>setSetting()</code>;
+    §13.2 lists the screen's reads as exactly <code>settings</code> and
+    <code>project.folderPath</code> and gives it no screen-local state.</li>
+  <li><strong>IMPLEMENT — header:</strong> <code>padding: 30px var(--space-44) 20px</code>,
+    <code>display: flex</code>, <code>align-items: flex-end</code>, <code>gap: var(--space-16)</code>:
+    <code>&lt;h1&gt;Settings&lt;/h1&gt;</code> at <code>var(--text-32)</code> /
+    <code>var(--tracking-tight-2)</code>; <code>Applied as you change them</code> at
+    <code>var(--text-12)</code> <code>opacity: .5</code> with <code>padding-bottom: 8px</code>; then
+    <code>Back to canvas</code> pushed right with <code>margin-left: auto</code> —
+    <code>ph-arrow-left</code> at 13 px, <code>padding: 5px var(--space-14)</code>,
+    <code>border-radius: var(--radius-lg)</code>, <code>1px solid var(--color-accent)</code>,
+    <code>color: var(--color-accent-text)</code>.</li>
+  <li><strong>IMPLEMENT — body:</strong> <code>display: grid</code>,
+    <code>grid-template-columns: 1fr 1fr</code>, <code>gap: var(--space-34) var(--space-64)</code>,
+    <code>align-content: start</code>, <code>max-width: 1000px</code>,
+    <code>padding: 0 var(--space-44) 20px</code>, <code>overflow-y: auto</code>, and
+    <code>class="scroll-thin"</code> — §15.4 item 2 names the Settings body as one of the three
+    scrolling regions, and Phase 1 already settled that scrollbar in
+    <code>tokens.css</code>. Three <code>&lt;section&gt;</code> groups flow into the grid in document
+    order: <strong>Files</strong> (Project folder, Auto-save), <strong>Canvas</strong> (Snap to grid,
+    Zoom with), <strong>Appearance</strong> (Theme).</li>
+  <li><strong>IMPLEMENT — group headings and rows:</strong> each group's heading takes the section-label
+    style §6.2 gives the left column's own headings — <code>var(--text-10)</code>, uppercase,
+    <code>var(--tracking-10)</code>, <code>opacity: .45</code> — because §9.11 names the three groups
+    and gives them no type of their own. Each row is <code>display: flex</code>,
+    <code>align-items: center</code>, <code>gap: var(--space-12)</code>: a label at
+    <code>var(--text-12-5)</code> with its helper text beneath at <code>var(--text-11-5)</code>
+    <code>opacity: .5</code>, and the control right-aligned at <code>flex: none</code>.</li>
+  <li><strong>IMPLEMENT — the five rows, with the drawn strings exactly:</strong>
+    <ul>
+      <li><em>Project folder</em> — <code>folderPath</code> ellipsized
+        (<code>text-overflow: ellipsis; overflow: hidden; white-space: nowrap; direction: rtl</code>
+        so the folder name survives the clip), followed by the word <code>read-only</code> at
+        <code>var(--text-11-5)</code> <code>opacity: .42</code>. No helper text. When
+        <code>folderPath</code> is null the row prints <code>No project is open</code> in the same
+        place.</li>
+      <li><em>Auto-save</em> — segmented <code>1s</code> / <code>3s</code> / <code>10s</code> over
+        <code>AUTO_SAVE_OPTIONS</code>; helper "Written atomically; the canvas never blocks on a
+        save."</li>
+      <li><em>Snap to grid</em> — toggle; helper "Off keeps free placement to the pixel."</li>
+      <li><em>Zoom with</em> — segmented <code>Scroll</code> / <code>Ctrl+scroll</code> over
+        <code>'scroll'</code> / <code>'ctrl-scroll'</code>; helper "Ctrl+scroll leaves the plain wheel
+        free to pan."</li>
+      <li><em>Theme</em> — segmented <code>Light</code> / <code>Dark</code> / <code>System</code>; no
+        helper. Its <code>onChange</code> calls <code>applyTheme(value)</code> <em>and</em>
+        <code>setSetting('theme', value)</code>, in that order, so the repaint happens before the
+        write.</li>
+    </ul></li>
+  <li><strong>IMPLEMENT — footer:</strong> <code>padding: 0 var(--space-44) 22px</code>,
+    <code>var(--text-11-5)</code>, <code>opacity: .42</code>, reading
+    <code>settings.json · {location} · nothing leaves this machine</code>, where
+    <code>location</code> comes from <code>settingsLocation()</code> resolved in an
+    <code>$effect</code> and starts as the literal <code>%APPDATA%\IdeaScape</code> so the line is
+    never empty and never wrong.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/projects/ProjectPicker.svelte</code> for a
+    full-page screen with a header, a body and a two-part footer;
+    <code>src/lib/Icon.svelte</code> for the <code>arrow-left</code> glyph.</li>
+  <li><strong>GOTCHA:</strong> all five labels are Title Case as drawn — "Project folder", "Auto-save",
+    "Snap to grid", "Zoom with", "Theme", "Back to canvas" — and the helper strings are sentence case
+    as drawn. Do not "correct" either; §9.11's table is the authority and CLAUDE.md's Title Case rule
+    covers labels, not helper copy.</li>
+  <li><strong>GOTCHA:</strong> no Save button, no Cancel, no confirm, and no toast. §10 contract 6 is
+    explicit, and contract 5 says the title bar's save state is the only save affordance in the
+    product.</li>
+  <li><strong>GOTCHA:</strong> the page must not read <code>canvasStore</code> for the folder path —
+    <code>features/settings/</code> may import <code>stores/</code>, but taking it as a prop keeps the
+    component testable without a store fixture and matches how <code>TitleBar</code> already receives
+    <code>folderPath</code>.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/settings/__tests__/settingsPage.test.ts</code> — tests:
+    <code>settingsPage_render_showsTheFiveRowsInThreeGroups</code>,
+    <code>settingsPage_render_marksTheDrawnDefaultsActive</code>,
+    <code>settingsPage_noProjectOpen_saysSoInThePathRow</code>,
+    <code>settingsPage_render_printsTheSettingsFileLocationInTheFooter</code>,
+    <code>settingsPage_render_hasNoSaveOrCancelButton</code>,
+    <code>settingsPage_backToCanvas_callsOnBack</code>.</li>
+</ul>
+
+<h4 class="task" data-task="9">Task 9: The route in, the route out, and the boot load</h4>
+<p>The gear row has been drawn and disabled since Phase 1. This task turns it on and gives the shell
+its third screen.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/LeftColumn.svelte</code> — add
+    <code>onSettings?: () =&gt; void</code> and <code>settingsActive?: boolean</code> to
+    <code>Props</code>; remove <code>disabled</code> and <code>is-unavailable</code> from the gear
+    button, wire <code>onclick={onSettings}</code>, and add
+    <code>class:active={settingsActive}</code> so the row takes the drawn active treatment (§9.11:
+    "its gear is the active row"). Delete the "The Settings screen is Phase 5" comment and the
+    "Only Settings is still Phase 5" line from the module doc comment.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — add <code>let settingsOpen =
+    $state(false)</code>. Inside the <code>{:else}</code> branch, wrap the canvas region so that when
+    <code>settingsOpen</code> is true the page renders
+    <code>&lt;SettingsPage {folderPath} onBack={() =&gt; (settingsOpen = false)} /&gt;</code> in place
+    of <code>CanvasSurface</code>, <code>EmptyCanvas</code>, <code>DropTarget</code> and
+    <code>PropertiesPanel</code>. The <code>LeftColumn</code> and the <code>TitleBar</code> stay, per
+    §9.11.</li>
+  <li><strong>ADD:</strong> a <code>settingsShortcuts</code> map holding <code>cancel</code> only
+    (returning to the canvas), and a third branch in the existing shortcut
+    <code>$effect</code> at <code>app.svelte:1064</code> so the canvas keys cannot fire on a page that
+    has no canvas — the same reasoning that gave the picker its own map. Add no new
+    <code>Action</code> and no new <code>SHORTCUT_LABELS</code> entry: §11.6's keyboard map prints no
+    key for Settings, and <code>Escape</code> already dispatches as <code>cancel</code>.</li>
+  <li><strong>ADD:</strong> guard the root's drag-and-drop handlers and the paste router with
+    <code>if (settingsOpen) return</code>, and set <code>settingsOpen = false</code> inside
+    <code>closeProject()</code> and on every canvas switch. Dropping a picture onto the Settings page
+    would otherwise create a card the user cannot see.</li>
+  <li><strong>ADD:</strong> in the boot <code>$effect</code>, <em>before</em> anything else — including
+    the recents load — <code>const s = await loadSettings(); applyTheme(s.theme);</code>. This is the
+    first thing the application does.</li>
+  <li><strong>PATTERN:</strong> <code>src/app.svelte:1064-1067</code> for the per-screen shortcut
+    registration; <code>:1309-1319</code> for the screen conditional.</li>
+  <li><strong>GOTCHA:</strong> Settings is reachable only from the left column, so only from inside a
+    project. That is what §9.11 draws and §9.1's picker draws no route of its own. Do not invent a
+    gear on the picker.</li>
+  <li><strong>GOTCHA:</strong> a theme chosen as Dark while Windows is light will flash the light
+    ground for one frame at boot, because <code>index.html</code> paints before the settings file is
+    read. Loading settings as the very first boot step keeps that to a single frame, and §11.3 already
+    treats the theme change as an instant repaint. Do not add a transition to hide it, and do not add
+    a blocking synchronous read.</li>
+  <li><strong>GOTCHA:</strong> the <code>PerfOverlay</code>, the context menu and the error strip are
+    siblings of the screen conditional, not children. Leave them where they are; the perf harness must
+    keep working for Task 12.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/settings/__tests__/session.test.ts</code> — tests:
+    <code>shell_clickTheGearRow_showsTheSettingsPageAndKeepsTheLeftColumn</code>,
+    <code>shell_settingsOpen_marksTheGearRowActive</code>,
+    <code>shell_backToCanvas_returnsToTheCanvasWithTheSelectionIntact</code>,
+    <code>shell_escapeOnSettings_returnsToTheCanvas</code>,
+    <code>shell_closeProject_leavesSettingsClosed</code>,
+    <code>boot_settingsSayDark_appliesTheAttributeBeforeTheFirstDataLoad</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="4">Milestone 4: The settings do something, and the theme is signed off</h3>
+
+<p>A control that writes a file the application then ignores is not a setting. This milestone makes
+all four take effect, corrects the eleven ramp-token lines, and walks every screen on the dark ground
+in the running application.</p>
+
+<p><strong>Validation checkpoint:</strong> <code>scripts/phase-5-session.md</code> exists and records
+a PASS for each of the twelve PRD §10.2 lines — the ten Phase 4 already carried plus the two
+dark-theme lines this phase is the gate for — every screen and card kind walked in Light, Dark and
+System, a median frame rate on 250 mixed cards at or above Phase 4's 59.9 fps with the cull counts
+beside it, an installer size under 20 MB, and the four settled shadow alphas and two contrast ratios
+written down; and the Level 4 block asserts all of it by reading the file, so the gate cannot be
+reported green from memory.</p>
+
+<h4 class="task" data-task="10">Task 10: Auto-save cadence becomes a real ceiling</h4>
+<p><code>autoSaveMs</code> has fed one string of display copy since Phase 1 and has changed no
+behaviour. The Settings page is about to let the user pick 1 s, 3 s or 10 s, so it has to mean
+something.</p>
+<ul>
+  <li><strong>ADD to <code>src/lib/save.ts</code>:</strong>
+    <code>startAutoSave(hooks: SaveHooks): () =&gt; void</code> — a repeating timer at
+    <code>getSettings().autoSaveMs</code> that calls <code>flushPlacements(hooks)</code> whenever
+    <code>pendingCount() &gt; 0</code>, and returns its own teardown. It reschedules itself when the
+    cadence changes.</li>
+  <li><strong>IMPLEMENT:</strong> the doc comment must say what this is and what it is not. It is a
+    <em>ceiling</em> on how long queued geometry may sit unwritten; it is additive to write-on-change
+    and to the drag-end flush, and it replaces neither.
+    <code>persistence-strategy</code> is unchanged: every change is still written, a drag is still one
+    transaction on release, and this timer only catches a drag that outlives the cadence or a pointer
+    release the window never saw.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — start it in an <code>$effect</code> that
+    reads <code>getSettings().autoSaveMs</code>, so changing the cadence tears the old timer down and
+    starts a new one, and stop it when the project closes.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/PropertiesPanel.svelte</code> — nothing but the
+    import path (done in Task 2). Its footer copy now genuinely tracks the setting because
+    <code>getSettings()</code> is reactive; assert that rather than assuming it.</li>
+  <li><strong>PATTERN:</strong> <code>flushPlacements</code> at <code>src/lib/save.ts:40-53</code>,
+    which already guards on <code>pending.size === 0 || flushing</code>, so a timer tick during a
+    flush is a no-op and needs no lock of its own.</li>
+  <li><strong>GOTCHA:</strong> use <code>vi.useFakeTimers()</code> in the test. A real 1 000 ms wait in
+    the suite is a slow test that will be deleted by the next person who runs it.</li>
+  <li><strong>GOTCHA:</strong> the timer must not fire during a drag in a way that writes a
+    half-finished position as final. It writes the same rows the drag-end flush would write, and the
+    drag then overwrites them on release — which is correct, and is why the flush is idempotent.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/save.test.ts</code> — new tests:
+    <code>startAutoSave_geometryQueuedPastTheCadence_flushesItOnce</code>,
+    <code>startAutoSave_nothingQueued_writesNothing</code>,
+    <code>startAutoSave_teardown_stopsTheTimer</code>,
+    <code>autoSaveFooterText_afterTheCadenceChanges_readsTheNewValue</code>, with every existing test
+    in the file still green.</li>
+</ul>
+
+<h4 class="task" data-task="11">Task 11: The dark-theme audit — eleven lines</h4>
+<p>The phase gate is "every screen built in Phases 1–4 renders correctly in the dark theme". These
+eleven lines are the only places the shipped styles reach past a role token, and they are why it does
+not today.</p>
+<ul>
+  <li><strong>UPDATE — <code>--color-accent-700</code> → <code>var(--color-accent-text)</code></strong>
+    in <code>src/features/canvas/EmptyCanvas.svelte:75</code>,
+    <code>src/features/cards/LinkCard.svelte:248</code>,
+    <code>src/features/cards/NoteCard.svelte:83</code> and
+    <code>src/features/shell/PropertiesPanel.svelte:540</code>. On dark, #006786 on #262322 is
+    unreadable; #99e0ff is the same role one step up the dark ramp.</li>
+  <li><strong>UPDATE — <code>--color-accent-600</code> → <code>var(--color-accent-hover)</code></strong>
+    in <code>src/features/projects/NewProjectDialog.svelte:264-265</code>,
+    <code>src/features/projects/ProjectPicker.svelte:160-161</code>,
+    <code>src/features/shell/ContextMenu.svelte:156</code> and
+    <code>src/features/shell/LeftColumn.svelte:226</code>. These are hover fills under
+    <code>--color-on-accent</code> ink; on dark the hover must move lighter, not darker.</li>
+  <li><strong>UPDATE — <code>--color-neutral-200</code> → <code>var(--color-raised)</code></strong> in
+    <code>src/features/cards/ImageCard.svelte:106</code> and
+    <code>src/features/cards/LinkCard.svelte:116</code>. §4.5 already maps "raised fills (image
+    placeholders, inputs)" to #302d2b on dark, and <code>--color-raised</code> is that token; its
+    light value #eae7e7 is identical to <code>--color-neutral-200</code>, so nothing changes in the
+    light theme.</li>
+  <li><strong>UPDATE — <code>--color-neutral-300</code> → <code>var(--color-inset)</code></strong> in
+    <code>src/features/cards/ImageCard.svelte:112</code> (the missing-file marker),
+    <code>src/features/cards/LinkCard.svelte:172</code> (the no-preview favicon square) and
+    <code>src/features/cards/VideoCard.svelte:100</code> (the thumbnail ground) — the three uses §4.4
+    itself names for that ramp step.</li>
+  <li><strong>ADD:</strong> a static test asserting that no component under <code>src/features/</code>
+    references <code>--color-neutral-</code> or <code>--color-accent-</code> followed by a ramp
+    number. The role tokens are the mechanism; a ramp reference in a component is the defect this task
+    exists to remove, and only <code>tokens.css</code> and <code>theme.css</code> may name a ramp
+    step.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/canvases/CanvasList.svelte:206</code>, which already
+    resolves through <code>--color-accent-tint-text</code> rather than a ramp step, is the shape the
+    other eleven lines are being brought to.</li>
+  <li><strong>GOTCHA:</strong> every one of these is a pure substitution with an identical light value
+    (<code>--color-accent-text</code> = accent-700, <code>--color-accent-hover</code> = accent-600,
+    <code>--color-inset</code> = neutral-300, <code>--color-raised</code> = neutral-200). The light
+    theme must be pixel-identical afterwards, and the existing component tests are the regression
+    suite for that — they must be green before this task is called done.</li>
+  <li><strong>GOTCHA:</strong> the destructive Delete button and the destructive menu rows already use
+    <code>--color-accent-2</code>, which <em>does</em> flip in <code>theme.css</code>. Leave them
+    alone.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features src/lib src/stores</code> — the whole front-end suite green,
+    including the new <code>tokens_noComponent_referencesARampStepDirectly</code>, and no snapshot or
+    style assertion in any Phase 1–4 test changed.</li>
+</ul>
+
+<h4 class="task" data-task="12">Task 12: Sign the dark theme off, and re-measure the gate</h4>
+<p>PRD §11's Phase 5 gate is measured in the running application, not in the suite. This is the last
+substantive task in the project.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> build and run the real window (<code>npm run tauri build</code>, then
+    the built binary with no arguments so the picker is the entry), and walk every screen in
+    <strong>Light</strong>, then <strong>Dark</strong>, then <strong>System</strong> with Windows set
+    each way, recording each in <code>scripts/phase-5-session.md</code>: the project picker and its
+    New project dialog; the empty project; the canvas with all four card kinds, including a missing
+    image, a link in all three fetch states and a video card; both context menus; the properties panel
+    expanded and collapsed, with the Delete button; the search popover with results; the canvas rows
+    with an inline rename and the delete confirm; the zoom bar; and the Settings page itself
+    (frame <code>18b</code>).</li>
+  <li><strong>IMPLEMENT:</strong> for each screen record PASS or FAIL against the two §10.2 dark lines
+    — "every screen renders correctly, nothing moves between the two themes" and "every screen matches
+    docs/design-system.html at its locked token values, in light and in dark" — plus a note of any
+    element whose position, size or spacing differed between the two themes. Nothing may move; if
+    anything does, a measurement token was redefined and the token test missed it.</li>
+  <li><strong>IMPLEMENT:</strong> change each of the four settings in the running application, close
+    the application, reopen it, and confirm all four survived; then delete
+    <code>%APPDATA%\IdeaScape\settings.json</code>, reopen, and confirm the application starts on the
+    drawn defaults with no error — PRD §8.2's "never required to exist". Record both.</li>
+  <li><strong>IMPLEMENT:</strong> run the perf harness on 250 mixed cards at 100% and 40% zoom in the
+    dark theme, append the median frame rate, the dropped-frame count and the cull counts, and compare
+    against Phase 4's recorded 59.9 fps. This phase adds no per-frame work inside the transformed
+    layer, so a regression means something accidental — most likely the auto-save timer from Task 10
+    firing during a pan. Build the NSIS installer and record its size against the 20 MB cap; with no
+    new crate and no new npm package it should sit within a few kilobytes of Phase 4's 2,931,992
+    bytes.</li>
+  <li><strong>IMPLEMENT:</strong> record the four settled shadow alphas from Task 5 and the two
+    computed contrast ratios, and state that design-system §15.4 item 1 is closed — flagged in the PR
+    body for a later <code>dev-ui-update</code> run to fold back into the document.</li>
+  <li><strong>MIRROR:</strong> the structure and wording of <code>scripts/phase-4-session.md</code>,
+    including its <code>Gate: PASS</code> line.</li>
+  <li><strong>GOTCHA:</strong> the release build registers no <code>perf_gate_requested</code> and no
+    seeder, so the 250-card step runs on a <code>npm run tauri build -- --debug</code> binary with
+    <code>--project &lt;scratch folder&gt; --perf-gate</code> and the interactive steps on the release
+    binary with no arguments. Record which binary each step used, exactly as Phase 4 did.</li>
+  <li><strong>GOTCHA:</strong> "System" needs the Windows setting changed, not the application
+    restarted. The media query is live; if the window does not repaint when Windows flips, the
+    attribute was left behind and Task 3 is wrong.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>node -e "const s=require('fs').readFileSync('scripts/phase-5-session.md','utf8'); if(/FAIL/.test(s)){console.error('a recorded step failed');process.exit(1);} if(!/Gate:\s*PASS/.test(s)){console.error('gate not recorded as PASS');process.exit(1);} for(const t of ['Light','Dark','System']){ if(!new RegExp('\\\\b'+t+'\\\\b').test(s)){console.error('theme not walked: '+t);process.exit(1);} } const m=s.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i); if(!m){console.error('no fps recorded');process.exit(1);} const d=s.match(/drawn[^0-9]*([0-9]+)[^0-9]+of[^0-9]*([0-9]+)/i); if(!d||parseInt(d[1])&gt;parseInt(d[2])*0.5){console.error('cull looks broken; the fps number is meaningless');process.exit(1);} if(!/15\.4/.test(s)){console.error('the settled 15.4 values are not recorded');process.exit(1);} console.log('phase 5 session recorded:', m[1], 'fps,', d[1], 'of', d[2], 'drawn');"</code></li>
+</ul>
+
+<h3 class="milestone" data-milestone="5">Milestone 5: Commit, push, and open PR</h3>
+
+<h4 class="task" data-task="13">Task 13: Commit, push, and open PR</h4>
+<p>After every prior validation checkpoint has passed:</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> stage and commit uncommitted changes with a descriptive message
+    summarizing the phase; push with <code>git push -u origin phase-5-settings</code>; open a PR with
+    <code>gh pr create --head phase-5-settings --title "&lt;title&gt;" --body "&lt;body&gt;"</code>
+    (omitting <code>--base</code> targets the repo's default branch; pass <code>--base main</code>
+    explicitly if needed).</li>
+  <li><strong>PR title format:</strong> <code>Phase 5: Settings and appearance</code> — names the
+    phase, not any individual feature.</li>
+  <li><strong>PR body format:</strong> copy the Acceptance Criteria as a checklist with each box
+    checked off, followed by a <code>Notes</code> section listing assumptions/trade-offs decided during
+    execution. Flag for the owner, explicitly: the four new role tokens
+    (<code>--color-accent-text</code>, <code>--color-accent-hover</code>, <code>--color-inset</code>,
+    <code>--color-inset-hover</code>); the four settled dark shadow alphas and the two measured
+    contrast ratios, which close design-system §15.4 item 1 and want folding back into the document by
+    a later <code>dev-ui-update</code> run; the toggle's undrawn resting "on" track colour designed in
+    this phase; the segmented control's undrawn keyboard behaviour; and the note that this is the last
+    phase — PRD §10.2 is complete.</li>
+  <li><strong>GOTCHA:</strong> pushing over HTTPS on this machine hangs on a blocking Windows
+    credential dialog. Use
+    <code>git -c credential.helper= -c credential.helper='!gh auth git-credential' push -u origin phase-5-settings</code>.</li>
+  <li><strong>GOTCHA:</strong> CLAUDE.md forbids any AI attribution in commits, PR bodies or code
+    comments. No <code>Co-Authored-By</code>, no generated-with footer, no <code>Claude-Session</code>
+    trailer.</li>
+  <li><strong>GOTCHA:</strong> if <code>gh</code> is not installed or authenticated this step fails. It
+    is standard tooling in this repository — Phases 1–4 all shipped through it.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>gh pr view --json number,title,state,headRefName</code> returns the new PR with
+    <code>"state": "OPEN"</code> and <code>"headRefName": "phase-5-settings"</code>.</li>
+</ul>
+
+<h2>Testing Strategy</h2>
+
+<h3>Unit Tests</h3>
+<ul>
+  <li><strong>Rust, in-file <code>#[cfg(test)]</code> per area.</strong> The settings module's pure
+    <code>sanitize</code> first, then file tests against a <code>tempfile::tempdir()</code>. Both
+    <code>read_settings_at</code> and <code>write_settings_at</code> take their directory as a
+    parameter precisely so no test writes to this machine's real <code>%APPDATA%</code> — the same
+    discipline <code>read_recent</code> established.</li>
+  <li><strong>TypeScript, Vitest with plain <code>expect</code>.</strong> Pure logic and stores:
+    <code>sanitizeSettings</code>, <code>autoSaveFooterText</code>, <code>applyTheme</code>, the
+    auto-save ceiling under fake timers, and the WCAG contrast computation. Not the visual output —
+    the token and contrast tests read the CSS files as text rather than asserting computed styles,
+    because jsdom does not resolve custom properties.</li>
+  <li><strong>Component tests</strong> for the two new controls, through
+    <code>@testing-library/svelte</code> with <code>vi.mock('../../../lib/ipc')</code>, the idiom every
+    existing feature test uses.</li>
+</ul>
+
+<h3>Integration Tests</h3>
+<ul>
+  <li>The four milestone checkpoints, each a real test file rather than a manual step: the Rust
+    settings lifecycle (M1), the three-way token agreement plus the computed contrast (M2), the page
+    driving the store, the seam and the root element together (M3), and the recorded-artefact
+    assertions (M4).</li>
+  <li><code>src/features/settings/__tests__/session.test.ts</code> renders the shell and drives the
+    gear row, the Back button, <code>Escape</code> and a project close, which is the only place the
+    screen conditional, the shortcut maps and the drag guards are exercised together.</li>
+</ul>
+
+<h3>Edge Cases</h3>
+<ul>
+  <li>No <code>settings.json</code> at all; an empty file; a file that is not JSON; a file whose JSON
+    is an array or a string rather than an object.</li>
+  <li>A file with an unknown extra key (ignored), a missing key (defaulted), and a known key holding
+    the wrong type or an out-of-range value (that field alone falls back).</li>
+  <li>A settings write that fails because the folder is read-only or the disk is full — logged, the
+    value stays applied for the session, no dialog.</li>
+  <li><code>%APPDATA%</code> unset, so <code>app_data_dir()</code> takes its
+    <code>USERPROFILE</code> or <code>.</code> fallback; the footer must print whatever it actually
+    resolved.</li>
+  <li>Theme Dark while Windows is Light, and Theme Light while Windows is Dark — the two cases the
+    <code>:root:not([data-theme='light'])</code> guard exists for.</li>
+  <li>Windows changing its theme while the application is open, with the setting on System.</li>
+  <li>Opening Settings with no card selected, with a card selected (the selection survives the round
+    trip), and while a note is mid-edit.</li>
+  <li>Dropping a picture, pasting an address, or pressing <code>N</code> while the Settings page is
+    showing — none may create a card.</li>
+  <li>Closing the project while Settings is open.</li>
+  <li>Changing the auto-save cadence while geometry is queued.</li>
+  <li>Changing the cadence to 1 s and dragging continuously for longer than that.</li>
+  <li>The Project folder row with a very long path, and with no project open.</li>
+</ul>
+
+<h2>Validation Commands</h2>
+
+<h3>Level 1: Syntax &amp; Style</h3>
+<pre><code>npm run check
+npx prettier --check .
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings</code></pre>
+<p>Expected: exit code 0 from each.</p>
+
+<h3>Level 2: Unit Tests</h3>
+<pre><code>npx vitest run
+cargo test --manifest-path src-tauri/Cargo.toml</code></pre>
+
+<h3>Level 3: Integration Tests</h3>
+<pre><code>cargo test --manifest-path src-tauri/Cargo.toml -- --include-ignored
+npx vitest run src/features src/stores src/lib</code></pre>
+
+<h3>Level 4: Manual Validation</h3>
+<p>One non-interactive block. It builds the application, asserts the bundle is still self-contained
+and within budget, and asserts the recorded sign-off artefact. Exits 0 on success, non-zero on
+failure.</p>
+<pre><code>set -e
+npm run build
+npm run tauri build
+node -e "
+const fs=require('fs'), p=require('path');
+const walk=d=&gt;fs.readdirSync(d,{withFileTypes:true}).flatMap(e=&gt;e.isDirectory()?walk(p.join(d,e.name)):[p.join(d,e.name)]);
+const css=walk('dist').filter(f=&gt;f.endsWith('.css')).map(f=&gt;fs.readFileSync(f,'utf8')).join('');
+if(/url\(\s*['\\\"]?https?:/.test(css)) { console.error('external asset reference in bundle'); process.exit(1); }
+const d='src-tauri/target/release/bundle/nsis';
+const exe=fs.readdirSync(d).find(x=&gt;x.endsWith('.exe'));
+if(!exe) { console.error('no NSIS installer'); process.exit(1); }
+const size=fs.statSync(p.join(d,exe)).size;
+if(size &gt; 20*1024*1024) { console.error('installer over 20 MB'); process.exit(1); }
+const s=fs.readFileSync('scripts/phase-5-session.md','utf8');
+if(/FAIL/.test(s)) { console.error('a recorded session step failed'); process.exit(1); }
+if(!/Gate:\s*PASS/.test(s)) { console.error('session gate not recorded as PASS'); process.exit(1); }
+for (const t of ['Light','Dark','System']) if(!new RegExp('\\\\b'+t+'\\\\b').test(s)) { console.error('theme not walked: '+t); process.exit(1); }
+if(!/15\.4/.test(s)) { console.error('the settled 15.4 values are not recorded'); process.exit(1); }
+const m=s.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i);
+if(!m) { console.error('no fps recorded'); process.exit(1); }
+const dr=s.match(/drawn[^0-9]*([0-9]+)[^0-9]+of[^0-9]*([0-9]+)/i);
+if(!dr || parseInt(dr[1]) &gt; parseInt(dr[2])*0.5) { console.error('cull looks broken; the fps number is meaningless'); process.exit(1); }
+console.log('phase 5 gate ok:', m[1], 'fps,', dr[1], 'of', dr[2], 'drawn, installer', size, 'bytes');
+"</code></pre>
+
+<h3>Level 5: Additional Validation (Optional)</h3>
+<pre><code># The three new commands are registered in BOTH invoke_handler lists
+node -e "
+const fs=require('fs');
+const s=fs.readFileSync('src-tauri/src/lib.rs','utf8');
+for (const c of ['read_settings','write_settings','settings_location']) {
+  const n=(s.match(new RegExp('settings::'+c+'\\\\b','g'))||[]).length;
+  if (n &lt; 2) { console.error('command not registered in both handlers: '+c); process.exit(1); }
+}
+console.log('all three settings commands registered twice');
+"
+# The Phase 1 placeholder module is gone and nothing still imports it
+! test -f src/lib/settings.ts
+! grep -rn "lib/settings'" src --include=*.ts --include=*.svelte
+# The gear row is live
+! grep -n "The Settings screen is Phase 5" src/features/shell/LeftColumn.svelte
+! grep -rn "is still Phase 5" src src-tauri/src
+# No component names a ramp step; only the two token files may
+! grep -rn -- "--color-neutral-[0-9]" src/features src/app.svelte src/app.css
+! grep -rn -- "--color-accent-[0-9]" src/features src/app.svelte src/app.css
+# No literal colour outside the token layer
+! grep -rnE "#[0-9a-fA-F]{6}|rgba?\(" src/features src/app.svelte src/app.css --include=*.svelte --include=*.css
+# The theme mechanism is CSS-only: no matchMedia anywhere
+! grep -rn "matchMedia" src --include=*.ts --include=*.svelte
+# No new migration, no new dependency, no new capability permission
+node -e "const n=require('fs').readdirSync('src-tauri/migrations').filter(f=&gt;f.endsWith('.sql')).length; if(n!==1){console.error('migration count changed: '+n);process.exit(1);} console.log('one migration, unchanged');"
+git diff --stat origin/main -- src-tauri/Cargo.toml package.json src-tauri/capabilities/default.json
+# The import direction rule
+! grep -rn "from '\.\./\.\./features/" src/features --include=*.ts --include=*.svelte
+! grep -rn "features/" src/lib src/stores --include=*.ts --include=*.svelte
+# The command seam is not bypassed
+! grep -rn "@tauri-apps/api/core" src --include=*.ts --include=*.svelte | grep -v "lib/ipc.ts"
+# All network code still lives in fetch/
+! grep -rn "reqwest" src-tauri/src --include=*.rs | grep -v "src-tauri/src/fetch/"
+! grep -rn "fetch(\|XMLHttpRequest\|WebSocket" src --include=*.ts --include=*.svelte
+# {@html} is still used exactly once, on rendered Markdown only
+test "$(grep -rn '{@html' src --include=*.svelte | wc -l)" = "1"
+grep -rn '{@html' src --include=*.svelte | grep -q "NoteCard.svelte"
+# No forbidden logging reached shipped source
+! grep -rn "console\.log" src --include=*.ts --include=*.svelte | grep -v "logger.ts"
+! grep -rn "println!" src-tauri/src</code></pre>
+
+<h2>Acceptance Criteria</h2>
+
+<ul class="checklist">
+  <li data-checked="false">The left column's gear row is enabled and opens the Settings page at frame <code>16a</code>'s locked values: the header with <em>Settings</em>, <em>Applied as you change them</em> and <em>Back to canvas</em>; a two-column body holding the Files, Canvas and Appearance groups; and the footer naming <code>settings.json</code>, the real <code>%APPDATA%\IdeaScape</code> folder and <em>nothing leaves this machine</em>. The title bar and the left column stay, with the gear row drawn active.</li>
+  <li data-checked="false">The page has no Save button, no Cancel and no confirm. Every change applies the moment it is made, and <em>Back to canvas</em> or <code>Esc</code> returns to the canvas with the selection and the view position intact.</li>
+  <li data-checked="false">The five rows are the five §9.11 draws: Project folder (the open project's path, ellipsized, marked <code>read-only</code>), Auto-save (<code>1s</code>/<code>3s</code>/<code>10s</code>), Snap to grid (a toggle, off by default), Zoom with (<code>Scroll</code>/<code>Ctrl+scroll</code>) and Theme (<code>Light</code>/<code>Dark</code>/<code>System</code>), each with its drawn helper text.</li>
+  <li data-checked="false">The segmented control and the toggle render at their locked values in both palettes, respond to hover, press and keyboard focus as §11.2 and §11.4 specify, are operable by keyboard alone, and report <code>role="radiogroup"</code>/<code>role="radio"</code> and <code>role="switch"</code> with correct <code>aria-checked</code>.</li>
+  <li data-checked="false">All four settings persist to <code>%APPDATA%\IdeaScape\settings.json</code>, written atomically, and survive closing and reopening the application. Deleting the file resets those four values and nothing else; a missing, empty, corrupt or partially invalid file starts the application on the drawn defaults with no error and no dialog.</li>
+  <li data-checked="false">Choosing Dark sets <code>data-theme="dark"</code>, Light sets <code>data-theme="light"</code>, and System removes the attribute so the application follows Windows live, without a restart and without any <code>matchMedia</code> code.</li>
+  <li data-checked="false">Snap to grid, Zoom with and Auto-save each change behaviour immediately: cards snap to the 22 px pitch, the wheel zooms or pans, and queued geometry is never left unwritten for longer than the chosen cadence.</li>
+  <li data-checked="false">Design-system §15.4 item 1 is closed: the four dark shadow values are settled and recorded, and the <code>--color-accent-2-400</code> #ff90b1 on #262322 pair is measured by a test that computes the WCAG ratio from the token files and clears 4.5:1.</li>
+  <li data-checked="false">Four new role tokens — <code>--color-accent-text</code>, <code>--color-accent-hover</code>, <code>--color-inset</code>, <code>--color-inset-hover</code> — are declared once in <code>tokens.css</code> and twice in <code>theme.css</code>, and no component under <code>src/features/</code> names an accent or neutral ramp step any more.</li>
+  <li data-checked="false">Every screen built in Phases 1–4 renders correctly in the dark theme at the locked token values, and nothing moves between the two themes: no measurement, radius, duration, type step or spacing token is redefined, and the two dark blocks declare exactly the same set of token names.</li>
+  <li data-checked="false">The light theme is pixel-identical to before the audit — every light value substituted in Task 11 is the same colour it replaced.</li>
+  <li data-checked="false">Every line in PRD §10.2 passes, including the two dark-theme lines Phase 4's gate excluded, and <code>scripts/phase-5-session.md</code> records each of them walked in Light, Dark and System.</li>
+  <li data-checked="false">250 mixed cards still pan at or above the frame rate Phase 4 recorded, with the cull counts beside it, and the NSIS installer is still under 20 MB.</li>
+  <li data-checked="false">No new npm package, no new Rust crate, no new migration and no new Tauri capability permission was added.</li>
+  <li data-checked="false">No feature imports another feature; <code>stores/</code> and <code>lib/</code> import no feature; the front end makes no network call, builds no SQL, and imports <code>@tauri-apps/api/core</code> only in <code>src/lib/ipc.ts</code>.</li>
+</ul>
+
+<h2>Completion Checklist</h2>
+
+<ul class="checklist">
+  <li data-checked="false">Level 1 — <code>npm run check</code>, <code>npx prettier --check .</code>, <code>cargo fmt -- --check</code> and <code>cargo clippy -- -D warnings</code> all exit 0.</li>
+  <li data-checked="false">Level 2 — <code>npx vitest run</code> and <code>cargo test</code> are green, including every pre-existing Phase 1–4 test after the settings rename and the token audit.</li>
+  <li data-checked="false">Level 3 — the four milestone checkpoint tests pass.</li>
+  <li data-checked="false">Level 4 — the build block exits 0: installer under 20 MB, no external asset reference, and <code>scripts/phase-5-session.md</code> recording <code>Gate: PASS</code>, all three themes walked, the settled §15.4 values, an fps figure and a sane cull ratio.</li>
+  <li data-checked="false">Level 5 — the three settings commands registered in both handler lists, the Phase 1 placeholder module gone, the gear row live, no ramp step or literal colour in any component, no <code>matchMedia</code>, one migration, no dependency or capability change, the import-direction and seam greps clean, one <code>{@html}</code>, no <code>console.log</code>, no <code>println!</code>.</li>
+  <li data-checked="false">Every task's inline VALIDATE was run at the moment that task completed.</li>
+  <li data-checked="false">PR open against the default branch with the acceptance list checked off and the flagged design additions named in the body.</li>
+</ul>
+
+<h2>Notes</h2>
+
+<h3>Architecture conformance</h3>
+
+<p>Planned entirely within <a href="../architecture.html">docs/architecture.html</a>. No decision is
+<code>data-status="open"</code>; the decisions this phase touches, by <code>data-decision</code> slug,
+are:</p>
+
+<ul>
+  <li><code>settings-storage</code> — the phase's centre. One <code>settings.json</code> per machine
+    under <code>%APPDATA%\IdeaScape</code>, outside every project folder, holding exactly the four
+    values the Settings screen edits; the project folder path shown there is read-only and comes from
+    the open project, not from the file; the screen names the path in its own footer, so it is
+    user-visible; the file is written by the application, has working defaults, and is never required
+    to exist. Tasks 1, 2, 8 and 12 implement each of those clauses literally, and the recents file
+    stays the separate sibling Phase 4 made it.</li>
+  <li><code>ipc-contract</code> — three new commands (<code>read_settings</code>,
+    <code>write_settings</code>, <code>settings_location</code>), all through <code>invokeSafe</code>,
+    all registered in both handler lists, no generic query command, one error type, and no file path
+    built in the front end.</li>
+  <li><code>persistence-strategy</code> — unchanged. Task 10's auto-save cadence is an additive
+    ceiling on how long queued geometry may remain unflushed; write-on-every-change and the one
+    transaction per drag both stand, and no command's write path is touched.</li>
+  <li><code>module-layout</code> — <code>commands/settings.rs</code> is a new file in the
+    modules-by-kind Rust tree, and <code>src/features/settings/</code> is a new vertical slice holding
+    its own components. The architecture's named <code>commands/</code> list does not include a
+    settings area because it predates the Settings screen; §3's <code>settings-storage</code> row,
+    added the same day the screen was, is the authority that it belongs there.</li>
+  <li><code>import-direction</code> — <code>src/lib/settings.svelte.ts</code> and
+    <code>src/lib/theme.ts</code> import <code>lib/</code> only;
+    <code>features/settings/</code> imports <code>lib/</code> and nothing from another feature; the
+    Settings page takes <code>folderPath</code> as a prop rather than reaching into
+    <code>features/projects/</code>.</li>
+  <li><code>failure-surfaces</code> — a settings read or write that fails is a
+    <code>logWarn</code> and nothing else. There is no dialog and no error strip: PRD §8.2 says the
+    file holds no user data, and §10 contract 6 forbids a confirm on this screen.</li>
+  <li><code>nfr-targets</code> — the 60 fps / 250-card figure, the two-second open and the 20 MB cap
+    are all re-measured in Task 12; the privacy rule is asserted in Level 4 by the "no external asset
+    reference" check and in Level 5 by the network greps.</li>
+  <li><code>architecture-pattern</code> — vertical slice in the front end, modules by kind in Rust.</li>
+  <li><code>frontend-framework</code> — the rename of <code>settings.ts</code> to
+    <code>settings.svelte.ts</code> exists only because runes are a Svelte 5 file-extension feature.</li>
+  <li><code>deployment-target</code> — no new crate, no new npm package, no CI, no signing.</li>
+</ul>
+
+<p>Not touched in this phase: <code>storage-engine</code>, <code>db-access-layer</code>,
+<code>search-method</code>, <code>note-text-format</code>, <code>asset-storage</code>,
+<code>network-boundary</code>, <code>undo-model</code> (a setting is not an undoable edit — §10
+contract 7 scopes undo to edits, and PRD §11 lists no undo among the Phase 5 deliverables),
+<code>rendering-approach</code>, <code>runtime-shell</code>.</p>
+
+<h3>Assumptions and decisions</h3>
+
+<p>This was an unattended planning run. No requirements question was put to the user; each was decided
+in the authority order <code>docs/architecture.html</code> → <code>docs/prd.html</code> →
+<code>CLAUDE.md</code> → the earlier phase docs' Notes → the codebase's dominant pattern → the
+smallest reversible option.</p>
+
+<ul>
+  <li><strong>ASSUMPTION:</strong> Settings is reachable only from the left column's gear row, so only
+    while a project is open. Authority: design-system §9.11 — "the left column stays and its gear is
+    the active row" — and §9.1's picker, which draws no Settings control. A gear on the picker would be
+    an invented control, and the one setting a user might want before opening a project (the theme) is
+    also the one that follows Windows by default.</li>
+  <li><strong>ASSUMPTION:</strong> The Settings page replaces the canvas, the empty state, the drop
+    target <em>and</em> the properties panel, keeping the title bar and the left column. Authority:
+    §9.11 "a full-screen page replacing the canvas"; §13.2 gives the Settings screen no panel among its
+    reads; and §10 contract 13 collapses the panel whenever the selection is empty, which it is on a
+    page with no cards.</li>
+  <li><strong>ASSUMPTION:</strong> The three groups flow into §9.11's two-column grid in document order
+    — Files, Canvas, Appearance — so Appearance wraps beneath Files. Authority: §9.11 gives the grid,
+    its gaps and its maximum width but never assigns a row to a column; document order is the smallest
+    reversible choice and is what <code>align-content: start</code> was drawn for.</li>
+  <li><strong>ASSUMPTION:</strong> The group headings take the section-label type from §6.2 — 10 px,
+    uppercase, <code>--tracking-10</code>, opacity .45. Authority: §9.11 names the three groups and
+    gives them no type of their own; that style is the only heading style in the document at that
+    level, and the left column already uses it for exactly this job.</li>
+  <li><strong>ASSUMPTION:</strong> The footer prints the folder the application actually resolved, via
+    a <code>settings_location</code> command, rather than the literal string §9.11 draws. Authority:
+    <code>settings-storage</code> and CLAUDE.md both say the screen <em>names the path</em> so the user
+    can find the file; <code>app_data_dir()</code> has two documented fallbacks for a missing
+    <code>%APPDATA%</code>, and a footer that printed a path the file was not at would defeat the
+    clause. The drawn string is the value in every normal case.</li>
+  <li><strong>ASSUMPTION:</strong> The persisted values are <code>autoSaveMs</code> ∈ {1000, 3000,
+    10000}, <code>snapToGrid</code> boolean, <code>zoomWith</code> ∈ {<code>'scroll'</code>,
+    <code>'ctrl-scroll'</code>}, <code>theme</code> ∈ {<code>'light'</code>, <code>'dark'</code>,
+    <code>'system'</code>}. Authority: <code>src/lib/settings.ts</code> shipped exactly this union in
+    Phase 1 and <code>CanvasSurface.svelte:165</code> already compares against
+    <code>'ctrl-scroll'</code>; the design system gives the labels and the defaults but not the stored
+    values. The file is camelCase to match the TypeScript interface that already shipped, which is why
+    the Rust struct carries <code>#[serde(rename_all = "camelCase")]</code> while
+    <code>RecentProject</code> does not.</li>
+  <li><strong>ASSUMPTION:</strong> An invalid value in the file falls back per field rather than
+    resetting the whole file. Authority: PRD §8.2 — "deleting it resets those four values and nothing
+    else" — implies the file is four independent scalars, and a user who hand-edits one line should not
+    lose the other three. The same <code>sanitize</code> runs on both sides of the seam so a bad value
+    can never reach either the file or a control that cannot draw it.</li>
+  <li><strong>ASSUMPTION:</strong> A failed settings write leaves the value applied for the session and
+    is logged, not surfaced. Authority: §10 contract 6 (no confirm on this screen),
+    <code>failure-surfaces</code> (no dialog), and PRD §8.2 (the file holds no user data). Reverting
+    the control would make the page disagree with the canvas, which is worse than a setting that does
+    not survive a restart.</li>
+  <li><strong>ASSUMPTION:</strong> <code>autoSaveMs</code> becomes a ceiling on how long queued
+    geometry may sit unwritten, implemented as a repeating flush of <code>save.ts</code>'s
+    <code>pending</code> map. Authority: <code>persistence-strategy</code> already writes every change
+    and groups a drag onto its release, so a cadence cannot mean "how often we save"; §9.11's own
+    helper text says "the canvas never blocks on a save", and the panel footer has printed "autosave in
+    Ns" since Phase 1. A ceiling is the only reading that makes the control mean something without
+    contradicting a settled decision, and it is additive — nothing existing changes.</li>
+  <li><strong>ASSUMPTION:</strong> The System theme needs no <code>matchMedia</code> listener.
+    Authority: <code>src/lib/theme.css</code> was written in Phase 1 as two blocks —
+    <code>:root[data-theme='dark']</code> and
+    <code>@media (prefers-color-scheme: dark) :root:not([data-theme='light'])</code> — so an absent
+    attribute already resolves correctly in both directions and the browser re-evaluates the query
+    live. A listener would be a second source of truth for the same fact. The design system specifies
+    no detection mechanism at all, which is the gap this fills.</li>
+  <li><strong>ASSUMPTION:</strong> Four new role tokens are added —
+    <code>--color-accent-text</code>, <code>--color-accent-hover</code>, <code>--color-inset</code> and
+    <code>--color-inset-hover</code> — in both palettes, flagged for the owner. Authority: the phase
+    gate is "every screen built in Phases 1–4 renders correctly in the dark theme", and eleven shipped
+    lines resolve through ramp tokens that §4.5 forbids redefining. A role token is the mechanism §4.5
+    itself uses. Every light value is identical to the ramp step it replaces, and every dark value is
+    one of §4.5's own approved six or a step from the accent ramp §4.5's first rule tells us to move
+    up. This follows the precedent Phase 1 and Phase 4 both set for flagging a token addition.</li>
+  <li><strong>ASSUMPTION:</strong> The toggle's resting "on" track is <code>var(--color-accent)</code>
+    and its hovered "on" track is the new <code>--color-accent-hover</code>. Authority: §11.2 draws
+    only the hovered-on value, <code>--color-accent-600</code>, which is one step down from
+    <code>--color-accent</code> — so the resting value it implies is the accent itself. Recorded as a
+    state designed in this phase and flagged in the PR body, exactly as Phases 2, 3 and 4 flagged
+    theirs.</li>
+  <li><strong>ASSUMPTION:</strong> The segmented control is a radio group with roving
+    <code>tabindex</code> and arrow-key movement that also selects. Authority: the design system draws
+    resting states only and §12 makes "every action has a keyboard route" a contract; the W3C ARIA APG
+    radio-group pattern is the standard answer and invents no visual value. Flagged in the PR body as
+    behaviour designed in this phase.</li>
+  <li><strong>ASSUMPTION:</strong> Design-system §15.4's four dark shadow alphas settle at .55, .55,
+    .50 and .42 rather than the Phase 1 interim .62, .62, .62 and .36. Authority: §15.4's interim rule
+    ("roughly triple the alpha") was calibrated on the three shadows §4.5 <em>does</em> give, whose
+    light alphas are .14–.18; the four undrawn ones start at .30 and .12, where tripling exceeds 1 and
+    overshoots the .42–.50 band the drawn dark values occupy. §4.5's second rule caps it — shadows do
+    less separating work on a dark ground — and §5.3 already directs the picker card to "use the card
+    value", which on dark is .42. This is the measurement §15.4 asked for, and it closes the last open
+    question in the design system.</li>
+  <li><strong>ASSUMPTION:</strong> <code>--color-accent-2-400</code> #ff90b1 on #262322 passes at
+    ≈7.3:1, and <code>--color-on-accent</code> #151312 on a #ff90b1 fill at ≈8.8:1, so §12.9's
+    unmeasured pair resolves with no token change. Authority: the WCAG 2.1 contrast formula, computed
+    from the two values the token files already hold. The figures are recorded in a test rather than in
+    prose so a later palette edit cannot silently break them.</li>
+  <li><strong>ASSUMPTION:</strong> No shortcut key is added for Settings. Authority: §11.6's keyboard
+    map prints no key for it, §10 contract 11 scopes the "no route is the only route" rule to context
+    menus, and <code>Action</code>/<code>SHORTCUT_LABELS</code> are exhaustive records whose every
+    entry is printed somewhere. <code>Escape</code> already dispatches as <code>cancel</code> and is
+    reused to leave the page.</li>
+  <li><strong>ASSUMPTION:</strong> No new npm package, no new Rust crate, no new migration and no new
+    capability permission. Authority: <code>nfr-targets</code>' 20 MB cap and PRD §7's closed
+    dependency table; <code>serde</code>, <code>serde_json</code>, <code>std::fs</code> and
+    <code>tempfile</code> already cover the settings file entirely, and the two new controls are plain
+    elements.</li>
+  <li><strong>ASSUMPTION:</strong> Changing a setting is not undoable and does not touch the undo
+    stack. Authority: §10 contract 7 scopes undo to <em>edits</em> and the properties panel footer that
+    advertises it; PRD §11 lists no undo among the Phase 5 deliverables; and putting a preference on
+    the same stack as a card delete would make <code>Ctrl+Z</code> ambiguous.</li>
+  <li><strong>DECISION:</strong> Rendering is Milestones rather than Flat, at four substantive
+    milestones plus the shipping milestone. Thirteen tasks over four genuine sub-layers is well past
+    the ~6-task threshold where a flat list stops being scannable, and each checkpoint asserts
+    something cross-task — a settings lifecycle through the real file, the three theme states agreeing
+    across two files, a control change reaching the store, the seam and the root element together, and
+    a measurement taken in the running application — that no individual task's VALIDATE reaches.</li>
+  <li><strong>DECISION:</strong> <code>src/lib/settings.ts</code> is renamed to
+    <code>src/lib/settings.svelte.ts</code> rather than a new reactive module being added beside it.
+    Two modules holding the same four values is precisely the "scattered lookups" CLAUDE.md's
+    single-typed-settings-module rule exists to prevent, and the Phase 1 file's own doc comment says
+    Phase 5 "adds the file behind the same accessor". Three import lines change; nothing else does.</li>
+  <li><strong>DECISION:</strong> The whole persistence seam (Tasks 1–3) lands before anything is drawn,
+    and the token work (Tasks 4–5) before the two controls. The toggle cannot be built correctly
+    without <code>--color-inset</code> and the settled <code>--shadow-toggle-knob</code>, and building
+    it against the ramp first would mean writing the defect this phase exists to remove.</li>
+  <li><strong>DECISION:</strong> The dark-theme audit (Task 11) is a separate task from the token
+    additions (Task 4), and lands after the page is built. The substitutions are mechanical and
+    light-identical, so they are safest as one reviewable diff with the whole existing test suite as
+    its regression net — and doing them after the page means the Settings screen itself is already
+    available to look at them through.</li>
+  <li><strong>DECISION:</strong> The token test grows a set-equality assertion between the two dark
+    blocks, replacing the Phase 4 per-name count of two. The count was approximating exactly this
+    invariant, and this phase adds four more names to a list that was already being maintained by
+    hand.</li>
+  <li><strong>DECISION:</strong> The contrast measurement is a unit test that computes the WCAG ratio
+    from the token files, not a number written into a document. §15.4 called it "a measurement task";
+    a computed test is a measurement that stays true, and it is the only form of it that survives the
+    next palette change.</li>
+  <li><strong>DECISION:</strong> The Settings page takes <code>folderPath</code> as a prop rather than
+    reading <code>canvasStore</code>. <code>TitleBar</code> already receives it that way, it keeps the
+    component testable with no store fixture, and §13.2 lists the screen's reads as
+    <code>settings</code> and <code>project.folderPath</code> — a value, not a store.</li>
+  <li><strong>DECISION:</strong> The root's drag, drop and paste handlers go inert while the Settings
+    page is showing, and a project close closes it. Every one of them creates a card at the pointer,
+    and there is no canvas under the pointer on this page.</li>
+</ul>
+
+<h3>Conflicts found between documents</h3>
+
+<p>One, resolved rather than escalated, and it is a conflict between the design system and the shipped
+code rather than between two documents.</p>
+
+<ul>
+  <li>Design-system §4.5's dark palette redefines <em>role</em> tokens only, and §4.4 assigns specific
+    jobs to <code>--color-neutral-300</code> and to the accent ramp steps — but eleven lines across
+    nine Phase 1–4 components resolve those jobs through the ramp directly, and a ramp does not flip.
+    The design system wins: Task 4 creates the role tokens the ramp steps were standing in for and Task
+    11 routes the eleven lines through them, with every light value unchanged. Recorded here and
+    flagged in the PR body, because it is the one place this phase changes files that four earlier
+    phases already shipped.</li>
+</ul>
+
+<p>No conflict was found between <a href="../architecture.html">docs/architecture.html</a>,
+<a href="../prd.html">docs/prd.html</a> and <a href="../design-system.html">docs/design-system.html</a>
+on any point the phase touches. PRD §11's Phase 5 deliverable list, design-system §16's P5 row (the
+Settings page, the segmented control, the toggle, the working theme switch, the dark theme signed off
+end to end) and the architecture's <code>settings-storage</code> row all agree, down to
+<code>%APPDATA%\IdeaScape\settings.json</code> holding exactly four values.</p>
+
+<p>Design-system §9.11's callout asks that <code>docs/architecture.html</code> §3 "needs a row for it".
+That row already exists — <code>settings-storage</code> was added the same day — so the callout is
+stale rather than open. Flagged in the PR body for a later <code>dev-ui-update</code> run.</p>
+
+<h3>Risks carried into execution</h3>
+
+<ul>
+  <li><strong>The dark-theme audit changes files four shipped phases own.</strong> Eleven style lines
+    across nine components, every one of which must be pixel-identical in the light theme afterwards.
+    The mitigation is that each substitution's light value is literally the same colour
+    (<code>--color-accent-text</code> = accent-700, <code>--color-accent-hover</code> = accent-600,
+    <code>--color-inset</code> = neutral-300, <code>--color-raised</code> = neutral-200), and the whole
+    existing front-end suite must be green before Task 11 is called done.</li>
+  <li><strong>Two invoke handler lists.</strong> Three new commands, times two registrations, in one
+    file, with a missing entry producing a silent invoke rejection in one build profile only — and this
+    phase's failure mode is quiet, because a failed <code>read_settings</code> is designed to fall back
+    to defaults without complaint. Level 5 counts each registration rather than trusting that the
+    feature "seemed to work", the same mitigation Phases 3 and 4 used.</li>
+  <li><strong>The <code>settings.ts</code> → <code>settings.svelte.ts</code> rename is a
+    silent-failure shape.</strong> A stale import resolves to nothing at build time in some
+    configurations and to a stale module in others. <code>npm run check</code> is part of Task 2's
+    VALIDATE for exactly this reason, and Level 5 asserts the old file is gone and unreferenced.</li>
+  <li><strong>Passing a <code>$state</code> proxy across the command seam.</strong> The structured-clone
+    algorithm throws on a Proxy, at runtime, in the one code path — writing a setting — that this phase
+    is about. Task 2 spreads the store on the way out and tests that the object handed to
+    <code>invoke</code> is a plain one.</li>
+  <li><strong>The auto-save timer is the one thing this phase adds that runs during a pan.</strong> A
+    frame-rate regression in Task 12 that is not explained by the cull counts is almost certainly this
+    timer firing mid-drag. It guards on <code>pendingCount() &gt; 0</code> and reuses the existing
+    idempotent flush, but it is the first repeating timer in the product.</li>
+  <li><strong>The dark theme has never been rendered.</strong> Both palettes have shipped since Phase 1
+    and, until this phase, nothing could set the attribute — so Task 12 is the first time any of it has
+    been looked at. Budget for finding more than the eleven known lines, and treat anything that
+    <em>moves</em> between themes as a token-layer defect rather than a component fix, because the
+    parity test says no measurement token may be redefined.</li>
+  <li><strong>Rust remains unfamiliar to the repository owner</strong>, which
+    <a href="../mvp-plan.html">docs/mvp-plan.html</a> records as a risk. This phase adds the smallest
+    Rust surface of any phase — one module, three commands, no async, no SQL and no new crate — and
+    every parsing decision is a pure function with its own test.</li>
+  <li><strong>This is the last phase.</strong> The gate is every remaining line in PRD §10.2, so
+    anything Phases 1–4 deferred and nobody noticed surfaces here. Task 12's walk is deliberately
+    exhaustive for that reason, and a FAIL recorded anywhere in the session file fails the Level 4
+    block.</li>
+</ul>
+
+</body>
+</html>

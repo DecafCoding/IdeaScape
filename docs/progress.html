@@ -188,10 +188,27 @@
   <p class="meta"><strong>Recorded:</strong> <code>scripts/phase-4-session.md</code> &mdash; all ten non-dark-theme PRD &sect;10.2 lines PASS, a 34&nbsp;ms project open measured from the picker against a 2,000&nbsp;ms budget, and 59.9&nbsp;fps with zero dropped frames in 1,786 at 25 of 250 cards drawn. That figure is the strongest control the Phase&nbsp;3 argument could have: the same machine, harness and workload that measured 56.2&nbsp;fps then measures 59.9&nbsp;fps now with no rendering change, confirming 56.2 was the variable-refresh panel's cadence and not a cost any phase added. Installer 2,931,992 bytes &mdash; 2.80&nbsp;MB against a 20&nbsp;MB cap, 31,417 bytes more than Phase&nbsp;3.</p>
 </section>
 
-<section class="phase" data-phase="5" data-status="not-planned">
-  <h2>Phase 5: Settings and appearance <span class="badge">not planned</span></h2>
-  <p class="meta"><strong>Branch:</strong> <em>to be determined by <code>/dev-plan-phase 5</code></em></p>
-  <p class="meta"><strong>Phase doc:</strong> <em>none yet — run <code>/dev-plan-phase 5</code></em></p>
+<section class="phase" data-phase="5" data-status="complete">
+  <h2>Phase 5: Settings and appearance <span class="badge">complete</span></h2>
+  <p class="meta"><strong>Branch:</strong> <code>phase-5-settings</code></p>
+  <p class="meta"><strong>Phase doc:</strong> <code>docs/phases/phase-5-settings.html</code></p>
+  <p class="meta"><strong>Depends on:</strong> Phase 1 (canvas core) — complete: the token layer, both palettes, the two <code>data-theme</code> blocks and <code>src/lib/settings.ts</code>; Phase 2 (connections) — complete; Phase 3 (rich cards) — complete: the card kinds whose ramp-token styles the dark audit corrects; Phase 4 (library) — complete: <code>app_data_dir()</code>, the <code>recent.json</code> read/write template, the picker branch this phase adds a sibling to, and the <code>--shadow-dialog</code>/<code>--scrim</code> precedent for flagging a token addition. No new npm package, no new Rust crate, no new migration and no new Tauri capability permission.</p>
+  <p class="meta"><strong>Summary:</strong> Phase 5 is the last phase: it hands the user the four settings the application has been reading from hard-coded defaults since Phase 1, gives <code>settings.json</code> its real home under <code>%APPDATA%\IdeaScape</code>, and signs the dark theme off end to end across every screen Phases 1–4 built.</p>
+  <ul class="tasks">
+    <li class="task" data-task="1" data-status="done">Task 1: The settings file, atomically written</li>
+    <li class="task" data-task="2" data-status="done">Task 2: The reactive settings accessor</li>
+    <li class="task" data-task="3" data-status="done">Task 3: The theme applicator</li>
+    <li class="task" data-task="4" data-status="done">Task 4: Four role tokens, so the dark theme is a theme and not a filter</li>
+    <li class="task" data-task="5" data-status="done">Task 5: Settle §15.4 — four dark shadows and the unmeasured contrast pair</li>
+    <li class="task" data-task="6" data-status="done">Task 6: The segmented control</li>
+    <li class="task" data-task="7" data-status="done">Task 7: The toggle</li>
+    <li class="task" data-task="8" data-status="done">Task 8: The Settings page</li>
+    <li class="task" data-task="9" data-status="done">Task 9: The route in, the route out, and the boot load</li>
+    <li class="task" data-task="10" data-status="done">Task 10: Auto-save cadence becomes a real ceiling</li>
+    <li class="task" data-task="11" data-status="done">Task 11: The dark-theme audit — eleven lines</li>
+    <li class="task" data-task="12" data-status="done">Task 12: Sign the dark theme off, and re-measure the gate</li>
+    <li class="task" data-task="13" data-status="done">Task 13: Commit, push, and open PR</li>
+  </ul>
 </section>
 
 </body>

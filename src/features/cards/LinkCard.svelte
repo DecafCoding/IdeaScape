@@ -113,7 +113,7 @@
   .band {
     height: 126px;
     flex: none;
-    background: var(--color-neutral-200);
+    background: var(--color-raised);
     display: grid;
     place-items: center;
     overflow: hidden;
@@ -164,12 +164,12 @@
     height: 12px;
     flex: none;
     border-radius: var(--radius-sm);
-    background: var(--color-accent-200);
+    background: var(--color-accent-tint-hover);
     overflow: hidden;
   }
 
   .favicon.plain {
-    background: var(--color-neutral-300);
+    background: var(--color-inset);
   }
 
   .favicon.has-image {
@@ -245,7 +245,7 @@
     border: 1px solid var(--color-accent);
     border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--color-accent-700);
+    color: var(--color-accent-text);
     font: inherit;
     font-size: var(--text-11);
     cursor: pointer;

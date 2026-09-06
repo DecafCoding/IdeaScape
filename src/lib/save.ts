@@ -54,6 +54,31 @@ export async function flushPlacements(hooks?: SaveHooks): Promise<PlacementUpdat
 }
 
 /**
+ * The auto-save cadence, as a *ceiling* on how long queued geometry may sit unwritten —
+ * not "how often we save".
+ *
+ * `persistence-strategy` is unchanged and this is purely additive: every discrete change is
+ * still written the moment it happens, and a drag is still one transaction on release. This
+ * timer exists only to catch a drag that outlives the cadence, or a pointer release the
+ * window never saw. It does nothing when nothing is queued, and `flushPlacements` already
+ * guards on `pending.size === 0 || flushing`, so a tick during a flush is a no-op and needs
+ * no lock of its own.
+ *
+ * A tick during a drag writes the same rows the drag-end flush would write, and the drag
+ * then overwrites them on release. That is correct, and is why the flush is idempotent.
+ *
+ * Returns its own teardown. The caller re-runs it when the cadence changes, which tears the
+ * old timer down and starts a new one.
+ */
+export function startAutoSave(hooks: SaveHooks, cadenceMs: number): () => void {
+  const timer = setInterval(() => {
+    if (pendingCount() === 0) return;
+    void flushPlacements(hooks);
+  }, cadenceMs);
+  return () => clearInterval(timer);
+}
+
+/**
  * Run one discrete write, driving the save state around it. Discrete changes never wait
  * for a flush — they are written the moment they happen.
  */
