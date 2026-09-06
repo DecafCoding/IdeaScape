@@ -46,7 +46,7 @@ structural, and it is stronger than a glance in one respect and weaker in anothe
   may name a ramp step at all. Those three assertions are what "nothing moves between the
   two themes" and "every colour flips" actually reduce to, and they hold for every screen
   at once rather than for the screens someone remembered to open.
-- Weaker: a colour that is legible but *ugly* on the dark ground, or a photograph that
+- Weaker: a colour that is legible but _ugly_ on the dark ground, or a photograph that
   reads badly against it, is invisible to all of that. **That judgement is left for the
   repository owner's own pass**, and it is the one item this gate hands forward.
 
@@ -175,10 +175,10 @@ Gate: PASS
 
 All three theme states were exercised, each in the place it can actually be observed.
 
-| Theme      | How it was driven                                                                                                                                                                                         | Result |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| **Light**  | The whole 556-test front-end suite runs with no `data-theme` and the light tokens in force; the eighteen substitutions are each light-identical to the ramp step they replaced, so every Phase 1–4 assertion is the regression net. | PASS   |
-| **Dark**   | A real `%APPDATA%\IdeaScape\settings.json` holding `"theme": "dark"` was read by the real window at boot, and the 250-card perf gate ran under it. The control path, the attribute and the token layer are asserted by name above. | PASS   |
+| Theme      | How it was driven                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Result |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **Light**  | The whole 556-test front-end suite runs with no `data-theme` and the light tokens in force; the eighteen substitutions are each light-identical to the ramp step they replaced, so every Phase 1–4 assertion is the regression net.                                                                                                                                                                                                                                                                                             | PASS   |
+| **Dark**   | A real `%APPDATA%\IdeaScape\settings.json` holding `"theme": "dark"` was read by the real window at boot, and the 250-card perf gate ran under it. The control path, the attribute and the token layer are asserted by name above.                                                                                                                                                                                                                                                                                              | PASS   |
 | **System** | `applyTheme('system')` removes the attribute, which is the whole mechanism: `theme.css`'s second block is `@media (prefers-color-scheme: dark) :root:not([data-theme='light'])`, so the browser re-evaluates it live when Windows changes, with no listener and no restart. Asserted by `applyTheme_system_removesTheAttribute` and `applyTheme_darkThenSystem_leavesNoAttributeBehind`, and by the two dark blocks declaring the same token names — the invariant that keeps System from disagreeing with the explicit choice. | PASS   |
 
 **Windows was not toggled between light and dark while the window was open.** That is a
@@ -191,13 +191,13 @@ and a live media query — which is exactly why the phase was designed without a
 `%APPDATA%\IdeaScape\settings.json` — the real file, at the path `settings-storage`, PRD §8.2
 and design-system §9.11 all name, and the path the Settings page footer prints.
 
-| Step                                                                             | Result |
-| -------------------------------------------------------------------------------- | ------ |
-| A file holding all four non-default values was written and the debug window read it at boot | PASS   |
-| No `settings.json.tmp` sibling was left beside it                                | PASS   |
-| The file was deleted, and the **release** bundle launched **with no arguments**   | PASS — the picker came up, no error, no dialog |
-| Reading a missing file did not create one                                        | PASS — the folder held only `recent.json` afterwards |
-| It is a **sibling** of `recent.json`, not part of it                              | PASS   |
+| Step                                                                                        | Result                                               |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| A file holding all four non-default values was written and the debug window read it at boot | PASS                                                 |
+| No `settings.json.tmp` sibling was left beside it                                           | PASS                                                 |
+| The file was deleted, and the **release** bundle launched **with no arguments**             | PASS — the picker came up, no error, no dialog       |
+| Reading a missing file did not create one                                                   | PASS — the folder held only `recent.json` afterwards |
+| It is a **sibling** of `recent.json`, not part of it                                        | PASS                                                 |
 
 The two halves of the write path are covered separately and meet in the middle: the file
 logic (`write_settings_at` / `read_settings_at`, the atomic rename, the per-field fallback)
@@ -222,12 +222,12 @@ calibrated on the three shadows §4.5 **does** give on dark, whose light alphas 
 in one case exceeds 1. §4.5's second rule caps the band — shadows do less separating work on
 a dark ground — and the three drawn dark values occupy **.42 – .50**.
 
-| Token                     | Light | Phase 1 interim | **Settled** | Why                                                                         |
-| ------------------------- | ----- | --------------- | ----------- | --------------------------------------------------------------------------- |
-| `--shadow-context-menu`   | .30   | .62             | **.55**     | An overlay: keeps its light ordering by sitting just above the card         |
-| `--shadow-search-popover` | .30   | .62             | **.55**     | The same                                                                     |
-| `--shadow-toggle-knob`    | .30   | .62             | **.50**     | A 3 px blur on a small control: the top of the drawn band                    |
-| `--shadow-picker-card`    | .12   | .36             | **.42**     | §5.3 directs it to the card value, which on dark is .42                     |
+| Token                     | Light | Phase 1 interim | **Settled** | Why                                                                 |
+| ------------------------- | ----- | --------------- | ----------- | ------------------------------------------------------------------- |
+| `--shadow-context-menu`   | .30   | .62             | **.55**     | An overlay: keeps its light ordering by sitting just above the card |
+| `--shadow-search-popover` | .30   | .62             | **.55**     | The same                                                            |
+| `--shadow-toggle-knob`    | .30   | .62             | **.50**     | A 3 px blur on a small control: the top of the drawn band           |
+| `--shadow-picker-card`    | .12   | .36             | **.42**     | §5.3 directs it to the card value, which on dark is .42             |
 
 Offsets and blur are unchanged, as §15.4 requires. `--shadow-card-drag` (.58),
 `--shadow-textbar` (.60) and `--shadow-dialog` (.70) are Phase 1 and Phase 4 project
@@ -243,7 +243,7 @@ Computed with the WCAG 2.1 relative-luminance and contrast-ratio formulas, from 
 values read out of the token files rather than retyped, so a later palette edit that breaks
 either pair fails the suite instead of shipping.
 
-| Pair                                                            | Ratio     | Against 4.5:1 |
+| Pair                                                              | Ratio     | Against 4.5:1 |
 | ----------------------------------------------------------------- | --------- | ------------- |
 | `--color-accent-2-400` #ff90b1 as ink on the dark surface #262322 | **7.3:1** | PASS          |
 | `--color-on-accent` #151312 as ink on a #ff90b1 fill              | **8.7:1** | PASS          |
@@ -276,16 +276,16 @@ Fixed by the same mechanism, extended: **eight** role tokens rather than four, e
 value identical to the ramp step it replaces and every dark value an existing ramp step §4.5
 has already blessed.
 
-| Role token                   | Light (was)              | Dark        | Sites |
-| ---------------------------- | ------------------------ | ----------- | ----- |
-| `--color-accent-text`        | #006786 (accent-700)     | #99e0ff     | 4     |
-| `--color-accent-hover`       | #1186ac (accent-600)     | #99e0ff     | 6     |
-| `--color-inset`              | #d7d3d3 (neutral-300)    | #302d2b     | 3     |
-| `--color-inset-hover`        | #bab6b6 (neutral-400)    | #3b3735     | 1 (the toggle) |
-| `--color-accent-tint-hover`  | #cbeeff (accent-200)     | #004961     | 2     |
-| `--color-accent-2-hover`     | #aa0b56 (accent-2-700)   | #ffc0d0     | 4     |
-| `--color-accent-2-tint-fill` | #fff1f4 (accent-2-100)   | #4b1528     | 3     |
-| `--color-accent-2-tint-text` | #aa0b56 (accent-2-700)   | #ffc0d0     | 3     |
+| Role token                   | Light (was)            | Dark    | Sites          |
+| ---------------------------- | ---------------------- | ------- | -------------- |
+| `--color-accent-text`        | #006786 (accent-700)   | #99e0ff | 4              |
+| `--color-accent-hover`       | #1186ac (accent-600)   | #99e0ff | 6              |
+| `--color-inset`              | #d7d3d3 (neutral-300)  | #302d2b | 3              |
+| `--color-inset-hover`        | #bab6b6 (neutral-400)  | #3b3735 | 1 (the toggle) |
+| `--color-accent-tint-hover`  | #cbeeff (accent-200)   | #004961 | 2              |
+| `--color-accent-2-hover`     | #aa0b56 (accent-2-700) | #ffc0d0 | 4              |
+| `--color-accent-2-tint-fill` | #fff1f4 (accent-2-100) | #4b1528 | 3              |
+| `--color-accent-2-tint-text` | #aa0b56 (accent-2-700) | #ffc0d0 | 3              |
 
 `--color-neutral-200` → `--color-raised` accounts for the remaining two sites and needed no
 new token: §4.5 already maps raised fills to #302d2b on dark, and the light values are the
@@ -344,13 +344,13 @@ per-frame work inside the transformed layer. `visiblePlacements` is still the on
 
 `npm run tauri build` produced the NSIS installer:
 
-|          |                                                                     |
-| -------- | ------------------------------------------------------------------- |
+|          |                                                                      |
+| -------- | -------------------------------------------------------------------- |
 | Artefact | `src-tauri/target/release/bundle/nsis/IdeaScape_0.1.0_x64-setup.exe` |
-| Size     | 2,940,216 bytes — 2.80 MB                                           |
-| Budget   | 20 MB                                                               |
-| Headroom | 17.20 MB                                                            |
-| Phase 4  | 2,931,992 bytes — this phase added 8,224 bytes, 0.008 MB            |
+| Size     | 2,940,216 bytes — 2.80 MB                                            |
+| Budget   | 20 MB                                                                |
+| Headroom | 17.20 MB                                                             |
+| Phase 4  | 2,931,992 bytes — this phase added 8,224 bytes, 0.008 MB             |
 
 **No new npm package, no new Rust crate, no new migration and no new Tauri capability
 permission** were added, which is why the figure barely moved: the 8 KB is one Rust command
