@@ -42,16 +42,53 @@ commands do not exist outside the shell.
 
 ## Opening A Project
 
-The project picker lands in a later phase. Until then the application takes the project
-folder on the command line:
+Start IdeaScape with no arguments and it opens the **project picker**: _New project…_,
+_Open folder…_, and a grid of up to four recent projects showing each one's folder, its
+canvas and card counts and when it was last opened.
 
-```
-ideascape.exe --project "C:\path\to\my project"
-```
+A project is a folder. _New project…_ takes a name and a parent folder — the name is a
+plain folder name, so a `\`, `/`, `:` or `..` in it is refused — and creates
+`<parent>\<name>` with an `ideascape.db` opened in WAL mode, an `assets/` subfolder and a
+first canvas. _Open folder…_ opens any existing project folder, and a recent card opens
+that project directly. If a project's database is locked or damaged it does not open, and
+a plain message naming the database file is drawn on the picker.
 
-With no argument it falls back to `%USERPROFILE%\Documents\IdeaScape\Dev project`. The
-folder is created if it does not exist, along with its `assets/` subfolder and an
-`ideascape.db` opened in WAL mode.
+The recent list lives in `%APPDATA%\IdeaScape\recent.json` — at most four entries, newest
+first, beside `settings.json` and never inside a project folder, so a copied project
+carries nothing of this machine. It holds no user data; if it is missing or unreadable the
+picker simply shows no recent projects.
+
+**Close Project** at the bottom of the left column returns to the picker. Nothing in flight
+is lost, the undo stack is cleared, and another project can be opened in the same session.
+
+## Canvases
+
+One project holds many canvases, listed in the left column.
+
+- The **`+`** beside _Canvases_ adds one, named `Canvas 2`, `Canvas 3` and so on.
+- **Double-click** a row, or use _Rename_ on its right-click menu, to rename it in place.
+  `Enter` commits, `Esc` cancels. Names do not have to be unique.
+- _Delete Canvas_ on the row menu asks first, naming the canvas and how many cards are on
+  it. Deleting a canvas takes its cards, its lines and any picture files no other card
+  still uses; `Ctrl+Z` brings all of it back together, with the lines rejoining the cards
+  they were drawn between. The last canvas in a project cannot be deleted.
+- Clicking a row switches to it. Each canvas keeps its own pan and zoom, and switching
+  writes whatever the canvas you are leaving still owes before it goes.
+
+The undo stack is per canvas and per session: it is cleared when you switch canvas and when
+you close the project.
+
+## Search
+
+The box at the top of the left column searches the open project as you type. It runs three
+`LIKE` queries — canvas names, note titles, note body text — and **canvas results are always
+listed before card results**, because search should take you to a place first. A note
+matching on both its title and its body is one result, named by its title. A `%` or `_` in
+your query matches those characters literally.
+
+`↑` and `↓` move through the results, `Enter` opens one, `Esc` closes the popover. A canvas
+result switches to that canvas; a card result switches to its canvas, selects the card and
+centres the view on it.
 
 ## Using The Canvas
 
@@ -137,7 +174,8 @@ with `Tab`, and `Enter` or `Space` selects the focused one.
 
 `settings.json` under `%APPDATA%\IdeaScape` — one file per machine, deliberately outside
 every project folder so a copied project does not carry another machine's theme. It holds
-the auto-save cadence, snap to grid, the zoom modifier and the theme. The application
+the auto-save cadence, snap to grid, the zoom modifier and the theme; `recent.json` sits
+beside it and holds the recent-projects list, deliberately a separate file. The application
 writes it, it has working defaults, and it is never required to exist. The Settings screen
 lands in a later phase; this build reads the defaults from `src/lib/settings.ts`.
 
@@ -145,8 +183,15 @@ lands in a later phase; this build reads the defaults from `src/lib/settings.ts`
 
 The project's one hard gate is 250 note cards panning at 60 frames per second. It is
 measured in the running application, not in a unit test — `scripts/perf-gate.md` records
-the result, the machine and the installer size. A debug build launched with `--perf-gate`
-re-runs that measurement and writes `perf-gate-result.json`.
+the result, the machine and the installer size. A **debug** build re-runs that measurement
+when launched as `ideascape.exe --project "<folder>" --perf-gate`, writing
+`perf-gate-result.json`. That argument is all that is left of the old developer path and
+exists for the measurement harness alone: a release build does not register it, and its one
+route into a project is the picker.
+
+`scripts/phase-4-session.md` is the latest recorded run — 250 mixed cards at 59.9 fps with
+zero dropped frames, a project opening in 34 ms measured from the picker, and a 2.80 MB
+installer against the 20 MB cap.
 
 `scripts/phase-2-session.md` records the same measurement over a mixed canvas — 250 cards
 _and_ 249 connections — alongside the scripted session that proves the canvas is usable with

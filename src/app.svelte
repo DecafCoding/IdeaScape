@@ -366,11 +366,18 @@
       await canvasStore.loadCanvas(canvasId);
     }
 
-    // The two-second project-open budget, re-measured on the mixed canvas: reading 250 cards
-    // and checking every asset name they hold in one pass is what opening a project costs.
-    const openStarted = performance.now();
+    // The two-second project-open budget, re-measured on the mixed canvas. Two figures, because
+    // §10.2's clock starts when the recent card is clicked, not when `list_placements` is
+    // called: `openMs` is the canvas read alone, and `pickerOpenMs` is the whole route the
+    // picker takes — `open_project`, `list_canvases`, the canvas read, `assets_folder` and the
+    // recents list — by calling the very function a Recent card's click calls.
+    const canvasStarted = performance.now();
     await canvasStore.loadCanvas(canvasId);
-    const openMs = Math.round(performance.now() - openStarted);
+    const openMs = Math.round(performance.now() - canvasStarted);
+
+    const pickerStarted = performance.now();
+    await openProject(gatePath);
+    const pickerOpenMs = Math.round(performance.now() - pickerStarted);
 
     const passes = [];
     for (const [label, zoom] of [
@@ -381,7 +388,11 @@
     }
 
     const path = await invokeSafe<string>('record_perf_result', {
-      json: JSON.stringify({ startedAt: new Date().toISOString(), openMs, passes }, null, 2),
+      json: JSON.stringify(
+        { startedAt: new Date().toISOString(), openMs, pickerOpenMs, passes },
+        null,
+        2,
+      ),
     });
     logInfo(`the performance gate result was written to ${path}`);
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
