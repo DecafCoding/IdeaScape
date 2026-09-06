@@ -11,7 +11,6 @@
   import ContextMenu from './features/shell/ContextMenu.svelte';
   import CanvasSurface from './features/canvas/CanvasSurface.svelte';
   import EmptyCanvas from './features/canvas/EmptyCanvas.svelte';
-  import PerfOverlay from './features/canvas/PerfOverlay.svelte';
   import CardLayer from './features/cards/CardLayer.svelte';
   import DropTarget from './features/cards/DropTarget.svelte';
   import SettingsPage from './features/settings/SettingsPage.svelte';
@@ -109,14 +108,6 @@
   const DUPLICATE_OFFSET = 22;
   /** Below this window width the fixed chrome leaves no canvas, so the panel must collapse. */
   const PANEL_AUTO_COLLAPSE_WIDTH = 420;
-
-  /**
-   * True in a debug build. It is discovered by asking for a command that only a debug
-   * build registers, rather than read from import.meta.env — `tauri build --debug` still
-   * builds the front end in production mode, so the bundle's own DEV flag is false there
-   * and would hide the overlay in exactly the build the gate is measured on.
-   */
-  let isDevelopment = $state(false);
 
   let folderPath = $state<string | null>(null);
   let errorMessage = $state<string | null>(null);
@@ -380,11 +371,8 @@
    * measured in the running application.
    */
   async function maybeRunPerfGate() {
-    // A release build does not register this command, so this is also how the front end
-    // learns it is running in a debug build.
+    // A release build does not register this command, so the call simply fails there.
     const wanted = await invokeSafe<boolean>('perf_gate_requested').catch(() => null);
-    if (wanted === null) return;
-    isDevelopment = true;
     if (!wanted) return;
 
     // The harness opens its own project from the debug-only `--project <path>` argument: the
@@ -1524,10 +1512,6 @@
 
   {#if errorMessage}
     <p class="error" role="status">{errorMessage}</p>
-  {/if}
-
-  {#if isDevelopment}
-    <PerfOverlay />
   {/if}
 
   {#if openMenu}

@@ -20,7 +20,7 @@
   const percentage = $derived(`${Math.round(zoom * 100)}%`);
 </script>
 
-<div class="zoom-bar" data-testid="zoom-bar">
+<div class="zoom-bar" data-testid="zoom-bar" data-owns-press>
   <button type="button" class="cell" onclick={onZoomOut}>
     <Icon glyph="minus" size={13} label="Zoom Out" />
   </button>

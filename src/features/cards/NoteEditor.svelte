@@ -59,7 +59,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="editor" data-testid="note-editor" onfocusout={onFocusOut}>
+<div class="editor" data-testid="note-editor" data-owns-press onfocusout={onFocusOut}>
   <div class="text-bar" data-testid="text-bar">
     {#each MARKS as { mark, glyph, label } (mark)}
       <button
