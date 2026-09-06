@@ -11,11 +11,21 @@
   import CardShell from './CardShell.svelte';
   import NoteCard from './NoteCard.svelte';
   import NoteEditor from './NoteEditor.svelte';
+  import ImageCard from './ImageCard.svelte';
+  import LinkCard from './LinkCard.svelte';
+  import VideoCard from './VideoCard.svelte';
   import { canvasStore } from '../../stores/canvasStore.svelte';
+  import { assetStatus } from '../../lib/assets';
   import { cullWithCounts, recordCullCounts } from '../../lib/culling';
   import { resizeRect, snapToGrid, type ResizeHandle } from '../../lib/geometry';
   import { getSettings } from '../../lib/settings';
-  import { parseNotePayload, type Placement } from '../../lib/types';
+  import {
+    parseImagePayload,
+    parseLinkPayload,
+    parseNotePayload,
+    parseVideoPayload,
+    type Placement,
+  } from '../../lib/types';
 
   interface Props {
     /** Called once when a move or resize gesture ends, with the rows that changed. */
@@ -33,10 +43,30 @@
      * feature, which this layer may not import, so the composition root wires it.
      */
     onConnectFrom: (placementId: number, event: PointerEvent) => void;
+    /**
+     * An image the page has just decoded, reporting its real dimensions. The root patches
+     * them back through `update_image_dimensions` — this layer never writes.
+     */
+    onImageDecoded?: (itemId: number, naturalWidth: number, naturalHeight: number) => void;
+    /** A link or video card asking for its preview to be fetched again. */
+    onRefetch?: (itemId: number) => void;
+    /** A stationary click on a video card: open the address in the system browser. */
+    onOpenVideo?: (itemId: number) => void;
+    /** The item just pasted, which carries the §9.7 caption under its card while fetching. */
+    pastePendingItemId?: number | null;
   }
 
-  const { onGeometryCommitted, onOpenElementMenu, onCommitEdit, onSelect, onConnectFrom }: Props =
-    $props();
+  const {
+    onGeometryCommitted,
+    onOpenElementMenu,
+    onCommitEdit,
+    onSelect,
+    onConnectFrom,
+    onImageDecoded,
+    onRefetch,
+    onOpenVideo,
+    pastePendingItemId = null,
+  }: Props = $props();
 
   const alwaysVisible = $derived(
     new Set(canvasStore.editingPlacementId === null ? [] : [canvasStore.editingPlacementId]),
@@ -220,8 +250,42 @@
             />
           </div>
         {/if}
+      {:else if item && item.kind === 'image'}
+        {@const payload = parseImagePayload(item.payload)}
+        <ImageCard
+          {payload}
+          missing={payload.asset !== null && !assetStatus(payload.asset).exists}
+          zoom={canvasStore.view.zoom}
+          width={placement.width}
+          onDecoded={(w, h) => onImageDecoded?.(item.id, w, h)}
+        />
+      {:else if item && item.kind === 'link'}
+        <LinkCard
+          payload={parseLinkPayload(item.payload)}
+          status={canvasStore.fetchStatusFor(item.id)}
+          zoom={canvasStore.view.zoom}
+          onRefetch={() => onRefetch?.(item.id)}
+        />
+      {:else if item && item.kind === 'video'}
+        <VideoCard
+          payload={parseVideoPayload(item.payload)}
+          zoom={canvasStore.view.zoom}
+          onOpen={() => onOpenVideo?.(item.id)}
+        />
       {/if}
     </CardShell>
+
+    <!-- §9.7: the paste caption sits under the card, outside the shell, and goes as soon
+         as the fetch settles. -->
+    {#if item && item.id === pastePendingItemId && canvasStore.fetchStatusFor(item.id) === 'fetching'}
+      <p
+        class="paste-caption"
+        data-testid="paste-caption"
+        style="left: {placement.x}px; top: {placement.y + placement.height + 4}px;"
+      >
+        Pasted here · Ctrl+V
+      </p>
+    {/if}
   {/each}
 </div>
 
@@ -234,5 +298,14 @@
 
   .note-hit {
     height: 100%;
+  }
+
+  .paste-caption {
+    position: absolute;
+    margin: 0;
+    font-size: var(--text-11);
+    opacity: 0.4;
+    pointer-events: none;
+    white-space: nowrap;
   }
 </style>

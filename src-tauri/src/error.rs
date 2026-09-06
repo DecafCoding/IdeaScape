@@ -16,6 +16,10 @@ pub enum AppError {
     NotFound(String),
     #[error("that value is not valid: {0}")]
     Invalid(String),
+    #[error("that picture could not be added: {0}")]
+    Asset(String),
+    #[error("that address could not be read: {0}")]
+    Fetch(String),
 }
 
 impl serde::Serialize for AppError {

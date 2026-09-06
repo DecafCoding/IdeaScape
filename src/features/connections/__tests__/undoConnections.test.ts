@@ -150,6 +150,7 @@ describe('deleteCardsCommand with connections', () => {
         connection({ id: 7, from_placement_id: 1, to_placement_id: 2, label: 'a', directed: 1 }),
         connection({ id: 8, from_placement_id: 2, to_placement_id: 3, label: 'b', directed: 3 }),
       ],
+      assets: [],
     });
 
     // restore_card mints id 55, not 2.
@@ -191,6 +192,7 @@ describe('deleteCardsCommand with connections', () => {
       placements: [placement(2)],
       items: [item(2)],
       connections: [connection({ id: 7, from_placement_id: 1, to_placement_id: 2 })],
+      assets: [],
     });
 
     invokeSafe.mockResolvedValueOnce({ placement: { ...placement(2), id: 55 }, item: item(2) });
@@ -210,6 +212,7 @@ describe('deleteCardsCommand with connections', () => {
       placements: [placement(2)],
       items: [item(2)],
       connections: [],
+      assets: [],
     });
 
     invokeSafe.mockResolvedValueOnce({
@@ -241,6 +244,7 @@ describe('the composed lifecycle', () => {
         connection({ id: 7, from_placement_id: 1, to_placement_id: 2 }),
         connection({ id: 8, from_placement_id: 2, to_placement_id: 3 }),
       ],
+      assets: [],
     };
     for (const p of effect.placements) canvasStore.removePlacement(p.id);
     for (const i of effect.items) canvasStore.removeItem(i.id);

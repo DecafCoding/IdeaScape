@@ -23,15 +23,56 @@ impl AppState {
         let conn = guard.as_mut().ok_or(AppError::NoProject)?;
         f(conn)
     }
+
+    /// The open project's folder, cloned out of its mutex.
+    ///
+    /// Always call this *before* `with_db`, and never hold the result of `folder.lock()`
+    /// across a db lock or an await: `folder` and `db` are two separate mutexes, and only
+    /// one lock order is deadlock-free.
+    pub fn project_folder(&self) -> Option<PathBuf> {
+        self.folder.lock().ok().and_then(|g| g.clone())
+    }
+
+    /// The same, as an error rather than an `Option`, for a command that cannot proceed
+    /// without a project folder.
+    pub fn require_folder(&self) -> AppResult<PathBuf> {
+        self.project_folder().ok_or(AppError::NoProject)
+    }
 }
 
 /// Open (or create) the project folder at `path`, migrate its database, and return the
 /// project row — inserting it, plus a first canvas, the first time the folder is used.
 pub fn open_project_at(state: &AppState, path: &Path) -> AppResult<Project> {
+    open_project_at_with(state, path, None)
+}
+
+/// The same, plus the runtime asset-protocol grant an `<img src>` needs.
+///
+/// The scope is empty in `tauri.conf.json` and granted here instead: a project folder can
+/// be anywhere on disk, so a runtime grant of exactly one `assets/` directory is narrower
+/// than any static scope could be. `app` is optional so the tests can open a project
+/// without a Tauri runtime.
+pub fn open_project_at_with(
+    state: &AppState,
+    path: &Path,
+    app: Option<&tauri::AppHandle>,
+) -> AppResult<Project> {
     let conn = open_project_db(path)?;
     let project = ensure_project(&conn, path)?;
     *state.db.lock().map_err(|_| AppError::NoProject)? = Some(conn);
     *state.folder.lock().map_err(|_| AppError::NoProject)? = Some(path.to_path_buf());
+
+    // The undo stack is session-only, so a trashed asset that survived a restart can never
+    // be restored and is dead weight. Purged after the migrations, never before.
+    crate::assets::purge_trash(path)?;
+
+    if let Some(app) = app {
+        use tauri::Manager;
+        let dir = crate::assets::assets_dir(path);
+        if let Err(error) = app.asset_protocol_scope().allow_directory(&dir, false) {
+            log::warn!("the assets folder could not be granted to the asset protocol: {error}");
+        }
+    }
     Ok(project)
 }
 
@@ -73,8 +114,12 @@ fn ensure_project(conn: &Connection, path: &Path) -> AppResult<Project> {
 }
 
 #[tauri::command]
-pub fn open_project(state: tauri::State<'_, AppState>, path: String) -> AppResult<Project> {
-    open_project_at(&state, Path::new(&path))
+pub fn open_project(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> AppResult<Project> {
+    open_project_at_with(&state, Path::new(&path), Some(&app))
 }
 
 #[tauri::command]

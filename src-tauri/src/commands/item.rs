@@ -27,7 +27,71 @@ pub fn validate_payload(kind: &str, payload: &str) -> AppResult<()> {
             "a note payload needs a title",
         )));
     }
+    if kind == "image" && !value.get("asset").is_some_and(|a| a.is_string()) {
+        return Err(AppError::Invalid(String::from(
+            "an image payload needs an asset file name",
+        )));
+    }
+    if (kind == "link" || kind == "video") && !value.get("url").is_some_and(|u| u.is_string()) {
+        return Err(AppError::Invalid(format!("a {kind} payload needs a url")));
+    }
+    if kind == "video" && !value.get("provider").is_some_and(|p| p.is_string()) {
+        return Err(AppError::Invalid(String::from(
+            "a video payload needs a provider",
+        )));
+    }
+    // An asset value names a file inside `assets/` and nothing else. Refusing a separator
+    // or a `..` here is what stops a hand-edited payload naming a file outside the folder.
+    for name in asset_names(kind, payload) {
+        if !is_bare_file_name(&name) {
+            return Err(AppError::Invalid(format!("asset file name {name}")));
+        }
+    }
     Ok(())
+}
+
+/// True when `name` is a plain file name — no separator, no traversal, not empty.
+pub fn is_bare_file_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !name.contains("..")
+        && !name.contains(':')
+}
+
+/// The asset file names a payload holds. This is the one place that knows which fields of
+/// which kind are assets; `delete_placements` and `restore_card` both read it.
+pub fn asset_names(kind: &str, payload: &str) -> Vec<String> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return Vec::new();
+    };
+    let fields: &[&str] = match kind {
+        "image" => &["asset"],
+        "link" => &["favicon_asset", "thumbnail_asset"],
+        "video" => &["thumbnail_asset"],
+        _ => &[],
+    };
+    fields
+        .iter()
+        .filter_map(|field| value.get(field).and_then(|v| v.as_str()))
+        .filter(|name| !name.is_empty())
+        .map(String::from)
+        .collect()
+}
+
+/// How many items other than `ignoring_item_id` still name `name` in their payload.
+///
+/// A single scan rather than a stored count: content-hash naming means two items
+/// legitimately share one file, and a derived count cannot drift from the payloads the way
+/// a column can. The pattern is anchored on the surrounding quotes so a hash prefix can
+/// never match a different name.
+pub fn reference_count(conn: &Connection, name: &str, ignoring_item_id: i64) -> AppResult<i64> {
+    let pattern = format!("%\"{name}\"%");
+    Ok(conn.query_row(
+        "SELECT count(*) FROM item WHERE payload LIKE ?1 AND id != ?2",
+        rusqlite::params![pattern, ignoring_item_id],
+        |r| r.get(0),
+    )?)
 }
 
 pub fn insert_item(
@@ -112,5 +176,77 @@ mod tests {
     #[test]
     fn validate_payload_non_object_json_is_rejected() {
         assert!(validate_payload("link", "[1,2,3]").is_err());
+    }
+
+    #[test]
+    fn validate_payload_image_without_an_asset_is_rejected() {
+        assert!(validate_payload("image", r#"{"alt":"a"}"#).is_err());
+    }
+
+    #[test]
+    fn validate_payload_link_without_a_url_is_rejected() {
+        assert!(validate_payload("link", r#"{"title":"T"}"#).is_err());
+    }
+
+    #[test]
+    fn validate_payload_video_without_a_provider_is_rejected() {
+        assert!(validate_payload("video", r#"{"url":"https://x/y"}"#).is_err());
+    }
+
+    #[test]
+    fn validate_payload_well_formed_image_link_and_video_are_accepted() {
+        assert!(validate_payload("image", r#"{"asset":"ab.png","alt":""}"#).is_ok());
+        assert!(validate_payload("link", r#"{"url":"https://example.com"}"#).is_ok());
+        assert!(validate_payload(
+            "video",
+            r#"{"url":"https://youtu.be/x","provider":"youtube"}"#
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn validate_payload_an_asset_naming_a_path_is_rejected() {
+        assert!(validate_payload("image", r#"{"asset":"../evil.png"}"#).is_err());
+        assert!(validate_payload("image", r#"{"asset":"sub/evil.png"}"#).is_err());
+        assert!(validate_payload("image", r#"{"asset":"sub\\evil.png"}"#).is_err());
+        assert!(validate_payload("image", r#"{"asset":"c:evil.png"}"#).is_err());
+    }
+
+    #[test]
+    fn asset_names_a_fully_fetched_link_returns_both_names() {
+        let payload = r#"{"url":"https://x/","favicon_asset":"a.ico","thumbnail_asset":"b.png"}"#;
+        let names = asset_names("link", payload);
+        assert_eq!(names, vec!["a.ico".to_string(), "b.png".to_string()]);
+    }
+
+    #[test]
+    fn asset_names_a_note_returns_none() {
+        assert!(asset_names("note", r#"{"title":"T","text":""}"#).is_empty());
+    }
+
+    #[test]
+    fn asset_names_a_null_thumbnail_is_skipped() {
+        let payload = r#"{"url":"https://x/","provider":"youtube","thumbnail_asset":null}"#;
+        assert!(asset_names("video", payload).is_empty());
+    }
+
+    #[test]
+    fn reference_count_a_name_shared_by_two_items_counts_the_other_one() {
+        use crate::commands::project::open_project_at;
+        let dir = tempfile::tempdir().unwrap();
+        let state = crate::commands::project::AppState::default();
+        let project = open_project_at(&state, dir.path()).unwrap();
+
+        state
+            .with_db(|conn| {
+                let a = insert_item(conn, project.id, "image", r#"{"asset":"h.png"}"#)?;
+                let b = insert_item(conn, project.id, "image", r#"{"asset":"h.png"}"#)?;
+                assert_eq!(reference_count(conn, "h.png", a.id)?, 1);
+                // With the other row gone, the remaining holder is the ignored one.
+                conn.execute("DELETE FROM item WHERE id = ?1", [b.id])?;
+                assert_eq!(reference_count(conn, "h.png", a.id)?, 0);
+                Ok(())
+            })
+            .unwrap();
     }
 }

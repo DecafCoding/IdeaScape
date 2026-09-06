@@ -3,8 +3,18 @@
  * Nothing else in the front end calls `invoke()` — that is what keeps the command seam
  * from being bypassed, and what guarantees a raw Rust string never reaches a component.
  */
-import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { logError } from './logger';
+
+/**
+ * Turn an absolute file path into something an `<img src>` can load, through Tauri's asset
+ * protocol. Re-exported from here rather than imported where it is used, so
+ * "`@tauri-apps/api/core` is imported nowhere but `src/lib/ipc.ts`" stays a true statement
+ * about the seam.
+ */
+export function toFileUrl(path: string): string {
+  return convertFileSrc(path);
+}
 
 export class IpcError extends Error {
   constructor(message: string) {

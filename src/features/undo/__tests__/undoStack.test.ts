@@ -131,7 +131,12 @@ describe('inverse commands', () => {
       item: { ...item, id: 99 },
     });
 
-    const command = deleteCardsCommand({ placements: [placement], items: [item], connections: [] });
+    const command = deleteCardsCommand({
+      placements: [placement],
+      items: [item],
+      connections: [],
+      assets: [],
+    });
     await command.undo();
 
     // One restore_card call carried both rows — the item and the placement come back

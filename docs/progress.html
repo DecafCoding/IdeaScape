@@ -131,10 +131,33 @@
   </ul>
 </section>
 
-<section class="phase" data-phase="3" data-status="not-planned">
-  <h2>Phase 3: Rich cards <span class="badge">not planned</span></h2>
-  <p class="meta"><strong>Branch:</strong> <em>to be determined by <code>/dev-plan-phase 3</code></em></p>
-  <p class="meta"><strong>Phase doc:</strong> <em>none yet — run <code>/dev-plan-phase 3</code></em></p>
+<section class="phase" data-phase="3" data-status="complete">
+  <h2>Phase 3: Rich cards <span class="badge">complete</span></h2>
+  <p class="meta"><strong>Branch:</strong> <code>phase-3-rich-cards</code></p>
+  <p class="meta"><strong>Phase doc:</strong> <code>docs/phases/phase-3-rich-cards.html</code></p>
+  <p class="meta"><strong>Depends on:</strong> Phase 1 (canvas core) — complete; Phase 2 (connections) — complete. New Rust crates: <code>blake3</code>, <code>reqwest</code> (rustls-tls, no default features), <code>scraper</code>, <code>url</code>, <code>tauri-plugin-dialog</code>, <code>tauri-plugin-opener</code>. New npm packages: <code>@tauri-apps/plugin-dialog</code>, <code>@tauri-apps/plugin-opener</code>. External service: the public YouTube oEmbed endpoint (no key, no account). No new migration — the <code>item.payload</code> JSON column carries every new field.</p>
+  <p class="meta"><strong>Summary:</strong> Phase 3 adds the three remaining card kinds and every line of network code the MVP will ever have.</p>
+  <ul class="tasks">
+    <li class="task" data-task="1" data-status="done">Task 1: Correct the four item payload contracts to PRD §6.9</li>
+    <li class="task" data-task="2" data-status="done">Task 2: The assets module — content hash, copy-in, dedupe and status</li>
+    <li class="task" data-task="3" data-status="done">Task 3: Reference counting, trash and untrash</li>
+    <li class="task" data-task="4" data-status="done">Task 4: Asset commands, the capability file and the asset protocol</li>
+    <li class="task" data-task="5" data-status="done">Task 5: The asset URL helper and the status cache</li>
+    <li class="task" data-task="6" data-status="done">Task 6: The image card, and the missing-file state</li>
+    <li class="task" data-task="7" data-status="done">Task 7: The three image ingestion routes, and the mid-drop state</li>
+    <li class="task" data-task="8" data-status="done">Task 8: The panel's File and Alt text groups, and asset-aware undo</li>
+    <li class="task" data-task="9" data-status="done">Task 9: URL classification, as pure functions</li>
+    <li class="task" data-task="10" data-status="done">Task 10: Open Graph extraction and oEmbed decoding, as pure functions</li>
+    <li class="task" data-task="11" data-status="done">Task 11: The fetch commands, the five-second budget and thumbnail capture</li>
+    <li class="task" data-task="12" data-status="done">Task 12: The link card, in all three states</li>
+    <li class="task" data-task="13" data-status="done">Task 13: The video card, and opening it in the browser</li>
+    <li class="task" data-task="14" data-status="done">Task 14: Paste routing — the card exists before the network</li>
+    <li class="task" data-task="15" data-status="done">Task 15: The panel's Source group, and Refetch</li>
+    <li class="task" data-task="16" data-status="done">Task 16: Prove the four failure states, in the running application</li>
+    <li class="task" data-task="17" data-status="done">Task 17: Re-measure the frame gate on 250 mixed cards, and the installer budget</li>
+    <li class="task" data-task="18" data-status="done">Task 18: Commit, push, and open PR</li>
+  </ul>
+  <p class="meta"><strong>Recorded:</strong> <code>scripts/phase-3-session.md</code> — the six failure-state steps, the observed 5.00 s fetch cut-off, a 0.017 s project open on the mixed canvas, and 56.2 fps with at most one dropped frame in 1,664 at 25 of 250 cards drawn. The frame figure is the panel's own variable-refresh cadence, not a cost this phase added: a notes-only control run on the same machine in the same session measured the same 55.9–56.5 fps. Installer 2,900,575 bytes — 2.77 MB against a 20 MB cap.</p>
 </section>
 
 <section class="phase" data-phase="4" data-status="not-planned">

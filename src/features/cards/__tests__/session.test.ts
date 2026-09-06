@@ -78,7 +78,7 @@ function fakeBackend() {
     }
 
     if (name === 'delete_placements') {
-      const effect: DeleteEffect = { placements: [], items: [], connections: [] };
+      const effect: DeleteEffect = { placements: [], items: [], connections: [], assets: [] };
       for (const id of args.ids as number[]) {
         const row = rows.get(id);
         if (!row) continue;
