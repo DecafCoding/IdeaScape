@@ -133,9 +133,31 @@ class FakeProject {
     }
 
     if (name === 'restore_card') {
-      // A restored card takes a NEW placement id, exactly as `restore_card` does in Rust.
+      // An undo names the ids the delete removed and gets them back, exactly as Rust does:
+      // ids are AUTOINCREMENT and never re-issued, so the old id is always free. A duplicate
+      // sends no ids and takes new ones.
       const card = this.note(args.x as number, args.y as number);
-      return card;
+      const placementId = args.placementId as number | null;
+      const itemId = args.itemId as number | null;
+      if (placementId === null || placementId === undefined) return card;
+      this.cards.delete(card.placement.id);
+      const restored: PlacementWithItem = {
+        placement: { ...card.placement, id: placementId, item_id: itemId ?? card.item.id },
+        item: { ...card.item, id: itemId ?? card.item.id },
+      };
+      this.cards.set(placementId, restored);
+      return restored;
+    }
+
+    if (name === 'restore_connection') {
+      // The line goes back under its own id, so an edit still on the stack keeps naming it.
+      const row = args.connection as Connection;
+      const live = this.rows.get(row.id);
+      if (live) return live;
+      if (!this.cards.has(row.from_placement_id)) throw new Error('foreign key');
+      if (!this.cards.has(row.to_placement_id)) throw new Error('foreign key');
+      this.rows.set(row.id, row);
+      return row;
     }
 
     throw new Error(`unexpected command ${name}`);
@@ -280,7 +302,7 @@ describe('the phase 2 gate session', () => {
     expect(drawnConnections()).toBe(0);
   });
 
-  it('step8_undoTheDelete_theCardAndBothLinesComeBackRemapped', async () => {
+  it('step8_undoTheDelete_theCardAndBothLinesComeBackUnderTheirOwnIds', async () => {
     for (let n = 0; n < 3; n += 1) canvasStore.upsertCard(project.note(n * 300));
     const a = (await link(1, 2))!;
     await updateConnection(a.id, 'first', 3);
@@ -294,16 +316,15 @@ describe('the phase 2 gate session', () => {
     const command = deleteCardsCommand(effect);
     await command.undo();
 
-    // The card came back under a new placement id, and both lines point at it.
+    // The card came back as placement 2, the id it had, and both lines point at it.
     expect(canvasStore.cardCount).toBe(3);
     expect(canvasStore.connections.size).toBe(2);
-    expect(canvasStore.placements.has(2)).toBe(false);
-    const restoredId = [...canvasStore.placements.keys()].find((id) => id !== 1 && id !== 3)!;
+    expect(canvasStore.placements.has(2)).toBe(true);
     const endpoints = [...canvasStore.connections.values()].flatMap((c) => [
       c.from_placement_id,
       c.to_placement_id,
     ]);
-    expect(endpoints).toContain(restoredId);
+    expect(endpoints).toContain(2);
     // Labels and directions survived the round trip.
     const labelled = [...canvasStore.connections.values()].find((c) => c.label === 'first');
     expect(labelled?.directed).toBe(3);
@@ -327,6 +348,15 @@ describe('the phase 2 gate session', () => {
     expect(canvasStore.connections.size).toBe(0);
     expect(canvasStore.cardCount).toBe(2);
     expect(project.rows.size).toBe(0);
+
+    // And again: the ids did not drift, so a second undo and redo still name live rows. This
+    // is what used to break after one redo.
+    await command.undo();
+    expect(canvasStore.cardCount).toBe(3);
+    expect(canvasStore.connections.size).toBe(2);
+    await command.redo();
+    expect(canvasStore.cardCount).toBe(2);
+    expect(canvasStore.connections.size).toBe(0);
   });
 
   it('step10_closeAndReopenTheProject_everyLineComesBack', async () => {

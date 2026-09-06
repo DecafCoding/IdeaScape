@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Item } from '../../../lib/types';
 import type { UndoableCommand } from '../commands';
 
 vi.mock('../../../lib/logger', () => ({ logError: vi.fn(), logInfo: vi.fn(), logWarn: vi.fn() }));
@@ -11,7 +12,8 @@ vi.mock('../../../lib/ipc', () => ({
 
 const { undoStack } = await import('../undoStack.svelte');
 const { canvasStore } = await import('../../../stores/canvasStore.svelte');
-const { deleteCardsCommand, updatePlacementsCommand } = await import('../commands');
+const { createCardCommand, deleteCardsCommand, updatePlacementsCommand } =
+  await import('../commands');
 
 /** A command that records what happened, so the stack's own behaviour is what is tested. */
 function tracked(label: string, log: string[]): UndoableCommand {
@@ -82,15 +84,80 @@ describe('undoStack', () => {
     expect(undoStack.redoDepth).toBe(0);
   });
 
-  it('undo_aStepThatFails_leavesTheCommandOnTheUndoStack', async () => {
+  it('undo_aStepThatFails_leavesTheCommandOnTheUndoStackAndReportsIt', async () => {
     undoStack.push({
       label: 'Fails',
       undo: () => Promise.reject(new Error('the write failed')),
       redo: () => Promise.resolve(),
     });
-    await undoStack.undo();
+    // The error reaches the caller, so the shell can draw it: a stuck stack that says nothing
+    // reads as a dead button.
+    await expect(undoStack.undo()).rejects.toThrow('the write failed');
     expect(undoStack.undoDepth).toBe(1);
     expect(undoStack.redoDepth).toBe(0);
+  });
+
+  /**
+   * The bug this stack was reported with: a card and a move on it, both undone, then redone.
+   * The second redo used to fail, because the card came back under a new id and the move
+   * still named the old one — and a failed step stays put, so the whole redo stack froze
+   * with a count still on the button.
+   */
+  it('redo_aCardAndAMoveOnIt_walksTheWholeStackNotJustTheFirstStep', async () => {
+    const placement = {
+      id: 5,
+      canvas_id: 1,
+      item_id: 9,
+      x: 0,
+      y: 0,
+      width: 240,
+      height: 140,
+      z_order: 0,
+    };
+    const item: Item = {
+      id: 9,
+      project_id: 1,
+      kind: 'note',
+      payload: '{"title":"One","text":""}',
+      created_at: '',
+      updated_at: '',
+    };
+    const live = new Set<number>([5]);
+
+    // A seam that behaves as Rust does: an update against a placement that is not there is
+    // an error, and a restore puts the row back under the id it is given.
+    invokeSafe.mockImplementation((name: string, args: Record<string, never>) => {
+      if (name === 'delete_placements') {
+        for (const id of args.ids as unknown as number[]) live.delete(id);
+        return Promise.resolve({ placements: [placement], items: [item], connections: [] });
+      }
+      if (name === 'restore_card') {
+        live.add(args.placementId as unknown as number);
+        return Promise.resolve({
+          placement: { ...placement, id: args.placementId as unknown as number },
+          item: { ...item, id: args.itemId as unknown as number },
+        });
+      }
+      if (name === 'update_placements') {
+        for (const u of args.updates as unknown as { id: number }[]) {
+          if (!live.has(u.id)) return Promise.reject(new Error(`placement ${u.id} not found`));
+        }
+        return Promise.resolve(null);
+      }
+      return Promise.reject(new Error(`unexpected command ${name}`));
+    });
+
+    undoStack.push(createCardCommand({ placement, item }));
+    undoStack.push(updatePlacementsCommand('Move Cards', [placement], [{ ...placement, x: 400 }]));
+
+    await undoStack.undo();
+    await undoStack.undo();
+    expect(undoStack.redoDepth).toBe(2);
+
+    await undoStack.redo();
+    await undoStack.redo();
+    expect(undoStack.redoDepth).toBe(0);
+    expect(undoStack.undoDepth).toBe(2);
   });
 
   it('nextUndoLabel_reportsTheActionTheHistoryRowWouldReverse', () => {

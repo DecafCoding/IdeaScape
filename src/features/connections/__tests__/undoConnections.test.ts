@@ -1,7 +1,8 @@
 /**
- * Milestone 4's checkpoint: undo composing across three tables, and the id remapping that
- * keeps a restored line pointing at the card it was drawn from. `restore_card` mints a new
- * placement id, so this is the subtlest correctness risk in the phase.
+ * Milestone 4's checkpoint: undo composing across three tables, and the id rule that keeps a
+ * restored line pointing at the card it was drawn from. A restore puts every row back under
+ * the id it had — ids are `AUTOINCREMENT` and never re-issued — which is what leaves the
+ * rest of the stack naming rows that exist.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Connection, Item, Placement } from '../../../lib/types';
@@ -72,16 +73,17 @@ describe('createConnectionCommand', () => {
     expect(invokeSafe).toHaveBeenCalledWith('delete_connections', { ids: [7] });
     expect(canvasStore.connections.has(7)).toBe(false);
 
-    // A re-created connection takes a NEW id, exactly as a re-created card does.
-    invokeSafe.mockResolvedValueOnce(connection({ id: 21 }));
+    // The line comes back under its own id, so an edit of connection 7 further up the stack
+    // still names a row that exists.
+    invokeSafe.mockResolvedValueOnce(connection());
     await command.redo();
-    expect(canvasStore.connections.has(21)).toBe(true);
-    expect(canvasStore.connections.get(21)?.label).toBe('causes');
+    expect(invokeSafe).toHaveBeenLastCalledWith('restore_connection', { connection: original });
+    expect(canvasStore.connections.get(7)?.label).toBe('causes');
 
-    // A second undo must reach the id the redo actually minted, not the dead one.
+    // And every round after that names the same id.
     invokeSafe.mockResolvedValueOnce([]);
     await command.undo();
-    expect(invokeSafe).toHaveBeenLastCalledWith('delete_connections', { ids: [21] });
+    expect(invokeSafe).toHaveBeenLastCalledWith('delete_connections', { ids: [7] });
   });
 });
 
@@ -113,18 +115,13 @@ describe('deleteConnectionsCommand', () => {
   it('deleteConnectionsCommand_undone_putsTheRowBackWithItsLabelAndDirection', async () => {
     canvasStore.upsertPlacement(placement(1));
     canvasStore.upsertPlacement(placement(2));
-    const command = deleteConnectionsCommand([connection({ directed: 2 })]);
+    const removed = connection({ directed: 2 });
+    const command = deleteConnectionsCommand([removed]);
 
-    invokeSafe.mockResolvedValueOnce(connection({ id: 30, directed: 2 }));
+    invokeSafe.mockResolvedValueOnce(removed);
     await command.undo();
-    expect(invokeSafe).toHaveBeenCalledWith('create_connection', {
-      canvasId: 1,
-      fromPlacementId: 1,
-      toPlacementId: 2,
-      label: 'causes',
-      directed: 2,
-    });
-    expect(canvasStore.connections.get(30)?.directed).toBe(2);
+    expect(invokeSafe).toHaveBeenCalledWith('restore_connection', { connection: removed });
+    expect(canvasStore.connections.get(7)?.directed).toBe(2);
   });
 
   it('deleteConnectionsCommand_undoneWhenAnEndpointIsGone_skipsTheRow', async () => {
@@ -136,7 +133,7 @@ describe('deleteConnectionsCommand', () => {
 });
 
 describe('deleteCardsCommand with connections', () => {
-  it('deleteCardsCommand_undone_restoresTheCardAndItsConnectionsRemappedToTheNewPlacementIds', async () => {
+  it('deleteCardsCommand_undone_restoresTheCardAndItsConnectionsUnderTheirOwnIds', async () => {
     // Card 2 was deleted; cards 1 and 3 are still on the canvas.
     canvasStore.upsertPlacement(placement(1));
     canvasStore.upsertPlacement(placement(3));
@@ -153,32 +150,38 @@ describe('deleteCardsCommand with connections', () => {
       assets: [],
     });
 
-    // restore_card mints id 55, not 2.
-    invokeSafe.mockResolvedValueOnce({ placement: { ...placement(2), id: 55 }, item: item(2) });
+    // The card goes back as placement 2, the id it always had.
+    invokeSafe.mockResolvedValueOnce({ placement: placement(2), item: item(2) });
     invokeSafe.mockResolvedValueOnce(
-      connection({ id: 70, from_placement_id: 1, to_placement_id: 55, label: 'a', directed: 1 }),
+      connection({ id: 7, from_placement_id: 1, to_placement_id: 2, label: 'a', directed: 1 }),
     );
     invokeSafe.mockResolvedValueOnce(
-      connection({ id: 80, from_placement_id: 55, to_placement_id: 3, label: 'b', directed: 3 }),
+      connection({ id: 8, from_placement_id: 2, to_placement_id: 3, label: 'b', directed: 3 }),
     );
 
     await command.undo();
 
     const calls = invokeSafe.mock.calls;
     expect(calls[0][0]).toBe('restore_card');
-    // Both lines were re-created against the NEW placement id, not the dead one.
-    expect(calls[1]).toEqual([
-      'create_connection',
-      { canvasId: 1, fromPlacementId: 1, toPlacementId: 55, label: 'a', directed: 1 },
-    ]);
-    expect(calls[2]).toEqual([
-      'create_connection',
-      { canvasId: 1, fromPlacementId: 55, toPlacementId: 3, label: 'b', directed: 3 },
-    ]);
-    expect(canvasStore.placements.has(55)).toBe(true);
+    // The restore names the ids the delete removed, so the rest of the stack stays valid.
+    expect(calls[0][1]).toMatchObject({ placementId: 2, itemId: 2 });
+    // Both lines go back under their own ids, pointing at the same two cards as before.
+    expect(calls[1][0]).toBe('restore_connection');
+    expect(calls[1][1].connection).toMatchObject({
+      id: 7,
+      from_placement_id: 1,
+      to_placement_id: 2,
+    });
+    expect(calls[2][0]).toBe('restore_connection');
+    expect(calls[2][1].connection).toMatchObject({
+      id: 8,
+      from_placement_id: 2,
+      to_placement_id: 3,
+    });
+    expect(canvasStore.placements.has(2)).toBe(true);
     expect(canvasStore.connections.size).toBe(2);
-    expect(canvasStore.connections.get(70)?.label).toBe('a');
-    expect(canvasStore.connections.get(80)?.directed).toBe(3);
+    expect(canvasStore.connections.get(7)?.label).toBe('a');
+    expect(canvasStore.connections.get(8)?.directed).toBe(3);
   });
 
   it('restoreCards_aConnectionWithOneEndpointStillDeleted_isSkipped', async () => {
@@ -195,7 +198,7 @@ describe('deleteCardsCommand with connections', () => {
       assets: [],
     });
 
-    invokeSafe.mockResolvedValueOnce({ placement: { ...placement(2), id: 55 }, item: item(2) });
+    invokeSafe.mockResolvedValueOnce({ placement: placement(2), item: item(2) });
     await command.undo();
 
     expect(invokeSafe).toHaveBeenCalledTimes(1);
@@ -253,27 +256,40 @@ describe('the composed lifecycle', () => {
 
     const command = deleteCardsCommand(effect);
 
-    invokeSafe.mockResolvedValueOnce({ placement: { ...placement(2), id: 55 }, item: item(2) });
+    invokeSafe.mockResolvedValueOnce({ placement: placement(2), item: item(2) });
     invokeSafe.mockResolvedValueOnce(
-      connection({ id: 70, from_placement_id: 1, to_placement_id: 55 }),
+      connection({ id: 7, from_placement_id: 1, to_placement_id: 2 }),
     );
     invokeSafe.mockResolvedValueOnce(
-      connection({ id: 80, from_placement_id: 55, to_placement_id: 3 }),
+      connection({ id: 8, from_placement_id: 2, to_placement_id: 3 }),
     );
     await command.undo();
-    expect(canvasStore.placements.has(55)).toBe(true);
+    expect(canvasStore.placements.has(2)).toBe(true);
     expect(canvasStore.connections.size).toBe(2);
 
     invokeSafe.mockResolvedValueOnce({
-      placements: [{ ...placement(2), id: 55 }],
+      placements: [placement(2)],
       items: [item(2)],
       connections: [
-        connection({ id: 70, from_placement_id: 1, to_placement_id: 55 }),
-        connection({ id: 80, from_placement_id: 55, to_placement_id: 3 }),
+        connection({ id: 7, from_placement_id: 1, to_placement_id: 2 }),
+        connection({ id: 8, from_placement_id: 2, to_placement_id: 3 }),
       ],
     });
     await command.redo();
-    expect(canvasStore.placements.has(55)).toBe(false);
+    expect(canvasStore.placements.has(2)).toBe(false);
     expect(canvasStore.connections.size).toBe(0);
+
+    // A second round is the whole point of the fix: the ids did not drift, so undoing and
+    // redoing again names the same rows and does not fail.
+    invokeSafe.mockResolvedValueOnce({ placement: placement(2), item: item(2) });
+    invokeSafe.mockResolvedValueOnce(
+      connection({ id: 7, from_placement_id: 1, to_placement_id: 2 }),
+    );
+    invokeSafe.mockResolvedValueOnce(
+      connection({ id: 8, from_placement_id: 2, to_placement_id: 3 }),
+    );
+    await command.undo();
+    expect(canvasStore.placements.has(2)).toBe(true);
+    expect(canvasStore.connections.size).toBe(2);
   });
 });

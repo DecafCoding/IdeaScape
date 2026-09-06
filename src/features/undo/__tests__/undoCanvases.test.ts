@@ -1,7 +1,7 @@
 /**
  * The three canvas undo commands. What matters is that each writes through the same command
- * the forward action used, and that a restored canvas's new ids are adopted so a following
- * redo names rows that actually exist.
+ * the forward action used, and that a restored canvas comes back under its own id, so a
+ * following redo — and every other command still on the stack — names rows that exist.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Canvas, CanvasDeleteEffect } from '../../../lib/types';
@@ -79,7 +79,7 @@ beforeEach(() => {
 });
 
 describe('the canvas undo commands', () => {
-  it('createCanvasCommand_undo_deletesIt_andRedoAdoptsANewRow', async () => {
+  it('createCanvasCommand_undo_deletesIt_andRedoRestoresTheSameId', async () => {
     canvasStore.canvases = [canvas(1, 'Canvas 1'), canvas(2, 'Canvas 2')];
     canvasStore.activeCanvasId = 2;
     const h = hooks();
@@ -92,15 +92,18 @@ describe('the canvas undo commands', () => {
     expect(h.calls).toEqual(['activate:1', 'refresh']);
     expect(invokeSafe).toHaveBeenCalledWith('delete_canvas', { canvasId: 2 });
 
-    // The redo mints a NEW id, which the command adopts.
-    invokeSafe.mockResolvedValue(canvas(9, 'Canvas 2'));
+    // The redo restores the row rather than creating a new one, so id 2 comes back as id 2
+    // and a rename or a delete of this canvas further up the stack still names a live row.
+    invokeSafe.mockResolvedValue(canvas(2, 'Canvas 2'));
     await command.redo();
-    expect(invokeSafe).toHaveBeenCalledWith('create_canvas', { projectId: 1, name: 'Canvas 2' });
-    expect(h.calls.at(-1)).toBe('activate:9');
+    const [name, args] = invokeSafe.mock.calls.at(-1)!;
+    expect(name).toBe('restore_canvas');
+    expect((args.effect as CanvasDeleteEffect).canvas.id).toBe(2);
+    expect(h.calls.at(-1)).toBe('activate:2');
 
-    invokeSafe.mockResolvedValue({ canvas: canvas(9, 'Canvas 2') });
+    invokeSafe.mockResolvedValue({ canvas: canvas(2, 'Canvas 2') });
     await command.undo();
-    expect(invokeSafe).toHaveBeenLastCalledWith('delete_canvas', { canvasId: 9 });
+    expect(invokeSafe).toHaveBeenLastCalledWith('delete_canvas', { canvasId: 2 });
   });
 
   it('renameCanvasCommand_undo_writesTheOldName', async () => {
@@ -125,7 +128,7 @@ describe('the canvas undo commands', () => {
     const h = hooks();
     const command = deleteCanvasCommand(effect, h);
 
-    invokeSafe.mockResolvedValue(canvas(7, 'Hull studies'));
+    invokeSafe.mockResolvedValue(canvas(2, 'Hull studies'));
     await command.undo();
 
     // The whole structure goes back, not just the canvas row: the placements, the items, the
@@ -136,27 +139,30 @@ describe('the canvas undo commands', () => {
     expect(sent.connections).toHaveLength(1);
     expect(sent.assets).toEqual(['pic.png']);
 
-    // And the restored canvas is made active again.
-    expect(h.calls).toEqual(['refresh', 'activate:7']);
+    // And the restored canvas is made active again, under the id it always had.
+    expect(h.calls).toEqual(['refresh', 'activate:2']);
   });
 
-  it('deleteCanvasCommand_redoAfterUndo_deletesTheRestoredId', async () => {
+  it('deleteCanvasCommand_undoneAndRedoneRepeatedly_keepsNamingTheSameId', async () => {
     const h = hooks();
     const command = deleteCanvasCommand(effectFor(2), h);
 
-    invokeSafe.mockResolvedValue(canvas(7, 'Hull studies'));
+    invokeSafe.mockResolvedValue(canvas(2, 'Hull studies'));
     await command.undo();
 
-    // The restore minted id 7, so the redo must delete 7 and not the original 2.
-    invokeSafe.mockResolvedValue(effectFor(7));
+    // The canvas came back as id 2, so the redo deletes 2 — and so does every round after it.
+    invokeSafe.mockResolvedValue(effectFor(2));
     await command.redo();
-    expect(invokeSafe).toHaveBeenLastCalledWith('delete_canvas', { canvasId: 7 });
+    expect(invokeSafe).toHaveBeenLastCalledWith('delete_canvas', { canvasId: 2 });
 
-    // And the second undo sends the effect the redo just came back with.
-    invokeSafe.mockResolvedValue(canvas(12, 'Hull studies'));
+    invokeSafe.mockResolvedValue(canvas(2, 'Hull studies'));
     await command.undo();
     const second = invokeSafe.mock.calls.at(-1)![1].effect as CanvasDeleteEffect;
-    expect(second.canvas.id).toBe(7);
+    expect(second.canvas.id).toBe(2);
+
+    invokeSafe.mockResolvedValue(effectFor(2));
+    await command.redo();
+    expect(invokeSafe).toHaveBeenLastCalledWith('delete_canvas', { canvasId: 2 });
   });
 
   it('deleteCanvasCommand_label_isTitleCase', () => {

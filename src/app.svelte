@@ -605,6 +605,10 @@
         // same one. Sharing the item would make an edit to one copy change the other.
         const copy = await invokeSafe<PlacementWithItem>('restore_card', {
           canvasId,
+          // A duplicate is a new card, so it takes new ids. Only an undo asks for the old
+          // ones back.
+          placementId: null,
+          itemId: null,
           x: at ? at.x + (card.placement.x - origin.x) : card.placement.x + DUPLICATE_OFFSET,
           y: at ? at.y + (card.placement.y - origin.y) : card.placement.y + DUPLICATE_OFFSET,
           width: card.placement.width,
@@ -1174,8 +1178,8 @@
     'zoom-to-fit': () => canvas?.zoomToFit(),
     'bring-forward': () => void reorder('front'),
     'send-back': () => void reorder('back'),
-    undo: () => void undoStack.undo(),
-    redo: () => void undoStack.redo(),
+    undo: () => void guard(() => undoStack.undo()),
+    redo: () => void guard(() => undoStack.redo()),
   } satisfies Parameters<typeof registerShortcuts>[0]);
 
   // --- context menus ----------------------------------------------------
@@ -1383,8 +1387,8 @@
         redoDepth={undoStack.redoDepth}
         onNewNote={() => void createNote(pointerWorld)}
         onNewImage={() => void addFromPicker()}
-        onUndo={() => void undoStack.undo()}
-        onRedo={() => void undoStack.redo()}
+        onUndo={() => void guard(() => undoStack.undo())}
+        onRedo={() => void guard(() => undoStack.redo())}
         onCloseProject={() => void closeProject()}
         onSettings={() => (settingsOpen = true)}
         settingsActive={settingsOpen}
