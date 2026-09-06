@@ -1,0 +1,9 @@
+/* Phosphor icons, vendored, regular weight only — recorded deviation #1: the second tone of
+   the duotone set muddies at 12–16 px. Importing the package index would pull every other
+   weight too, five font files the application never draws. The handoff's unpkg URL is a
+   design-file convenience and must not survive into the application.
+
+   `vite.config.ts` trims this stylesheet's @font-face down to its woff2 source: WebView2
+   reads woff2, and the .svg fallback alone is three megabytes against a 20 MB installer. */
+
+@import '@phosphor-icons/web/regular';

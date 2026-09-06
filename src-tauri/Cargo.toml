@@ -1,0 +1,33 @@
+[package]
+name = "ideascape"
+version = "0.1.0"
+description = "A visual note and canvas application"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "ideascape_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite_migration = "1.3"
+log = "0.4"
+time = { version = "0.3", features = ["formatting", "macros"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

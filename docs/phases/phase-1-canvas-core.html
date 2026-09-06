@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 1: Canvas core</title>
+  <style>
+    :root { --fg:#1a1a1a; --muted:#666; --accent:#2563eb; --done:#16a34a; --warn:#dc2626; --rule:#e5e7eb; }
+    body { font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:62rem; margin:2rem auto; padding:0 1.25rem; }
+    h1 { font-size:2rem; border-bottom:2px solid var(--rule); padding-bottom:.3rem; }
+    h2 { font-size:1.5rem; margin-top:2.5rem; border-bottom:1px solid var(--rule); padding-bottom:.2rem; }
+    h3.milestone { font-size:1.25rem; margin-top:2rem; color:var(--accent); }
+    h4.task { font-size:1.1rem; margin-top:1.5rem; }
+    dl.phase-meta { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; }
+    dl.phase-meta dt { font-weight:600; color:var(--muted); }
+    code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    pre { background:#f6f8fa; padding:1rem; border-radius:6px; overflow:auto; }
+    code { background:#f6f8fa; padding:.1rem .3rem; border-radius:4px; }
+    pre code { background:none; padding:0; }
+    ul.checklist { list-style:none; padding-left:0; }
+    ul.checklist > li::before { content:"☐ "; color:var(--muted); }
+    ul.checklist > li[data-checked="true"]::before { content:"☑ "; color:var(--done); }
+    .validate { color:var(--done); font-weight:600; }
+  </style>
+</head>
+<body>
+
+<h1 data-phase="1">Phase 1: Canvas core</h1>
+
+<p>The following plan should be complete, but validate documentation, codebase patterns, and task sanity before implementing. Pay special attention to naming of existing utils, types, and models — import from the right files.</p>
+
+<p><strong>Preconditions.</strong> Node 24+, npm 11+, Rust 1.98+ with cargo, and an authenticated <code>gh</code> CLI are all present on this machine and were verified at plan time. The Rust MSVC toolchain and the Windows build tools must be installed for <code>cargo build</code> to link. WebView2 ships with Windows 11, so nothing extra is needed to run the shell.</p>
+
+<h2>Phase Description</h2>
+
+<p>Phase 1 builds IdeaScape from nothing to a running Windows application in which the user can open a project folder, pan and zoom an infinite canvas, and place, edit, move, resize, select, duplicate, reorder, delete and undo note cards — all persisted to a local SQLite database. It also lands the complete visual token layer for both themes, the vendored fonts and icons, and the full application shell chrome.</p>
+
+<p>This is the largest phase in the plan, and it is first because it exercises all four expensive-to-undo architecture decisions (<code>runtime-shell</code>, <code>frontend-framework</code>, <code>rendering-approach</code>, <code>storage-engine</code>) while almost nothing has been built on them. It carries the project's one hard performance gate: <strong>60 frames per second while panning 250 note cards</strong>. If the gate fails, the drawing approach changes before any other work starts.</p>
+
+<p>Work items bundled in this phase:</p>
+<ul>
+  <li>Tauri 2 shell, Svelte 5 + TypeScript + Vite front end, and a working Windows NSIS build</li>
+  <li>Project folder layout, SQLite database in WAL mode, and the §6.9 schema behind <code>rusqlite_migration</code></li>
+  <li>The full design token layer, both palettes, and the <code>data-theme</code> attribute (the control that flips it is Phase 5)</li>
+  <li>Vendored Source Serif 4 and the Phosphor regular icon set, both local, with no network fetch</li>
+  <li>The application shell: title bar, left column, canvas with its dot grid, zoom bar, properties panel expanded and collapsed</li>
+  <li>Pan and zoom with culling, and the culling method settled by measurement</li>
+  <li>Note cards with a title and a Markdown body; the Markdown renderer chosen and its bundle cost measured</li>
+  <li>Move, resize (50&nbsp;px minimum), multi-select, delete, z-order, duplicate</li>
+  <li>Both context menus and the empty-canvas state</li>
+  <li>The 12 Phase&nbsp;1 shortcuts</li>
+  <li>Automatic save with rapid changes grouped on drag end, and session undo/redo</li>
+  <li>Scrollbar styling for the left column and properties panel</li>
+  <li>A developer path into a project until the picker lands in Phase 4</li>
+</ul>
+
+<h2>User Stories</h2>
+
+<p><strong>US-1 — Capture a thought without breaking flow.</strong><br>
+As the user, I want to add a note card anywhere on the canvas with one key, so that I can record a thought before I lose it.</p>
+
+<p><strong>US-2 — Arrange thinking in space.</strong><br>
+As the user, I want to move, resize and stack cards freely, so that the layout carries meaning the text does not.</p>
+
+<p><strong>US-3 — Never lose work.</strong><br>
+As the user, I want every change written to disk as I make it and every action undoable within the session, so that a crash or a mistake costs me at most the action in progress.</p>
+
+<p><strong>US-4 — Work at scale without lag.</strong><br>
+As the user, I want to pan a canvas holding 250 cards at 60 frames per second, so that the tool never gets in the way of thinking.</p>
+
+<p><strong>US-5 (technical) — Prove the risky decisions early.</strong><br>
+As the developer, I want the shell, the framework, the drawing approach and the storage engine all exercised in the first phase, so that a failed performance gate is cheap to correct.</p>
+
+<h2>Problem Statement</h2>
+
+<p>There is no code yet — the repository holds only <code>docs/</code> and <code>CLAUDE.md</code>. Four architecture decisions are marked expensive to undo, and every one of them is unproven. The loudest complaint in the competitive scan is that canvas tools get slow: Obsidian Canvas draws every card all the time and stalls. IdeaScape's entire performance promise rests on culling, and culling has never been measured here. Until a real Tauri window pans 250 real note cards at 60&nbsp;fps, every later phase is built on an assumption.</p>
+
+<p>There is also no way into a project: the project picker is deliberately Phase&nbsp;4, so Phase&nbsp;1 must open a project some other way or it cannot be run at all.</p>
+
+<h2>Solution Statement</h2>
+
+<p>Build bottom-up in five milestones, each with a compound checkpoint, so the gate can be measured as soon as there is something to measure and every layer below it is already proven.</p>
+
+<ol>
+  <li><strong>Foundation.</strong> Scaffold the Tauri 2 + Svelte 5 + TypeScript project, establish the single IPC seam (<code>src-tauri/src/error.rs</code> + <code>src/lib/ipc.ts</code>) before any command exists, then the database module, the schema migration, and the project/canvas commands with a developer path in.</li>
+  <li><strong>Visual foundation.</strong> Land the complete token layer for both palettes, vendor the fonts and icons locally, then build the shell chrome to the locked measurements in <code>docs/design-system.html</code>.</li>
+  <li><strong>Canvas.</strong> One shared store (<code>src/stores/canvasStore.svelte.ts</code>), one CSS-transformed layer, a dot grid that scales with zoom, the zoom bar, and per-card axis-aligned box culling with pure-function unit tests.</li>
+  <li><strong>Note cards and interaction.</strong> Item and placement commands, a sanitized Markdown render path, the note card in all its states, then move/resize/z-order, selection, duplicate/copy/paste, and both context menus.</li>
+  <li><strong>Persistence, undo and the gate.</strong> Write-on-change with drag grouping and single transactions, the inverse-command undo stack, then the 250-card / 60&nbsp;fps measurement and the NSIS installer size check.</li>
+</ol>
+
+<p>Culling starts as the simple per-card box check that <code>docs/architecture.html</code> §11 directs, and moves to fixed grid buckets only if the measurement misses. The Markdown path is <code>marked</code> for parsing plus <code>dompurify</code> for cleaning, chosen for size and because DOMPurify is the sanitizer of record — a note card can then never run script.</p>
+
+<h2>Phase Metadata</h2>
+
+<dl class="phase-meta">
+  <dt>Phase Type</dt><dd data-field="type">New Capability</dd>
+  <dt>Estimated Complexity</dt><dd data-field="complexity">High</dd>
+  <dt>Primary Systems Affected</dt><dd data-field="systems">Everything — Tauri shell, Rust db/commands/error layer, SQLite schema and migrations, Svelte front end (canvas, cards, selection, undo features), shared canvas store, IPC wrapper, design token layer, Windows installer</dd>
+  <dt>Dependencies</dt><dd data-field="dependencies">None (first phase). External: Tauri 2, @tauri-apps/api, Svelte 5, TypeScript, Vite, Vitest, jsdom, @testing-library/svelte, svelte-check, prettier, marked, dompurify, @fontsource/source-serif-4, @phosphor-icons/web; Rust crates tauri, serde, serde_json, thiserror, rusqlite (bundled), rusqlite_migration, log/tracing, clap or std::env for the dev project argument</dd>
+</dl>
+
+<h2>Context References</h2>
+
+<h3>Relevant Codebase Files — READ THESE BEFORE IMPLEMENTING</h3>
+<ul>
+  <li><code>C:\Repos\IdeaScape\CLAUDE.md</code> (whole file) — Why: the project conventions this phase must not violate. Title Case for all UI text; no <code>console.log</code>/<code>println!</code>; TypeScript strict; test naming; the import direction rule.</li>
+  <li><code>C:\Repos\IdeaScape\docs\architecture.html</code> §2–§9 — Why: the technical authority. Every decision this phase touches is a <code>data-decision</code> slug there; conform, do not re-decide.</li>
+  <li><code>C:\Repos\IdeaScape\docs\architecture.html</code> §11 (Open questions table) — Why: it explicitly delegates the culling method and the Markdown renderer choice to this phase, with the direction to take.</li>
+  <li><code>C:\Repos\IdeaScape\docs\prd.html</code> §6.9 (Data model) — Why: the exact entity fields the migration must create, and the ownership/lifecycle rules the delete path must honour.</li>
+  <li><code>C:\Repos\IdeaScape\docs\prd.html</code> §6.8 (Keyboard) — Why: the 14-key map; 12 of them land in this phase.</li>
+  <li><code>C:\Repos\IdeaScape\docs\prd.html</code> §11 (Implementation Phases → Phase 1) — Why: the deliverable list this plan is derived from, and the two phase gates.</li>
+  <li><code>C:\Repos\IdeaScape\docs\design-system.html</code> §4–§7 — Why: the token layer, type scale, spacing and icon rules. Never invent a visual value.</li>
+  <li><code>C:\Repos\IdeaScape\docs\design-system.html</code> §8–§9 — Why: every screen and on-screen state, at locked measurements.</li>
+  <li><code>C:\Repos\IdeaScape\docs\design-system.html</code> §11.1–§11.6 — Why: interaction states, motion durations and the full keyboard map.</li>
+  <li><code>C:\Repos\IdeaScape\docs\design-system.html</code> §15.3–§15.4 — Why: the settled open questions (50&nbsp;px card minimum, 350&nbsp;px minimum window, note title kept) and the scrollbar question that settles in this phase.</li>
+  <li><code>C:\Repos\IdeaScape\docs\design-system.html</code> §16 — Why: the screen-to-phase map. Phase 1 owns frames <code>15a</code>, <code>14b</code>, <code>17a</code>, <code>17b</code>, plus <code>21c</code> (marquee), <code>21d</code> (note mid-edit) and <code>21h</code> (254 cards at 24%).</li>
+  <li><code>C:\Repos\IdeaScape\docs\handoff\README.md</code> lines 28–121 — Why: the shell and card measurements in table form (title bar 34&nbsp;px, left column 168&nbsp;px, properties panel 177/32&nbsp;px, dot grid 22&nbsp;px, note card padding 11×13&nbsp;px).</li>
+  <li><code>C:\Repos\IdeaScape\docs\handoff\README.md</code> lines 320–330 — Why: both context menus, verbatim item labels and shortcut labels, and their widths (256&nbsp;px element, 236&nbsp;px background).</li>
+  <li><code>C:\Repos\IdeaScape\docs\handoff\README.md</code> lines 353–455 — Why: the dark-theme role table, the interaction-state tables and the motion table.</li>
+  <li><code>C:\Repos\IdeaScape\docs\handoff\README.md</code> lines 511–541 — Why: the token ramps and shadow values as literal hexes, and the icon/asset rules.</li>
+  <li><code>C:\Repos\IdeaScape\docs\handoff\_ds\broadsheet-ceab0636-4e8c-4494-8c93-3524fad568e6\styles.css</code> — Why: the Broadsheet token sheet is the source of every colour, radius and shadow. Read the variable names before writing <code>src/lib/tokens.css</code>.</li>
+  <li><code>C:\Repos\IdeaScape\docs\handoff\IdeaScape UI.dc.html</code> — Why: the static visual reference. Open it in a browser to see a state. <strong>Do not port its markup</strong>, and ignore its <code>font-family: Verdana</code> — the chrome font is Source Serif 4.</li>
+  <li><code>C:\Repos\IdeaScape\docs\progress.html</code> — Why: names this phase "Canvas core"; regenerated by <code>/dev-create-progress</code> from this doc.</li>
+</ul>
+
+<h3>New Files to Create</h3>
+<ul>
+  <li><code>package.json</code>, <code>tsconfig.json</code>, <code>vite.config.ts</code>, <code>svelte.config.js</code>, <code>vitest.config.ts</code>, <code>.prettierrc</code>, <code>.gitignore</code> — front-end toolchain</li>
+  <li><code>index.html</code>, <code>src/main.ts</code>, <code>src/app.svelte</code> — front-end entry</li>
+  <li><code>src-tauri/Cargo.toml</code>, <code>src-tauri/tauri.conf.json</code>, <code>src-tauri/build.rs</code>, <code>src-tauri/src/main.rs</code>, <code>src-tauri/src/lib.rs</code> — shell</li>
+  <li><code>src-tauri/src/error.rs</code> — the one error type returned to the front end</li>
+  <li><code>src-tauri/src/db/mod.rs</code>, <code>src-tauri/src/db/connection.rs</code>, <code>src-tauri/src/db/migrations.rs</code>, <code>src-tauri/src/db/models.rs</code> — connection, WAL, migration runner, row structs</li>
+  <li><code>src-tauri/migrations/0001_initial_schema.sql</code> — the §6.9 schema</li>
+  <li><code>src-tauri/src/commands/mod.rs</code>, <code>project.rs</code>, <code>canvas.rs</code>, <code>item.rs</code>, <code>placement.rs</code> — the only Rust the front end reaches in this phase (<code>connection.rs</code> and <code>search.rs</code> are Phase 2 and Phase 4)</li>
+  <li><code>src/lib/ipc.ts</code> — the single invoke wrapper and the single place a Rust error becomes a front-end error</li>
+  <li><code>src/lib/types.ts</code> — shared TypeScript types mirroring the Rust row structs and the typed payloads</li>
+  <li><code>src/lib/logger.ts</code> — the shared front-end logger (no <code>console.log</code> in shipped code)</li>
+  <li><code>src/lib/markdown.ts</code> — parse + sanitize, the only path Markdown takes into the page</li>
+  <li><code>src/lib/shortcuts.ts</code> — key-event to named-action dispatcher; features register handlers, so it imports no feature</li>
+  <li><code>src/lib/geometry.ts</code> — pure rectangle maths shared by culling, marquee selection and resize</li>
+  <li><code>src/lib/settings.ts</code> — the typed settings module, defaults only in this phase (the file and the Settings screen are Phase 5)</li>
+  <li><code>src/lib/tokens.css</code>, <code>src/lib/theme.css</code> — the token layer and the <code>data-theme</code> palettes</li>
+  <li><code>src/lib/fonts.css</code>, <code>src/lib/icons.css</code> — vendored Source Serif 4 and Phosphor regular</li>
+  <li><code>src/stores/canvasStore.svelte.ts</code> — the one shared canvas state</li>
+  <li><code>src/features/canvas/</code> — <code>CanvasSurface.svelte</code>, <code>DotGrid.svelte</code>, <code>ZoomBar.svelte</code>, <code>EmptyCanvas.svelte</code>, <code>culling.ts</code></li>
+  <li><code>src/features/cards/</code> — <code>CardLayer.svelte</code>, <code>CardShell.svelte</code>, <code>NoteCard.svelte</code>, <code>NoteEditor.svelte</code>, <code>ResizeHandles.svelte</code>, <code>zorder.ts</code></li>
+  <li><code>src/features/selection/</code> — <code>Marquee.svelte</code>, <code>selection.svelte.ts</code></li>
+  <li><code>src/features/undo/</code> — <code>undoStack.svelte.ts</code>, <code>commands.ts</code></li>
+  <li><code>src/features/shell/</code> — <code>TitleBar.svelte</code>, <code>LeftColumn.svelte</code>, <code>PropertiesPanel.svelte</code>, <code>ContextMenu.svelte</code></li>
+  <li><code>src/lib/__tests__/</code> and <code>src/features/**/__tests__/</code> — Vitest specs</li>
+  <li><code>scripts/perf-gate.md</code> — the recorded result of the 250-card measurement</li>
+</ul>
+
+<h3>Relevant Documentation — READ BEFORE IMPLEMENTING</h3>
+<ul>
+  <li><a href="https://v2.tauri.app/start/create-project/">Tauri 2 — Create a Project</a> — Why: the supported scaffold command and the Svelte + TypeScript template this phase uses.</li>
+  <li><a href="https://v2.tauri.app/develop/calling-rust/">Tauri 2 — Calling Rust from the Frontend</a> — Why: <code>#[tauri::command]</code>, <code>invoke</code>, argument name casing (camelCase on the JS side maps to snake_case in Rust), and returning <code>Result&lt;T, E&gt;</code> where <code>E: Serialize</code>. This is the seam <code>ipc-contract</code> defines.</li>
+  <li><a href="https://v2.tauri.app/reference/config/">Tauri 2 — Configuration Reference</a> — Why: <code>app.windows</code> (minimum window width 350&nbsp;px), <code>bundle.targets</code> for NSIS, and <code>bundle.windows.webviewInstallMode</code> for the WebView2 bootstrapper.</li>
+  <li><a href="https://v2.tauri.app/distribute/windows-installer/">Tauri 2 — Windows Installer (NSIS)</a> — Why: producing the installer and where the artifact lands, for the under-20&nbsp;MB check.</li>
+  <li><a href="https://v2.tauri.app/develop/state-management/">Tauri 2 — State Management</a> — Why: holding the open <code>rusqlite::Connection</code> in managed state behind a <code>Mutex</code>, which is how synchronous rusqlite calls stay legal inside async command handlers.</li>
+  <li><a href="https://svelte.dev/docs/svelte/what-are-runes">Svelte 5 — Runes</a> — Why: <code>$state</code>, <code>$derived</code>, <code>$effect</code>; fine-grained reactivity is the whole reason <code>frontend-framework</code> chose Svelte. Do not reach for stores-of-old.</li>
+  <li><a href="https://svelte.dev/docs/svelte/$state#Passing-state-into-functions">Svelte 5 — $state in .svelte.ts modules</a> — Why: <code>canvasStore.svelte.ts</code> must use the <code>.svelte.ts</code> extension for runes to compile outside a component.</li>
+  <li><a href="https://docs.rs/rusqlite/latest/rusqlite/">rusqlite docs</a> — Why: <code>Connection::open</code>, <code>pragma_update</code> for WAL, <code>prepare</code>/<code>query_map</code>, and <code>Transaction</code> for the multi-row writes <code>persistence-strategy</code> requires.</li>
+  <li><a href="https://docs.rs/rusqlite_migration/latest/rusqlite_migration/">rusqlite_migration docs</a> — Why: <code>Migrations::from_directory</code> with <code>include_dir!</code>, and <code>to_latest</code>, run when a project opens rather than at app start.</li>
+  <li><a href="https://marked.js.org/using_advanced">marked — Advanced usage</a> — Why: the options this project sets, and the explicit warning that marked does not sanitize, which is why DOMPurify follows it.</li>
+  <li><a href="https://github.com/cure53/DOMPurify#readme">DOMPurify readme</a> — Why: <code>DOMPurify.sanitize</code> and the allow-list configuration that keeps a note card from ever running script (<code>nfr-targets</code> security rule).</li>
+  <li><a href="https://fontsource.org/fonts/source-serif-4">Fontsource — Source Serif 4</a> — Why: the npm package that vendors the woff2 files locally, so no font is ever fetched over the network.</li>
+  <li><a href="https://github.com/phosphor-icons/web#readme">@phosphor-icons/web readme</a> — Why: importing only the <code>regular</code> style locally and using glyphs as <code>&lt;i class="ph ph-note"&gt;</code>. The handoff's unpkg URL must not be used at runtime.</li>
+  <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/scrollbar-color">MDN — scrollbar-color / scrollbar-width</a> — Why: the thin overlay scrollbar this phase settles for the left column and the properties panel.</li>
+  <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame">MDN — requestAnimationFrame</a> — Why: the frame-timing loop behind the performance-gate overlay.</li>
+  <li><a href="https://vitest.dev/guide/environment.html">Vitest — Test environment</a> — Why: the <code>jsdom</code> environment that lets component-level specs run headless in <code>npm test</code>.</li>
+</ul>
+
+<h3>Patterns to Follow</h3>
+
+<p><strong>Naming conventions.</strong> Rust modules and files are snake_case; Rust types are PascalCase; Tauri commands are snake_case verbs (<code>create_placement</code>). Svelte components are PascalCase files; TypeScript modules are camelCase files; a module holding runes takes the <code>.svelte.ts</code> extension. Tests are named for behaviour: <code>methodName_condition_expectedResult</code> in TypeScript, <code>fn name_condition_expected()</code> in Rust.</p>
+
+<p><strong>Error handling.</strong> One Rust error type, one front-end translation point. A raw Rust error string never reaches the page.</p>
+<pre><code>// src-tauri/src/error.rs
+#[derive(Debug, thiserror::Error)]
+pub enum AppError {
+    #[error("the project database could not be opened: {0}")]
+    DatabaseOpen(String),
+    #[error("database error: {0}")]
+    Database(String),
+    #[error("migration failed: {0}")]
+    Migration(String),
+    #[error("no project is open")]
+    NoProject,
+    #[error("{0} was not found")]
+    NotFound(String),
+}
+
+impl serde::Serialize for AppError {
+    fn serialize&lt;S: serde::Serializer&gt;(&amp;self, s: S) -&gt; Result&lt;S::Ok, S::Error&gt; {
+        s.serialize_str(&amp;self.to_string())
+    }
+}
+
+pub type AppResult&lt;T&gt; = Result&lt;T, AppError&gt;;
+</code></pre>
+
+<pre><code>// src/lib/ipc.ts — the single wrapper. Nothing else in the front end calls invoke().
+import { invoke } from '@tauri-apps/api/core';
+import { logError } from './logger';
+
+export class IpcError extends Error {}
+
+export async function invokeSafe&lt;T&gt;(
+  command: string,
+  args?: Record&lt;string, unknown&gt;,
+): Promise&lt;T&gt; {
+  try {
+    return await invoke&lt;T&gt;(command, args);
+  } catch (raw) {
+    const message = typeof raw === 'string' ? raw : 'The application could not complete that action.';
+    logError(`ipc ${command} failed`, raw);
+    throw new IpcError(message);
+  }
+}
+</code></pre>
+
+<p><strong>Logging.</strong> Rust logs through <code>log</code>/<code>tracing</code>; the front end logs through <code>src/lib/logger.ts</code>. Never <code>println!</code> and never a bare <code>console.log</code> in shipped code.</p>
+
+<p><strong>Command shape.</strong> The front end never builds SQL. Commands take scalars and return typed rows.</p>
+<pre><code>// src-tauri/src/commands/placement.rs
+#[tauri::command]
+pub fn create_placement(
+    state: tauri::State&lt;'_, AppState&gt;,
+    canvas_id: i64,
+    item_id: i64,
+    x: f64, y: f64,
+    width: f64, height: f64,
+) -&gt; AppResult&lt;Placement&gt; { /* ... */ }
+</code></pre>
+
+<p><strong>Import direction (enforced, not advisory).</strong> A feature may import from <code>stores/</code> and <code>lib/</code>. A feature may never import from another feature — shared code moves to <code>lib/</code>. <code>stores/</code> and <code>lib/</code> import from no feature. In Rust, <code>commands/</code> may use <code>db/</code>; <code>db/</code> never calls <code>commands/</code>.</p>
+
+<p><strong>Visual values.</strong> Every colour, size, spacing and state comes from <code>docs/design-system.html</code>. Components reference CSS custom properties from <code>src/lib/tokens.css</code>; a literal hex outside that file is a defect.</p>
+
+<p><strong>UI text.</strong> Title Case for labels, buttons, headings, menu items and dialog titles. Body copy, helper text and log messages stay in sentence case.</p>
+
+<h2>Implementation Plan</h2>
+
+<p><strong>Rendering:</strong> Milestones — see Step 6.</p>
+<p><strong>Rationale:</strong> 23 tasks across five genuine sub-layers (Rust storage → visual tokens → canvas → cards and interaction → persistence, undo and the gate). Tasks are tightly coupled inside each layer and loosely coupled across them, and a flat list of 23 would be unscannable. Each milestone adds a compound checkpoint proving cross-task integration that no single task's VALIDATE covers.</p>
+
+<h3 class="milestone" data-milestone="1">Milestone 1: Foundation — shell, seam and storage</h3>
+<p>A Tauri window opens, a project folder is created or opened on disk, its SQLite database is migrated to the §6.9 schema in WAL mode, and canvases can be listed and created through the command seam.</p>
+<p><strong>Validation checkpoint:</strong> <code>npm run tauri build -- --debug</code> succeeds, then a headless Rust integration test opens a temp folder as a project, runs migrations, creates a canvas, closes the connection, reopens the same folder, and reads the canvas back — proving that scaffold, error type, connection, migration runner and the project/canvas commands compose into a durable round trip across process boundaries. No single task tests reopen-after-close.</p>
+
+<h4 class="task" data-task="1">Task 1: Scaffold the Tauri 2 + Svelte 5 + TypeScript project</h4>
+<p>Stand up the repository skeleton exactly as <code>docs/architecture.html</code> §5 draws it, with the front-end toolchain and test harness in place before any feature code exists.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE the project in place at <code>C:\Repos\IdeaScape</code> using <code>npm create tauri-app@latest -- --template svelte-ts --manager npm --identifier com.ideascape.app --yes</code> (scaffold into a temp directory and move the generated files in if the CLI refuses a non-empty directory — <code>docs/</code>, <code>CLAUDE.md</code>, <code>README.md</code> and <code>.git/</code> must survive untouched). ADD dev dependencies: <code>vitest</code>, <code>jsdom</code>, <code>@testing-library/svelte</code>, <code>@testing-library/jest-dom</code>, <code>svelte-check</code>, <code>prettier</code>, <code>prettier-plugin-svelte</code>. CREATE <code>vitest.config.ts</code> with <code>environment: 'jsdom'</code> and the Svelte plugin. ADD npm scripts <code>dev</code>, <code>build</code>, <code>test</code>, <code>check</code> (<code>svelte-check --tsconfig ./tsconfig.json</code>), <code>format</code>, <code>format:check</code>, <code>tauri</code>. CREATE the empty directory skeleton with <code>.gitkeep</code> files: <code>src/features/{canvas,cards,connections,selection,undo,projects,canvases,search,shell}/</code>, <code>src/stores/</code>, <code>src/lib/</code>, <code>src-tauri/src/{db,commands,assets,fetch}/</code>, <code>src-tauri/migrations/</code>. UPDATE <code>tsconfig.json</code> for <code>"strict": true</code>. UPDATE <code>src-tauri/tauri.conf.json</code>: product name <code>IdeaScape</code>, window title <code>IdeaScape</code>, <code>minWidth: 350</code>, <code>width: 1180</code>, <code>height: 720</code>, <code>bundle.targets: ["nsis"]</code>, <code>bundle.windows.nsis.installMode: "currentUser"</code>, and <code>bundle.windows.webviewInstallMode: { "type": "downloadBootstrapper" }</code>. UPDATE <code>.gitignore</code> for <code>node_modules/</code>, <code>dist/</code>, <code>src-tauri/target/</code>.</li>
+  <li><strong>PATTERN:</strong> the directory tree is fixed by <code>docs/architecture.html</code> §5 (<code>module-layout</code>) — reproduce it exactly, including folders this phase leaves empty.</li>
+  <li><strong>IMPORTS:</strong> npm: <code>@tauri-apps/api</code>, <code>@tauri-apps/cli</code>, <code>svelte</code>, <code>@sveltejs/vite-plugin-svelte</code>, <code>vite</code>, <code>typescript</code>. Cargo: <code>tauri</code> (v2), <code>serde</code> (derive), <code>serde_json</code>.</li>
+  <li><strong>GOTCHA:</strong> the scaffolder will happily overwrite <code>README.md</code>. Back it up and restore it. Do not commit <code>src-tauri/target/</code> — a first debug build is hundreds of megabytes. Vite must stay on port 1420, which Tauri's config already points at.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npm install &amp;&amp; npm run check &amp;&amp; npm run build &amp;&amp; cargo build --manifest-path src-tauri/Cargo.toml &amp;&amp; node -e "const c=require('./src-tauri/tauri.conf.json'); const w=c.app.windows[0]; if(w.minWidth!==350) process.exit(1); if(!c.bundle.targets.includes('nsis')) process.exit(1); const fs=require('fs'); for (const d of ['src/features/canvas','src/stores','src/lib','src-tauri/src/db','src-tauri/src/commands','src-tauri/migrations']) if(!fs.existsSync(d)) process.exit(1); if(!fs.existsSync('docs/prd.html')||!fs.existsSync('CLAUDE.md')) process.exit(1);"</code></li>
+</ul>
+
+<h4 class="task" data-task="2">Task 2: Establish the IPC seam — one Rust error type and one front-end wrapper</h4>
+<p>The seam exists before the first real command, so no command can ever be written that bypasses it.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src-tauri/src/error.rs</code> with <code>AppError</code> and <code>AppResult&lt;T&gt;</code> exactly as shown in Patterns to Follow, including the manual <code>Serialize</code> impl. ADD <code>From&lt;rusqlite::Error&gt;</code> and <code>From&lt;rusqlite_migration::Error&gt;</code> impls that map into <code>AppError::Database</code> / <code>AppError::Migration</code> so <code>?</code> works inside commands. CREATE <code>src/lib/logger.ts</code> exporting <code>logInfo</code>, <code>logWarn</code>, <code>logError</code> — thin wrappers that are the only place the console is touched. CREATE <code>src/lib/ipc.ts</code> with <code>invokeSafe</code> and <code>IpcError</code> as shown. ADD a temporary <code>#[tauri::command] fn ping() -&gt; AppResult&lt;String&gt;</code> in <code>src-tauri/src/lib.rs</code>, registered in the builder, purely to prove the seam; a later task replaces it. CREATE <code>src/lib/types.ts</code> with the shared row types (<code>Project</code>, <code>Canvas</code>, <code>Item</code>, <code>Placement</code>, <code>Connection</code>) and the four typed payload interfaces from PRD §6.9, with <code>NotePayload = { title: string; text: string }</code>. CREATE <code>src/lib/__tests__/ipc.test.ts</code> asserting that a rejected <code>invoke</code> surfaces as an <code>IpcError</code> carrying a message and never the raw value, with <code>@tauri-apps/api/core</code> mocked via <code>vi.mock</code>.</li>
+  <li><strong>PATTERN:</strong> <code>ipc-contract</code> in <code>docs/architecture.html</code> §6 — "the front end never receives a raw Rust error string".</li>
+  <li><strong>IMPORTS:</strong> Cargo: <code>thiserror</code>, <code>serde</code>. TS: <code>@tauri-apps/api/core</code>.</li>
+  <li><strong>GOTCHA:</strong> Tauri serializes a command's <code>Err</code> variant, so <code>AppError</code> must implement <code>Serialize</code> or the command will not compile. Deriving <code>Serialize</code> on a <code>thiserror</code> enum loses the <code>Display</code> message — write the impl by hand, as shown.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>cargo build --manifest-path src-tauri/Cargo.toml &amp;&amp; npm run check &amp;&amp; npx vitest run src/lib/__tests__/ipc.test.ts</code></li>
+</ul>
+
+<h4 class="task" data-task="3">Task 3: Database module — connection, WAL, migration runner and the §6.9 schema</h4>
+<p>The project database is created, opened in WAL mode and migrated to the full schema when a project opens — not at application start, because there is one database per project folder.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src-tauri/migrations/0001_initial_schema.sql</code> holding the five tables from PRD §6.9, each with <code>id INTEGER PRIMARY KEY AUTOINCREMENT</code>: <code>project(id, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)</code>; <code>canvas(id, project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE, name TEXT NOT NULL, sort_order INTEGER NOT NULL, view_x REAL NOT NULL DEFAULT 0, view_y REAL NOT NULL DEFAULT 0, view_zoom REAL NOT NULL DEFAULT 1, created_at, updated_at)</code>; <code>item(id, project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK(kind IN ('note','image','link','video')), payload TEXT NOT NULL, created_at, updated_at)</code>; <code>placement(id, canvas_id INTEGER NOT NULL REFERENCES canvas(id) ON DELETE CASCADE, item_id INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE, x REAL NOT NULL, y REAL NOT NULL, width REAL NOT NULL, height REAL NOT NULL, z_order INTEGER NOT NULL)</code>; <code>connection(id, canvas_id INTEGER NOT NULL REFERENCES canvas(id) ON DELETE CASCADE, from_placement_id INTEGER NOT NULL REFERENCES placement(id) ON DELETE CASCADE, to_placement_id INTEGER NOT NULL REFERENCES placement(id) ON DELETE CASCADE, label TEXT, directed INTEGER NOT NULL DEFAULT 1)</code>. ADD indexes on <code>placement(canvas_id)</code>, <code>placement(item_id)</code>, <code>connection(canvas_id)</code>, <code>canvas(project_id)</code>, <code>item(project_id)</code>. CREATE <code>src-tauri/src/db/connection.rs</code> with <code>open_project_db(folder: &amp;Path) -&gt; AppResult&lt;Connection&gt;</code> that creates the folder and its <code>assets/</code> subfolder if absent, opens <code>ideascape.db</code>, sets <code>PRAGMA journal_mode=WAL</code> and <code>PRAGMA foreign_keys=ON</code>, and runs migrations. CREATE <code>src-tauri/src/db/migrations.rs</code> using <code>rusqlite_migration</code> with <code>include_dir!("$CARGO_MANIFEST_DIR/migrations")</code> and <code>to_latest</code>. CREATE <code>src-tauri/src/db/models.rs</code> with <code>#[derive(Serialize, Deserialize)]</code> row structs whose field names match <code>src/lib/types.ts</code>. ADD a <code>#[cfg(test)]</code> module covering: migration applies to a fresh temp file; WAL is reported by <code>PRAGMA journal_mode</code>; reopening an already-migrated file is a no-op; a placement row cannot reference a missing canvas.</li>
+  <li><strong>PATTERN:</strong> <code>storage-engine</code> and <code>db-access-layer</code> in <code>docs/architecture.html</code> §3. Data tests use a real SQLite file in a temp directory — the same engine that ships.</li>
+  <li><strong>IMPORTS:</strong> Cargo: <code>rusqlite</code> with <code>features = ["bundled"]</code>, <code>rusqlite_migration</code> with <code>features = ["from-directory"]</code>, <code>include_dir</code>, <code>tempfile</code> (dev-dependency), <code>chrono</code> or <code>time</code> for timestamps.</li>
+  <li><strong>GOTCHA:</strong> <code>PRAGMA journal_mode=WAL</code> returns a row — use <code>query_row</code> or <code>pragma_update</code>, not <code>execute</code>, or rusqlite errors with <code>ExecuteReturnedResults</code>. <code>PRAGMA foreign_keys</code> is per-connection and off by default, so it must be set every open. Never edit a migration once it has shipped; add the next numbered file.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>cargo test --manifest-path src-tauri/Cargo.toml db::</code></li>
+</ul>
+
+<h4 class="task" data-task="4">Task 4: Project and canvas commands, plus the developer path into a project</h4>
+<p>The application can open a project folder and read or create canvases through named commands, and there is a way in until the picker arrives in Phase 4.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src-tauri/src/commands/mod.rs</code> declaring <code>project</code>, <code>canvas</code>, <code>item</code>, <code>placement</code> (the latter two as empty modules for now, filled in Task 12). CREATE <code>src-tauri/src/commands/project.rs</code> with an <code>AppState { db: Mutex&lt;Option&lt;Connection&gt;&gt;, folder: Mutex&lt;Option&lt;PathBuf&gt;&gt; }</code> managed by the builder, and commands <code>open_project(path: String) -&gt; AppResult&lt;Project&gt;</code> (opens/creates the folder, migrates, inserts the <code>project</code> row on first open, returns it) and <code>current_project() -&gt; AppResult&lt;Option&lt;Project&gt;&gt;</code>. CREATE <code>src-tauri/src/commands/canvas.rs</code> with <code>list_canvases(project_id) -&gt; AppResult&lt;Vec&lt;Canvas&gt;&gt;</code> (ordered by <code>sort_order</code>), <code>create_canvas(project_id, name) -&gt; AppResult&lt;Canvas&gt;</code>, and <code>update_canvas_view(canvas_id, view_x, view_y, view_zoom) -&gt; AppResult&lt;()&gt;</code>. ADD to <code>open_project</code>: if the project has no canvas, create <code>Canvas 1</code> so the empty-project state has somewhere to live. ADD the developer path in <code>main.rs</code>: read <code>--project &lt;path&gt;</code> from <code>std::env::args</code>, falling back to <code>%USERPROFILE%\Documents\IdeaScape\Dev project</code>, and expose it as <code>dev_project_path() -&gt; AppResult&lt;String&gt;</code>. REMOVE the temporary <code>ping</code> command. ADD a <code>#[cfg(test)]</code> integration test in <code>project.rs</code> exercising open → create canvas → list, against a temp folder. UPDATE <code>src/app.svelte</code> to call <code>dev_project_path</code> then <code>open_project</code> then <code>list_canvases</code> on mount through <code>invokeSafe</code>, and render the project and canvas names as plain text — a temporary scaffold the shell replaces in Task 7.</li>
+  <li><strong>PATTERN:</strong> <code>ipc-contract</code> — no generic query command; one file per area under <code>commands/</code>. Command bodies call <code>db/</code> directly; there is no repository layer (<code>CLAUDE.md</code> Conventions).</li>
+  <li><strong>IMPORTS:</strong> <code>tauri::State</code>, <code>std::sync::Mutex</code>, <code>std::path::PathBuf</code>, the <code>db</code> and <code>error</code> modules.</li>
+  <li><strong>GOTCHA:</strong> a <code>rusqlite::Connection</code> is not <code>Sync</code>, so it must sit behind a <code>Mutex</code> in managed state, and the command handlers must be plain <code>fn</code>, not <code>async fn</code>, or the guard is held across an await point. Tauri maps JS <code>projectId</code> to Rust <code>project_id</code> automatically — keep Rust parameters snake_case.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>cargo test --manifest-path src-tauri/Cargo.toml commands:: &amp;&amp; npm run check &amp;&amp; npm run build</code></li>
+</ul>
+
+<h3 class="milestone" data-milestone="2">Milestone 2: Visual foundation — tokens, assets and the shell</h3>
+<p>Both palettes, the vendored fonts and icons, and the full application chrome render at the locked measurements in <code>docs/design-system.html</code>.</p>
+<p><strong>Validation checkpoint:</strong> a Vitest spec mounts <code>App</code> in jsdom, asserts the shell's structural measurements (title bar 34&nbsp;px, left column 168&nbsp;px, properties panel 177&nbsp;px expanded and 32&nbsp;px collapsed), then flips <code>document.documentElement.dataset.theme</code> between <code>light</code> and <code>dark</code> and asserts that every one of those measurements is byte-identical while <code>--color-bg</code> and <code>--color-text</code> both change — the phase's "nothing moves between the two themes" rule, which spans the token task, the asset task and the chrome task and which none of them tests alone. A second assertion greps the built bundle for any absolute <code>http</code> URL in a <code>@font-face</code> or <code>url()</code>, proving fonts and icons are genuinely local.</p>
+
+<h4 class="task" data-task="5">Task 5: The design token layer and both palettes</h4>
+<p>Every colour, radius, shadow, duration and type step becomes a CSS custom property, in light and dark, switched by one attribute.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/lib/tokens.css</code> by copying the <code>:root</code> token block out of <code>docs/handoff/_ds/broadsheet-…/styles.css</code> (lines 4–72) and adding the project tokens <code>docs/design-system.html</code> §4.5, §5.2 and §5.3 mark as new. That gives: the roles (<code>--color-bg</code> #f3f2f2, <code>--color-surface</code> #eae9e9, <code>--color-text</code> #201e1d, <code>--color-accent</code> #0088b0, <code>--color-accent-2</code> #d6006c, <code>--color-divider</code> <code>color-mix(in srgb, #201e1d 16%, transparent)</code>), the accent ramp 100–900, the second accent ramp 100–900, the neutral ramp 100–900, and <code>--font-heading</code>/<code>--font-body</code>. ADD the radius set — <code>--radius-sm</code> 1&nbsp;px, <code>--radius-md</code> 2&nbsp;px, <strong>the new <code>--radius-card</code> 3&nbsp;px</strong> (the dominant radius; deviation #3), <code>--radius-lg</code> 4&nbsp;px. ADD the project spacing scale <code>2 5 6 7 9 10 12 13 14 16 22 26 34 36 44 64</code> as named steps — Broadsheet's own <code>--space-*</code> ladder is deviation #4 and IdeaScape does not use it; delete it. ADD the seven closed elevations from §5.3 (card, selected card, picker card, zoom bar, context menu, search popover, toggle knob) and the two project elevations this phase needs: <code>--shadow-card-drag</code> <code>0 8px 22px rgba(45,43,43,.22)</code> and <code>--shadow-textbar</code> <code>0 6px 18px rgba(45,43,43,.24)</code>. ADD the four interaction tints from §11.1 exactly (<code>--tint-accent-hover</code>, <code>--tint-accent-press</code>, <code>--tint-neutral-hover</code>, <code>--tint-neutral-press</code>, all <code>color-mix</code> expressions, with the larger dark steps). ADD one easing token <code>--ease: cubic-bezier(.2, 0, .2, 1)</code> and the duration steps 0/90/110/140/160&nbsp;ms and the 900&nbsp;ms linear spinner. ADD the type scale (9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 22, 32&nbsp;px) and the letter-spacing ladder (-.02, -.01, .02, .06, .1, .12&nbsp;em) as named steps. REMOVE the Google Fonts <code>@import</code> at the top of the Broadsheet sheet — Task 6 replaces it with a local <code>@font-face</code>, and removing it is not optional. DO NOT copy Broadsheet's component layer (<code>.cmyk</code>, <code>.halftone</code>, <code>.cmyk-num</code>, <code>print-plates.js</code>) and DO NOT keep <code>--color-process-yellow</code>: IdeaScape never uses it. CREATE <code>src/lib/theme.css</code> redefining only the role tokens under <code>:root[data-theme="dark"]</code> per §4.5 (ground #1a1817, surface #262322, raised #302d2b, divider #3b3735, ink #ece9e6, accent → <code>--color-accent-400</code> #62c5ee, text-on-accent #151312, accent tint → <code>--color-accent-900</code> fill with <code>--color-accent-200</code> text, destructive → <code>--color-accent-2-400</code> #ff90b1, dot ink <code>rgba(255,255,255,.16)</code>, placeholder ink <code>rgba(236,233,230,.42)</code>, and the three given dark shadows), with the same block repeated under <code>@media (prefers-color-scheme: dark)</code> guarded as <code>:root:not([data-theme="light"])</code> so the unset (System) case resolves correctly. ADD the four dark shadows §15.4 leaves unmeasured until P5 using that section's stated interim rule — same offsets and blur, black ink, roughly triple the alpha. ADD <code>::selection</code> — <code>--color-accent-200</code> on <code>--color-text</code>, dark <code>--color-accent-900</code> on #ece9e6. ADD the <code>prefers-reduced-motion: reduce</code> block zeroing the 3&nbsp;px menu rise, the panel collapse and the zoom transform, while leaving hover tints and the spinner (they carry state, not decoration). ADD the thin overlay scrollbar rule as a <code>.scroll-thin</code> utility: <code>scrollbar-width: thin; scrollbar-color: var(--color-neutral-400) transparent</code>, plus a matching <code>::-webkit-scrollbar</code> block at 8&nbsp;px with a <code>--radius-sm</code> thumb and a transparent track; on dark the thumb is <code>--color-neutral-600</code>. ADD a global <code>:focus-visible</code> rule — <code>outline: 2px solid var(--color-accent); outline-offset: 2px</code> — and a rule that disabled controls sit at opacity .35 and take no focus ring. CREATE <code>src/lib/__tests__/tokens.test.ts</code> parsing both files as text and asserting: every token named in the dark block also exists in the light block; no measurement token (radius, spacing, duration, type step, letter-spacing) is redefined in the dark block; <code>#f3f2f2</code> and <code>#1a1817</code> each appear exactly once; no <code>@import</code> and no <code>process-yellow</code> survives.</li>
+  <li><strong>PATTERN:</strong> <code>docs/design-system.html</code> §4–§5 and §11.1 are the authority, and §14 gives the copy instruction verbatim. The dark palette redefines roles only — this is what makes "nothing moves between the two themes" structurally true rather than a promise.</li>
+  <li><strong>IMPORTS:</strong> none; imported from <code>src/main.ts</code> before any component style.</li>
+  <li><strong>GOTCHA:</strong> <code>docs/design-system.html</code> §5.3 declares the elevation list closed at seven, and <code>docs/handoff/README.md</code> adds four more from turns 21–22. Two of those four are resolved rather than added: <strong>card hover is not a new elevation</strong> — §11.2 says hover lifts to the <em>selected</em> shadow <code>0 4px 14px rgba(45,43,43,.18)</code>, and the design system wins over the handoff; and the dialog shadow belongs to Phase 4, not here. Only the dragging shadow and the note text bar are genuinely new in this phase, so add exactly those two as named project tokens and flag them for the owner in the PR body. Also note §11.2's rule that hover on a card is shadow only — no outline and no handles; that is what separates hover from selected.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/lib/__tests__/tokens.test.ts &amp;&amp; npm run build</code></li>
+</ul>
+
+<h4 class="task" data-task="6">Task 6: Vendor Source Serif 4 and the Phosphor regular icon set</h4>
+<p>Both asset families ship inside the installer and are never fetched over the network, which the privacy rule requires absolutely.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> ADD <code>@fontsource/source-serif-4</code> and <code>@phosphor-icons/web</code> as dependencies. CREATE <code>src/lib/fonts.css</code> importing the three faces the design uses — <strong>400 regular, 600 semibold and the true 400 italic</strong> — from the Fontsource package's local woff2 files, and setting <code>--font-body</code> and <code>--font-heading</code> to <code>"Source Serif 4", system-ui, sans-serif</code> (the Windows 11 fallback is Segoe UI Variable). CREATE <code>src/lib/icons.css</code> importing only <code>@phosphor-icons/web/src/regular/style.css</code> — the regular weight, not duotone, which is recorded deviation #1 because duotone's second tone muddies at 12–16&nbsp;px. ADD both to <code>src/main.ts</code>. UPDATE <code>vite.config.ts</code> with <code>build.assetsInlineLimit: 0</code> for fonts if needed so woff2 files emit as real files, and confirm they land under <code>dist/assets/</code>. ADD <code>src/lib/Icon.svelte</code> taking a glyph name, a size and an optional accessible label, rendering <code>&lt;i class="ph ph-{name}"&gt;</code> with <code>aria-hidden="true"</code> when unlabelled and an <code>aria-label</code> when labelled — so no feature hand-writes the class and the thirteen icon-only controls §12.6 names can all be given a name. An icon always inherits its row's colour and opacity and never sets its own. CREATE <code>src/lib/glyphs.ts</code> listing the closed set of 34 glyph names from <code>docs/design-system.html</code> §7.1, typed as a union, so <code>Icon.svelte</code> cannot be passed a glyph outside the set. CREATE <code>src/lib/__tests__/assets.test.ts</code> asserting <code>fonts.css</code> and <code>icons.css</code> contain no <code>http://</code> or <code>https://</code>; that <code>icons.css</code> references the <code>regular</code> style and not <code>duotone</code>, <code>bold</code>, <code>fill</code>, <code>light</code> or <code>thin</code>; and that <code>glyphs.ts</code> holds exactly 34 names.</li>
+  <li><strong>PATTERN:</strong> <code>docs/design-system.html</code> §14 (Assets) is explicit: both families must be vendored, and "removing that <code>@import</code> is not optional". PRD §7.1 says the same. The handoff's unpkg URL is a design-file convenience and must not survive into the application.</li>
+  <li><strong>IMPORTS:</strong> <code>@fontsource/source-serif-4</code>, <code>@phosphor-icons/web</code>.</li>
+  <li><strong>GOTCHA:</strong> importing the whole <code>@phosphor-icons/web</code> index pulls every weight and blows the installer budget. Import the single regular stylesheet path, and if Task 22 shows the icon font is a meaningful share of the installer, subset it to the 34 glyphs — <code>docs/design-system.html</code> §14 raises this against the 20&nbsp;MB budget. Fontsource's default import pulls every subset — import the specific weight files. Licences: SIL OFL 1.1 for the font, MIT for the icons; both are free to embed. Nine text roles sit at or under 12&nbsp;px and the smallest is 9.5&nbsp;px — check every role at or under 12.5&nbsp;px on real Windows 11 hardware at 100% and 150% scaling before the shell is signed off, and if one fails, raise that size and never reintroduce a second family (§6.1 callout, confirmed by §15.3 answer 2).</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/lib/__tests__/assets.test.ts &amp;&amp; npm run build &amp;&amp; node -e "const fs=require('fs'),p=require('path');const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(p.join(d,e.name)):[p.join(d,e.name)]);const files=walk('dist');if(!files.some(f=&gt;f.endsWith('.woff2')))process.exit(1);const css=files.filter(f=&gt;f.endsWith('.css')).map(f=&gt;fs.readFileSync(f,'utf8')).join('');if(/url\(\s*['\&quot;]?https?:/.test(css))process.exit(1);"</code></li>
+</ul>
+
+<h4 class="task" data-task="7">Task 7: The application shell — title bar, left column and properties panel</h4>
+<p>The three-part chrome every screen except the project picker uses, at the locked measurements, with the panel's expanded and collapsed states.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/features/shell/TitleBar.svelte</code> — 34&nbsp;px tall, <code>flex: none</code>, <code>--color-surface</code>, 1&nbsp;px bottom divider, padding <code>0 4px 0 14px</code>, item gap 14&nbsp;px: the brand at 12.5&nbsp;px/600/.02em, <code>{project} / {canvas}</code> at 12&nbsp;px opacity .5, the save state (<code>ph-check-circle</code> 14&nbsp;px + relative time at 11.5&nbsp;px opacity .45, swapping to <code>ph-circle-dashed</code> + <code>Saving…</code>), the counts (<code>12 cards · 1 selected</code> / <code>· none selected</code>), and three 32×24 window-control cells at 12&nbsp;px opacity .55 (<code>ph-minus</code>, <code>ph-square</code>, <code>ph-x</code>) wired to the Tauri window API. CREATE <code>src/features/shell/LeftColumn.svelte</code> — 168&nbsp;px, <code>flex: none</code>, <code>--color-surface</code>, 1&nbsp;px right divider, padding <code>10px 0 12px</code>, base 12.5&nbsp;px: the search box (inert in this phase — Phase 4 wires it), the <code>Canvases</code> section with rows at padding <code>5px 12px</code>/<code>ph-square-half</code> 13&nbsp;px (inactive opacity .72; active <code>--color-accent-100</code> ground, <code>--color-accent-800</code> ink, weight 600), and the <code>Tools</code>, <code>Add</code>, <code>History</code> groups at padding <code>7px 14px</code> with their glyphs, plus <code>Settings</code> (<code>ph-gear</code>) pinned with <code>margin-top: auto</code>. Rows that Phase 1 does not implement (Connect, Image) render at the unavailable opacity .35. CREATE <code>src/features/shell/PropertiesPanel.svelte</code> — 177&nbsp;px expanded / 32&nbsp;px collapsed, <code>--color-surface</code>, 1&nbsp;px left divider, padding <code>14px 12px 12px</code>, group gap 13&nbsp;px, with the header, the Position and Size number pairs, the Order buttons and the footer duplicate/delete pair; collapsed shows the <code>ph-caret-left</code> cell and the vertical <code>Nothing selected</code> label. ADD the 140&nbsp;ms <code>--ease</code> width transition (<code>docs/design-system.html</code> §11.3 — not the handoff's 160&nbsp;ms), and auto-collapse below a 420&nbsp;px window width: fixed chrome is 345&nbsp;px expanded (168 + 177) against a 350&nbsp;px minimum window, so the canvas would otherwise vanish. Reopening above that width is the user's choice again. UPDATE <code>src/app.svelte</code> to compose title bar / left column / canvas slot / properties panel and apply <code>.scroll-thin</code> to the two scrolling columns. CREATE <code>src/features/shell/__tests__/shell.test.ts</code> mounting <code>App</code> and asserting the four fixed widths/heights and the collapsed/expanded switch.</li>
+  <li><strong>PATTERN:</strong> <code>docs/design-system.html</code> §8–§9 and <code>docs/handoff/README.md</code> lines 28–111. Interaction states come from the handoff's "Rail rows, menu rows, canvas rows, search results" table — one hover tint everywhere.</li>
+  <li><strong>IMPORTS:</strong> <code>Icon.svelte</code> from <code>src/lib/</code>, <code>getCurrentWindow</code> from <code>@tauri-apps/api/window</code>, the canvas store (added in Task 8) is <em>not</em> available yet — hold shell state locally with <code>$state</code> and lift it in Task 8.</li>
+  <li><strong>GOTCHA:</strong> the panel is 177&nbsp;px, not 176 or 180 — the design system confirms this value explicitly. A hovered row must never look more selected than the selected row: the active tool and active canvas row use the <em>pressed</em> appearance made permanent. All labels are Title Case.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/shell &amp;&amp; npm run check &amp;&amp; npm run build</code></li>
+</ul>
+
+<h3 class="milestone" data-milestone="3">Milestone 3: The canvas — store, transform, dot grid and culling</h3>
+<p>The canvas pans and zooms with one CSS transform over a scaling dot grid, driven by one shared store, with only the cards inside the view window present in the page.</p>
+<p><strong>Validation checkpoint:</strong> a Vitest spec builds a store holding 1,000 synthetic placements spread over a large world, then walks a scripted pan-and-zoom path asserting at each step that (a) the visible set equals the set the pure geometry function predicts, (b) the visible count stays under 15% of the total at the default zoom, and (c) the store's transform, the dot-grid background size and the zoom-bar percentage all agree. This proves store, transform, grid and culling are one consistent system; each task alone only tests its own half.</p>
+
+<h4 class="task" data-task="8">Task 8: The shared canvas store</h4>
+<p>The one piece of state cards, selection, pan, zoom and undo all read and write. Named up front so the import direction rule stays enforceable.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/stores/canvasStore.svelte.ts</code> exporting a single module-level store built from <code>$state</code>: <code>project</code>, <code>canvases</code>, <code>activeCanvasId</code>, <code>placements</code> (a <code>Map&lt;number, Placement&gt;</code> or keyed record), <code>items</code> (a <code>Map&lt;number, Item&gt;</code>), <code>selection</code> (a <code>Set&lt;number&gt;</code> of placement ids), <code>activeTool</code> (<code>'select' | 'pan' | 'connect'</code>), <code>view</code> (<code>{ x, y, zoom }</code>), <code>viewportSize</code> (<code>{ width, height }</code>), <code>editingPlacementId</code>, and <code>saveState</code> (<code>'idle' | 'saving' | 'saved'</code> plus a timestamp). ADD <code>$derived</code> values: <code>activeCanvas</code>, <code>cardCount</code>, <code>selectedPlacements</code>, <code>maxZOrder</code>. ADD plain mutator functions (<code>setView</code>, <code>upsertPlacement</code>, <code>removePlacement</code>, <code>upsertItem</code>, <code>setSelection</code>, <code>toggleSelected</code>, <code>clearSelection</code>) — no component reaches into the raw state to mutate. ADD <code>loadCanvas(canvasId)</code> calling the Task-12 commands through <code>invokeSafe</code>; until Task 12 lands, have it call <code>list_canvases</code> only and leave placements empty, with a comment naming the task that fills it. CREATE <code>src/stores/__tests__/canvasStore.test.ts</code> covering selection add/toggle/clear, <code>maxZOrder</code> with an empty and a populated set, and that <code>setView</code> clamps zoom into the allowed range.</li>
+  <li><strong>PATTERN:</strong> <code>architecture-pattern</code> in <code>docs/architecture.html</code> §4 — the shared store is named once, deliberately, and does not hide inside a feature. <code>import-direction</code>: <code>stores/</code> imports from <code>lib/</code> only.</li>
+  <li><strong>IMPORTS:</strong> <code>src/lib/types.ts</code>, <code>src/lib/ipc.ts</code>, <code>src/lib/settings.ts</code>.</li>
+  <li><strong>GOTCHA:</strong> the file must end in <code>.svelte.ts</code> or Svelte 5 will not compile the runes. A <code>$state</code> <code>Map</code>/<code>Set</code> is deeply reactive in Svelte 5 — reassigning the whole collection on every card move would defeat the entire fine-grained-reactivity reason for choosing Svelte. Mutate the entry, not the container.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/stores &amp;&amp; npm run check</code></li>
+</ul>
+
+<h4 class="task" data-task="9">Task 9: Canvas surface — CSS transform pan and zoom, dot grid, zoom bar</h4>
+<p>One transformed layer, a grid that scales with it, and the zoom controls the design draws.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/features/canvas/CanvasSurface.svelte</code> — <code>flex: 1; position: relative; overflow: hidden</code>, <code>--color-bg</code> ground, holding one absolutely positioned world layer whose <code>transform</code> is <code>translate(var(--view-x), var(--view-y)) scale(var(--view-zoom))</code> with <code>transform-origin: 0 0</code> and <code>will-change: transform</code>. ADD pointer handling: drag on empty background pans (and always pans with the Pan tool, cursor <code>grab</code>/<code>grabbing</code>); wheel zooms about the pointer, honouring the <code>zoomWith</code> setting (<code>Scroll</code> by default, or <code>Ctrl+scroll</code>) from <code>src/lib/settings.ts</code>; zoom is clamped to 10%–400% in 10% button steps, and zooming by scroll is never transitioned. CREATE <code>src/features/canvas/DotGrid.svelte</code> — <code>radial-gradient(circle, var(--color-dot) 1px, transparent 1.2px)</code> at <code>background-size: calc(22px * zoom)</code> with a matching <code>background-position</code> offset so the grid tracks the pan exactly; the grid is decorative and implies no snapping. CREATE <code>src/features/canvas/ZoomBar.svelte</code> — absolute <code>left: 18px; bottom: 14px</code>, padding 3&nbsp;px, <code>--color-surface</code>, radius 3&nbsp;px, <code>0 3px 10px rgba(45,43,43,.16)</code>, 26×24 cells at opacity .7: <code>ph-minus</code>, the percentage (min-width 42&nbsp;px, 11.5&nbsp;px, opacity .75, centred), <code>ph-plus</code>, a 1×16&nbsp;px divider with 3&nbsp;px side margins, then <code>ph-corners-out</code> (Zoom To Fit, dimmed to .35 when the view already holds everything). ADD <code>Ctrl+0</code> as Zoom To Fit and a <code>100%</code> Reset Zoom, and the 160&nbsp;ms <code>--ease</code> transform transition for the zoom buttons, Zoom To Fit and Reset Zoom only — hand panning and hand zooming are 0&nbsp;ms, always, because any easing there reads as lag and fights the 60&nbsp;fps gate. ADD a <code>--z-layer</code> ladder to <code>src/lib/tokens.css</code> while here, since neither document defines one: connections 10 (an SVG sibling placed before the cards in DOM order, so cards always paint over lines), cards 20 (their relative stacking is the placement's <code>z_order</code>), marquee 30, zoom bar and canvas hint bars 40, search popover 50, context menus 60, dialogs 70. CREATE <code>src/features/canvas/__tests__/canvasSurface.test.ts</code> asserting the transform string and the dot-grid background-size both follow the store's view at three zoom levels.</li>
+  <li><strong>PATTERN:</strong> <code>rendering-approach</code> — "the canvas moves and scales with one CSS transform". The 22&nbsp;px grid at <code>rgba(32,30,29,.16)</code> comes from <code>docs/handoff/README.md</code> line 80.</li>
+  <li><strong>IMPORTS:</strong> <code>src/stores/canvasStore.svelte.ts</code>, <code>src/lib/geometry.ts</code>, <code>src/lib/settings.ts</code>, <code>Icon.svelte</code>.</li>
+  <li><strong>GOTCHA:</strong> transitioning the transform while the user pans reads as lag — the motion table puts hand panning at 0&nbsp;ms deliberately. Set <code>touch-action: none</code> on the surface and use pointer capture, or a fast drag will drop events. Do not put <code>will-change: transform</code> on the individual cards: 250 promoted layers will exhaust the compositor.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/canvas/__tests__/canvasSurface.test.ts &amp;&amp; npm run check</code></li>
+</ul>
+
+<h4 class="task" data-task="10">Task 10: Culling — per-card box check, with the maths as a pure function</h4>
+<p>A card outside the view window is removed from the page. This is the product's whole performance promise, so the maths is pure, tested and instrumented.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/lib/geometry.ts</code> with pure helpers: <code>Rect</code>, <code>rectsIntersect(a, b)</code>, <code>rectContains(outer, inner)</code>, <code>screenToWorld(point, view)</code>, <code>worldToScreen(point, view)</code>, and <code>viewportWorldRect(view, viewportSize, marginPx)</code>. CREATE <code>src/features/canvas/culling.ts</code> with <code>visiblePlacements(placements, view, viewportSize, marginPx)</code> — a straight axis-aligned box check per card against the viewport rect expanded by a margin (default 200&nbsp;px of screen space, converted to world units) so cards enter the page slightly before they enter view. ADD the derived <code>visible</code> list to the canvas store, recomputed from <code>view</code> and <code>viewportSize</code>. ADD a development-only instrumentation counter exposing <code>{ total, drawn }</code> for the Task-21 overlay. CREATE <code>src/features/canvas/__tests__/culling.test.ts</code> covering: a card fully inside is visible; fully outside is not; straddling an edge is visible; a card exactly on the margin boundary is visible; zoom changes which cards qualify; a 1,000-card fixture at default zoom yields a drawn count under 15% of the total; the function is pure (calling it twice with the same inputs returns equal sets and mutates nothing).</li>
+  <li><strong>PATTERN:</strong> <code>docs/architecture.html</code> §11 settles this open question in this phase: "Build the simple box check first. Measure it against 250 cards. Move to grid buckets only if the frame rate misses."</li>
+  <li><strong>IMPORTS:</strong> <code>src/lib/geometry.ts</code>, <code>src/lib/types.ts</code>.</li>
+  <li><strong>GOTCHA:</strong> cull on the <em>world</em> rectangle, not on screen coordinates, or the margin behaves differently at each zoom. A card being culled must not destroy its unsaved editing state — exclude the card being edited from culling. Culling maths is exactly the kind of pure logic <code>CLAUDE.md</code> says to unit-test; the visual output is not.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/canvas/__tests__/culling.test.ts</code></li>
+</ul>
+
+<h4 class="task" data-task="11">Task 11: The keyboard dispatcher</h4>
+<p>One place turns a key event into a named action, so no feature installs its own global listener and no shortcut is implemented twice.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/lib/shortcuts.ts</code> exporting an <code>Action</code> union covering this phase's twelve keys — <code>new-note</code> (<code>N</code>), <code>edit</code> (<code>Enter</code>), <code>cancel</code> (<code>Esc</code>), <code>delete</code> (<code>Del</code>), <code>duplicate</code> (<code>Ctrl+D</code>), <code>copy</code> (<code>Ctrl+C</code>), <code>paste</code> (<code>Ctrl+V</code>), <code>select-all</code> (<code>Ctrl+A</code>), <code>reset-zoom</code> (<code>Ctrl+0</code>), <code>bring-forward</code> (<code>Ctrl+]</code>), <code>send-back</code> (<code>Ctrl+[</code>), <code>undo</code> (<code>Ctrl+Z</code>), <code>redo</code> (<code>Ctrl+Y</code>) — plus <code>new-image</code> (<code>I</code>), <code>connect</code> (<code>C</code>) and <code>result-up</code>/<code>result-down</code> (<code>↑</code>/<code>↓</code>) declared now and left unhandled, since Phases 2–4 own them. ADD <code>matchAction(event: KeyboardEvent): Action | null</code> as a pure function, and <code>registerShortcuts(handlers: Partial&lt;Record&lt;Action, (e: KeyboardEvent) =&gt; void&gt;&gt;): () =&gt; void</code> attaching one <code>keydown</code> listener and returning its teardown. ADD suppression: when the event target is an <code>input</code>, <code>textarea</code> or <code>contenteditable</code>, only <code>Esc</code> and the <code>Ctrl</code> combinations that are not text-editing defaults are dispatched, so typing an <code>n</code> into a note never creates a card. CREATE <code>src/lib/__tests__/shortcuts.test.ts</code> covering every mapping, the modifier combinations, and the text-input suppression rule.</li>
+  <li><strong>PATTERN:</strong> <code>import-direction</code> — the dispatcher lives in <code>lib/</code> and knows nothing about features; features hand it callbacks. This is what keeps a shared shortcut from becoming a cross-feature import.</li>
+  <li><strong>IMPORTS:</strong> none beyond DOM types.</li>
+  <li><strong>GOTCHA:</strong> Windows convention is <code>Ctrl+Y</code> for redo, not <code>Ctrl+Shift+Z</code>. <code>event.key</code> for <code>Ctrl+]</code> is <code>']'</code> on a US layout but not on every layout — match on <code>event.code</code> (<code>BracketRight</code>/<code>BracketLeft</code>) with <code>event.key</code> as a fallback. Every one of these keys is printed on a context menu or the search footer, so the application must honour it (PRD §6.8).</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/lib/__tests__/shortcuts.test.ts</code></li>
+</ul>
+
+<h3 class="milestone" data-milestone="4">Milestone 4: Note cards and interaction</h3>
+<p>Note cards are created, rendered, edited, moved, resized, reordered, selected, duplicated and deleted, from the keyboard, the pointer and both context menus.</p>
+<p><strong>Validation checkpoint:</strong> an end-to-end Vitest spec with the IPC layer mocked drives one scripted session against the real store and components — create a note with <code>N</code>, type Markdown including a <code>&lt;script&gt;</code> tag, leave edit, marquee-select it with a second card, bring one forward, duplicate the selection, delete one, and reopen the canvas from the mocked backend — asserting after every step that the store, the rendered card set, the properties panel contents and the title-bar counts all agree, and that no script node ever entered the document. This crosses six tasks; each of them tests only its own step.</p>
+
+<h4 class="task" data-task="12">Task 12: Item and placement commands</h4>
+<p>The Rust side of a card: the item holds the content and lives in the project library, the placement holds position and size on one canvas.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src-tauri/src/commands/item.rs</code> with <code>create_item(project_id, kind, payload) -&gt; AppResult&lt;Item&gt;</code>, <code>update_item_payload(item_id, payload) -&gt; AppResult&lt;Item&gt;</code>, and <code>delete_item(item_id) -&gt; AppResult&lt;()&gt;</code>. CREATE <code>src-tauri/src/commands/placement.rs</code> with <code>list_placements(canvas_id) -&gt; AppResult&lt;Vec&lt;PlacementWithItem&gt;&gt;</code> (one join, so opening a canvas is one call not N), <code>create_placement(canvas_id, item_id, x, y, width, height) -&gt; AppResult&lt;Placement&gt;</code>, <code>update_placements(updates: Vec&lt;PlacementUpdate&gt;) -&gt; AppResult&lt;()&gt;</code> (a whole multi-row move or reorder in ONE transaction), <code>delete_placements(ids: Vec&lt;i64&gt;) -&gt; AppResult&lt;DeleteEffect&gt;</code>, and <code>create_note_card(canvas_id, x, y, width, height, title, text) -&gt; AppResult&lt;PlacementWithItem&gt;</code> which creates item and placement in one transaction. ADD the lifecycle rule from PRD §6.9 to <code>delete_placements</code>: deleting the last placement of an item deletes the item too; the returned <code>DeleteEffect</code> names every row removed so the undo stack can restore all of it together. UPDATE <code>src/lib/types.ts</code> to mirror the new shapes. UPDATE <code>canvasStore.loadCanvas</code> to call <code>list_placements</code>. ADD a <code>#[cfg(test)]</code> module covering: create note card round-trips; <code>update_placements</code> with a deliberately failing row leaves every row unchanged (transaction rollback); deleting the last placement removes the item; deleting one of two placements leaves the item.</li>
+  <li><strong>PATTERN:</strong> <code>persistence-strategy</code> — "a change that touches several rows is written in one transaction". The <code>DeleteEffect</code> return is what makes <code>undo-model</code>'s "one command may carry several effects" implementable.</li>
+  <li><strong>IMPORTS:</strong> <code>rusqlite::Transaction</code>, <code>serde_json</code> for the payload column.</li>
+  <li><strong>GOTCHA:</strong> the placement model is the decision the whole data model rests on — a card is a placement pointing at an item. Do not collapse them, even though every note in this phase has exactly one placement. <code>payload</code> is stored as a JSON <code>TEXT</code> column and validated against <code>kind</code> before writing.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>cargo test --manifest-path src-tauri/Cargo.toml commands::placement commands::item &amp;&amp; npm run check</code></li>
+</ul>
+
+<h4 class="task" data-task="13">Task 13: The Markdown render path</h4>
+<p>The one route Markdown takes into the page, sanitized, so a note card can never run script.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> ADD <code>marked</code> and <code>dompurify</code> as dependencies. CREATE <code>src/lib/markdown.ts</code> exporting <code>renderMarkdown(source: string): string</code> — parse with <code>marked</code> configured for GFM without raw-HTML passthrough, then <code>DOMPurify.sanitize</code> with an explicit allow-list of <code>p, br, strong, em, b, i, code, pre, ul, ol, li, blockquote, h1..h6, a</code>, forbidding every <code>on*</code> attribute and every non-<code>http(s)</code> href scheme. ADD <code>insertMark(source, selectionStart, selectionEnd, mark)</code> — the pure text transform behind the bold, italic, bullet-list and numbered-list toolbar buttons — returning the new source and the new selection range. CREATE <code>src/lib/__tests__/markdown.test.ts</code> covering: bold/italic/list/heading/link render; <code>&lt;script&gt;alert(1)&lt;/script&gt;</code> produces no script node; <code>&lt;img src=x onerror=alert(1)&gt;</code> loses the handler; a <code>javascript:</code> href is stripped; <code>insertMark</code> wraps a selection, unwraps an already-wrapped selection, and prefixes each line for a list. ADD a bundle-size assertion recorded in the task output: run <code>npm run build</code> and note the gzipped delta these two libraries add.</li>
+  <li><strong>PATTERN:</strong> <code>note-text-format</code> — Markdown source is what is stored and what is searched. <code>nfr-targets</code> security rule — "rendered Markdown is cleaned before it goes into the page".</li>
+  <li><strong>IMPORTS:</strong> <code>marked</code>, <code>dompurify</code>.</li>
+  <li><strong>GOTCHA:</strong> marked explicitly does not sanitize and removed its own <code>sanitize</code> option — DOMPurify is not optional. DOMPurify needs a DOM, which jsdom supplies in tests and WebView2 supplies at runtime; no <code>jsdom</code> shim is needed in the shipped bundle. Never use <code>{@html}</code> anywhere except on the output of <code>renderMarkdown</code>.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/lib/__tests__/markdown.test.ts &amp;&amp; npm run build</code></li>
+</ul>
+
+<h4 class="task" data-task="14">Task 14: The note card — render, create and edit</h4>
+<p>The card shell, the rendered note, the plain text box that replaces it while editing, and the floating text bar.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/features/cards/CardShell.svelte</code> — the shared shell all four kinds will use: <code>--color-surface</code>, radius 3&nbsp;px, <code>0 2px 8px rgba(45,43,43,.14)</code>, absolutely positioned from the placement rectangle. States per <code>docs/design-system.html</code> §9.3 and §11.2: hover is <strong>shadow only</strong>, lifting to the selected shadow <code>0 4px 14px rgba(45,43,43,.18)</code> over 90&nbsp;ms — no outline and no handles, which is exactly what separates hover from selected; pressed is no change, because the press is the drag or the selection; selected is <code>outline: 2px solid var(--color-accent)</code> plus that shadow plus the four handles, applied instantly; dragging takes <code>--shadow-card-drag</code> instantly with <code>cursor: grabbing</code>. A card never scales, lifts or tilts. A card that is both selected and keyboard-focused shows both the tight outline with handles and the offset ring — confirmed correct by the owner. CREATE <code>src/features/cards/NoteCard.svelte</code> — padding <code>11px 13px</code>, title 13&nbsp;px weight 600 with 5&nbsp;px below, body 12&nbsp;px line-height 1.5 opacity .8, body rendered through <code>renderMarkdown</code>; when selected the title widens to 13.5&nbsp;px and the body lifts to opacity .85. A new note is created 236&nbsp;px wide with a content-driven height, which is what the mockups draw. The title is a plain string, never Markdown. CREATE <code>src/features/cards/NoteEditor.svelte</code> — a plain <code>textarea</code> over the Markdown source, no editor library, with the floating text bar at <code>left: -2px; top: -38px</code> (<code>--color-surface</code>, radius 3&nbsp;px, <code>--shadow-textbar</code>, padding 3&nbsp;px, gap 2&nbsp;px, four 28×26&nbsp;px cells at 14&nbsp;px: <code>ph-text-b</code>, <code>ph-text-italic</code>, a 1×16&nbsp;px divider, <code>ph-list-bullets</code>, <code>ph-list-numbers</code>) calling <code>insertMark</code>. The height follows the text while typing, and the panel's Size reads <code>H auto</code>. CREATE <code>src/features/cards/CardLayer.svelte</code> rendering only <code>visiblePlacements</code>, keyed by placement id. WIRE <code>N</code> to create a note at the pointer (never at the canvas centre), <code>Enter</code> to edit the selected card, and <code>Esc</code> or a click away to finish. ADD <code>src/features/canvas/EmptyCanvas.svelte</code> — the <code>15a</code> state: <code>Nothing on the canvas yet</code> at 22&nbsp;px/-.02em, the instruction at 13&nbsp;px opacity .6 max-width 40ch, the <code>New Note</code> and <code>Add Image</code> buttons (the second disabled in this phase), and the hint at 11.5&nbsp;px opacity .4. CREATE <code>src/features/cards/__tests__/noteCard.test.ts</code> asserting the rendered body is sanitized HTML, that <code>Enter</code> swaps in the textarea holding the raw Markdown, that <code>Esc</code> commits, and that the text bar's bold button wraps the selection.</li>
+  <li><strong>PATTERN:</strong> <code>docs/design-system.html</code> §9.3 for the card, frames <code>14b</code> and <code>21d</code> for the selected and mid-edit states, frame <code>15a</code> for the empty canvas.</li>
+  <li><strong>IMPORTS:</strong> <code>src/lib/markdown.ts</code>, <code>src/lib/shortcuts.ts</code>, <code>src/stores/canvasStore.svelte.ts</code>, <code>src/lib/ipc.ts</code>.</li>
+  <li><strong>GOTCHA:</strong> exactly one editor exists at a time — the focused card only. Do not mount a per-card editor; 250 of them is precisely what <code>note-text-format</code> rejected. The card being edited must be excluded from culling so its unsaved text survives a pan. Button labels are Title Case; the instruction copy stays sentence case.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/cards/__tests__/noteCard.test.ts &amp;&amp; npm run check</code></li>
+</ul>
+
+<h4 class="task" data-task="15">Task 15: Move, resize and z-order</h4>
+<p>Free placement: the application never moves a card on the user's behalf.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> ADD pointer drag on a card to move it and every other selected card together, in world units, with <code>cursor: grabbing</code> and the <code>--shadow-card-drag</code> elevation, and with optional snap-to-grid honoured from <code>src/lib/settings.ts</code> (off by default). CREATE <code>src/features/cards/ResizeHandles.svelte</code> — four 7×7&nbsp;px handles, <code>--color-surface</code> fill, 2&nbsp;px <code>--color-accent</code> border, radius 1&nbsp;px, inset <code>-4px</code> at each corner, with the matching directional cursor — enforcing a 50&nbsp;px minimum on both width and height and no maximum. CREATE <code>src/features/cards/zorder.ts</code> with pure <code>bringForward(placements, ids)</code> and <code>sendBack(placements, ids)</code> returning the minimal set of <code>z_order</code> updates. WIRE <code>Ctrl+]</code> / <code>Ctrl+[</code> and the properties panel's Front / Back buttons. WIRE the panel's X/Y/W/H number inputs as the typed equivalent of dragging, selecting their value on focus so a typed number replaces rather than appends. CREATE <code>src/features/cards/__tests__/zorder.test.ts</code> and <code>resize.test.ts</code> covering: bring-forward on the topmost card is a no-op; send-back on a multi-selection preserves their relative order; resize clamps at 50&nbsp;px from every handle; resizing from a top or left handle moves the origin correctly; a move applies the same world delta to all selected cards at every zoom level.</li>
+  <li><strong>PATTERN:</strong> <code>docs/design-system.html</code> §9.3 and §15.3 answer 8 (50&nbsp;px minimum, no maximum). Card states from the handoff's card-state table — "a card never scales, lifts or tilts"; only the shadow changes.</li>
+  <li><strong>IMPORTS:</strong> <code>src/lib/geometry.ts</code>, the canvas store, <code>src/lib/settings.ts</code>.</li>
+  <li><strong>GOTCHA:</strong> convert the pointer delta to world units by dividing by <code>view.zoom</code>, or cards will drift away from the cursor at any zoom but 100%. Writes are deferred until the drag ends (Task 19) — during the drag, mutate the store only.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/cards/__tests__/zorder.test.ts src/features/cards/__tests__/resize.test.ts</code></li>
+</ul>
+
+<h4 class="task" data-task="16">Task 16: Selection — click, marquee, select all, clear and delete</h4>
+<p>The selection must always be exactly what the band encloses.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/features/selection/selection.svelte.ts</code> with the selection operations over the store: click selects one, <code>Ctrl</code>/<code>Shift</code>+click toggles, click on the background clears. CREATE <code>src/features/selection/Marquee.svelte</code> — drag on empty background draws the band as two stacked divs on the same rect (one <code>background: var(--color-accent)</code> at <code>opacity: .1</code>, one <code>border: 1px solid var(--color-accent)</code> at full opacity, because a single tinted div fades its own border), with a <code>ph-cursor</code> at 13&nbsp;px at the dragged corner; on release the selection is every placement whose rectangle the band encloses, computed with <code>rectContains</code> in world units. WIRE <code>Ctrl+A</code> (select all on the active canvas), <code>Esc</code> (clear the selection, or close the open panel/menu first), and <code>Del</code> (delete the selection through <code>delete_placements</code>). UPDATE <code>PropertiesPanel.svelte</code> for the multi-selection state: header <code>5 cards</code> with <code>3 notes</code> as the id line, Position and Size reading <code>mixed</code> in italic at opacity .6 where values differ, and the footer note. UPDATE <code>TitleBar.svelte</code> counts to follow the selection. CREATE <code>src/features/selection/__tests__/selection.test.ts</code> covering: the marquee selects exactly the enclosed set and not a card merely touched by the band; <code>Ctrl</code>+click toggles without clearing; <code>Ctrl+A</code> selects every placement on the active canvas only; <code>Esc</code> clears; <code>mixed</code> appears only when values differ.</li>
+  <li><strong>PATTERN:</strong> frame <code>21c</code> in <code>docs/handoff/README.md</code> lines 194–201. The Align group described there is a post-MVP nicety, not a Phase&nbsp;1 deliverable — do not build it.</li>
+  <li><strong>IMPORTS:</strong> <code>src/lib/geometry.ts</code>, the canvas store, <code>src/lib/shortcuts.ts</code>.</li>
+  <li><strong>GOTCHA:</strong> the design file sizes the band to its selection; the application does it the other way round. <code>Esc</code> is overloaded — close an open menu or finish an edit first, and only clear the selection when nothing else is open.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/selection</code></li>
+</ul>
+
+<h4 class="task" data-task="17">Task 17: Duplicate, copy and paste</h4>
+<p><code>Ctrl+D</code>, <code>Ctrl+C</code> and <code>Ctrl+V</code> for note cards.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> ADD <code>duplicateSelection()</code> — creates a new item and a new placement for each selected card, offset by a small fixed delta, in one transaction, selecting the copies afterwards. ADD <code>Ctrl+C</code> writing the selected cards' payloads to an in-application clipboard buffer (and the note text to the system clipboard as plain text, so it is useful outside the app). ADD <code>Ctrl+V</code>: if the buffer holds cards, place copies at the pointer; if the system clipboard holds plain text, create a note card at the pointer with that text as the body. Address-shaped and image clipboard content is Phase&nbsp;3 — route it to a note card for now and leave a comment naming the phase. WIRE the properties panel's duplicate button to the same path. CREATE <code>src/features/cards/__tests__/duplicate.test.ts</code> covering: duplicating one card creates one new item and one new placement offset from the original; duplicating a multi-selection preserves relative positions; the copies become the selection; pasting plain text creates a note whose body is that text.</li>
+  <li><strong>PATTERN:</strong> the element context menu prints <code>Duplicate Ctrl+D</code> and <code>Copy Ctrl+C</code>, so both must work (PRD §6.8, §10.4).</li>
+  <li><strong>IMPORTS:</strong> <code>@tauri-apps/plugin-clipboard-manager</code> if the WebView clipboard API is unavailable in the shell; otherwise the standard <code>navigator.clipboard</code>. Add the plugin only if needed, and record which was used.</li>
+  <li><strong>GOTCHA:</strong> duplicate creates a new <em>item</em>, not a second placement of the same item — a duplicate is an independent card. Reusing the item is what Phase-post-MVP reusable items will do, and conflating them now would make an edit to one copy change the other.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/cards/__tests__/duplicate.test.ts</code></li>
+</ul>
+
+<h4 class="task" data-task="18">Task 18: Both context menus</h4>
+<p>The element menu and the background menu, at their drawn widths, with every item labelled and shortcut-annotated exactly as the design specifies.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/features/shell/ContextMenu.svelte</code> — the shared grammar: <code>--color-surface</code>, radius 3&nbsp;px, <code>0 10px 28px rgba(45,43,43,.3)</code>, padding <code>5px 0</code>, base 12.5&nbsp;px; rows at padding <code>6px 14px</code>, gap 10&nbsp;px, <code>white-space: nowrap</code>, a 15&nbsp;px icon at opacity .7, the shortcut right-aligned at 11&nbsp;px opacity .45; the highlighted row takes <code>--color-accent</code> ground with <code>--color-bg</code> ink and its shortcut at opacity .8; destructive rows are <code>--color-accent-2</code>; separators are 1&nbsp;px <code>--color-divider</code> with <code>margin: 5px 0</code>; the appear transition is 110&nbsp;ms <code>--ease</code>, opacity 0→1 plus a 3&nbsp;px rise, no scale (<code>docs/design-system.html</code> §11.3, not the handoff's 140&nbsp;ms/4&nbsp;px); closing is 0&nbsp;ms — a closing animation delays the next action. A 13&nbsp;px <code>ph-cursor</code> marks the click point, 12&nbsp;px up and left of the menu corner. ADD the element menu (<code>17a</code>, width 256&nbsp;px): <code>Edit Text · Enter</code>, <code>Connect From Here · C</code> (unavailable in this phase, opacity .35), <code>Duplicate · Ctrl+D</code>, <code>Copy · Ctrl+C</code>, separator, <code>Bring To Front · Ctrl+]</code>, <code>Send To Back · Ctrl+[</code>, separator, <code>Delete · Del</code> (destructive). Right-clicking a card selects it first, so the panel fills in behind the menu. ADD the background menu (<code>17b</code>, width 236&nbsp;px): <code>New Note Here · N</code>, <code>Add Image… · I</code> (unavailable), <code>Paste · Ctrl+V</code> (greyed to .35 when the clipboard holds nothing placeable), separator, <code>Select All · Ctrl+A</code>, <code>Zoom To Fit · Ctrl+0</code>, <code>Reset Zoom · 100%</code>, separator, <code>Background</code>. It creates at the pointer, not at the canvas centre. ADD edge flipping so a menu opened near a window edge stays on screen. CREATE <code>src/features/shell/__tests__/contextMenu.test.ts</code> asserting both menus' item labels and shortcut labels verbatim, that the destructive row carries the second accent, that right-click on a card selects it, and that <code>New Note Here</code> creates the card at the recorded pointer position.</li>
+  <li><strong>PATTERN:</strong> <code>docs/handoff/README.md</code> lines 320–330, frames <code>17a</code> and <code>17b</code>. Neither menu is the only route to any action — the rail and the panel cover the same ground.</li>
+  <li><strong>IMPORTS:</strong> <code>Icon.svelte</code>, the canvas store, <code>src/lib/shortcuts.ts</code> for the printed shortcut labels so the menu and the dispatcher cannot drift apart.</li>
+  <li><strong>GOTCHA:</strong> the shortcut labels printed here are a contract — PRD §6.8 says the application must honour every key it prints. Derive the label strings from the shortcut map rather than retyping them. Suppress the WebView's own context menu on the canvas.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/shell/__tests__/contextMenu.test.ts &amp;&amp; npm run check</code></li>
+</ul>
+
+<h3 class="milestone" data-milestone="5">Milestone 5: Persistence, undo and the gate</h3>
+<p>Every change reaches disk, every action is undoable within the session, the performance gate is measured, and the installer is built and sized.</p>
+<p><strong>Validation checkpoint:</strong> a Rust integration test plus a front-end spec run together as one gate: the front-end spec drives a session of moves, edits, duplicates and deletes through the real store against a mocked backend, undoes every one of them, and asserts the store returns byte-identical to its starting state; the Rust test then replays the same command sequence against a real temp database, kills the connection mid-sequence without a clean close, reopens the file, and asserts the database is consistent and holds every committed change and no half-finished one. Together these prove <code>persistence-strategy</code> and <code>undo-model</code> compose — neither task tests the other's half.</p>
+
+<h4 class="task" data-task="19">Task 19: Automatic save — write on change, group the drag, one transaction</h4>
+<p>There is no Save button and no manual mode. The title bar's save state is the only affordance.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/lib/settings.ts</code> — the typed settings module with the four values and their defaults: <code>autoSaveMs</code> 3000 (the Settings screen's own default; options 1&nbsp;s / 3&nbsp;s / 10&nbsp;s), <code>snapToGrid</code> false, <code>zoomWith</code> <code>'scroll'</code>, <code>theme</code> <code>'light'</code>. The properties panel's footer copy is derived from <code>autoSaveMs</code>, not hard-coded — the mockup's literal "autosave in 2s" is a drawn example, and the Settings default is the authoritative value. The <code>settings.json</code> file and the Settings screen are Phase&nbsp;5; this phase reads the defaults from one place so nothing scatters. ADD a save scheduler in the store: a discrete change (create, delete, edit commit, z-order) writes immediately; a continuous change (a drag, a resize) mutates the store only and flushes once on pointer release through <code>update_placements</code>, so a 200-frame drag is one transaction and not 200. ADD the save-state machine driving the title bar: <code>Saving…</code> with the rotating <code>ph-circle-dashed</code> while a write is in flight, then <code>Saved Ns ago</code> with <code>ph-check-circle</code>. ADD per-canvas view persistence: <code>view_x</code>, <code>view_y</code>, <code>view_zoom</code> are written on a debounce after panning stops and on window close, and restored when the canvas opens. ADD a Rust integration test replaying create → move → edit → close → reopen and asserting the view position and every card come back exactly. CREATE <code>src/lib/__tests__/save.test.ts</code> asserting that N pointer-move events during one drag produce exactly one <code>update_placements</code> call, that a discrete change produces one call immediately, and that the save state transitions idle → saving → saved.</li>
+  <li><strong>PATTERN:</strong> <code>persistence-strategy</code> in <code>docs/architecture.html</code> §7, and PRD §6.6.</li>
+  <li><strong>IMPORTS:</strong> the canvas store, <code>src/lib/ipc.ts</code>, <code>@tauri-apps/api/window</code> for the close event.</li>
+  <li><strong>GOTCHA:</strong> the window-close write must complete before the process exits — use Tauri's close-requested event, prevent the close, flush, then close. WAL means a crash loses nothing committed; the acceptance line is that force-closing while editing loses only the action in progress, so an in-flight edit does not need to survive.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/lib/__tests__/save.test.ts &amp;&amp; cargo test --manifest-path src-tauri/Cargo.toml persistence</code></li>
+</ul>
+
+<h4 class="task" data-task="20">Task 20: Session undo and redo — the inverse-command stack</h4>
+<p>Each action records how to undo itself, and one command may carry several effects.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> CREATE <code>src/features/undo/commands.ts</code> defining an <code>UndoableCommand { label: string; undo(): Promise&lt;void&gt;; redo(): Promise&lt;void&gt; }</code> and the concrete commands this phase needs: create card, delete cards (carrying every row the <code>DeleteEffect</code> named, so item and placement come back together), move placements, resize placement, edit note payload, reorder z, duplicate. CREATE <code>src/features/undo/undoStack.svelte.ts</code> — two arrays of commands, <code>push</code> clearing the redo stack, <code>undo</code>/<code>redo</code> applying and moving between them, and a depth exposed for the left column's Undo row. WIRE <code>Ctrl+Z</code> and <code>Ctrl+Y</code>, and the History rows in the left column (unavailable at opacity .35 when the corresponding stack is empty). ADD clearing both stacks when the project or canvas closes — the stack is session-only. CREATE <code>src/features/undo/__tests__/undoStack.test.ts</code> covering: undo then redo returns the store to the same state; a new action after an undo clears the redo stack; deleting a card and undoing restores the item and the placement together; a multi-card move undoes as one step, not one per card; the stack clears on project close; undoing an empty stack is a safe no-op.</li>
+  <li><strong>PATTERN:</strong> <code>undo-model</code> in <code>docs/architecture.html</code> §7 — inverse commands, not snapshots, because copying 250 cards of state per action is too much memory.</li>
+  <li><strong>IMPORTS:</strong> the canvas store, <code>src/lib/ipc.ts</code>, <code>src/lib/shortcuts.ts</code>.</li>
+  <li><strong>GOTCHA:</strong> a drag is one command, pushed on release — the same grouping the save scheduler uses. Undo must write through the same commands as the forward action, so an undone delete is genuinely back on disk and not only back in memory. Asset restoration is Phase&nbsp;3; the command shape must already allow it.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/undo</code></li>
+</ul>
+
+<h4 class="task" data-task="21">Task 21: Measure the performance gate — 250 note cards at 60 fps</h4>
+<p>The hard gate the whole phase ordering exists to reach. It is measured in the running application, not in a unit test.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> ADD a development-only seed command <code>seed_note_cards(canvas_id, count)</code> in <code>src-tauri/src/commands/placement.rs</code>, behind <code>#[cfg(debug_assertions)]</code>, inserting <em>count</em> note cards with varied text spread over a large world rectangle in one transaction. ADD a development-only performance overlay to the canvas — the <code>21h</code> badge, top-right, reading <code>{fps}fps · {total} cards, {drawn} drawn</code>. The badge's <code>ph-gauge</code> glyph is <em>omitted</em>: <code>docs/design-system.html</code> §7.1 declares the icon set closed at 34 and <code>ph-gauge</code> is not among them, and a development-only overlay is not worth reopening a closed set. The overlay is driven by a <code>requestAnimationFrame</code> loop reporting a rolling median frame time and reading the culling instrumentation from Task 10. ADD the low-zoom card treatment from frame <code>21h</code>: below roughly 40% zoom, notes render as simplified boxes at <code>border-radius: 1px</code> with <code>0 1px 3px</code> shadows and three 1–2&nbsp;px text bars, and the dot grid drops to <code>6px</code> at <code>rgba(32,30,29,.1)</code> — because reading text at that size is impossible and drawing it is wasted work. RUN the measurement: <code>npm run tauri build -- --debug</code>, launch the binary against a scratch project, seed 250 cards, pan continuously for 30 seconds at 100% zoom and again at 40%, and record the median and 5th-percentile fps and the drawn count. CREATE <code>scripts/perf-gate.md</code> recording the machine, the date, the numbers, and the verdict. IF the median is below 60&nbsp;fps: profile first (a paint-heavy card style and a non-composited transform are the usual causes), and only if the per-card box check itself is the bottleneck, REFACTOR <code>culling.ts</code> to fixed grid buckets behind the same <code>visiblePlacements</code> signature so no caller changes — the fallback <code>docs/prd.html</code> §13 already identifies. Re-measure and re-record.</li>
+  <li><strong>PATTERN:</strong> PRD §11 Phase 1 validation and §10.3; <code>nfr-targets</code>. <code>CLAUDE.md</code>: "the 60 fps / 250 card gate is measured in the running app, not in a unit test. A green test suite does not clear it."</li>
+  <li><strong>IMPORTS:</strong> none new.</li>
+  <li><strong>GOTCHA:</strong> the badge on frame <code>21h</code> reads <code>60fps · 254 cards, 118 drawn</code> — that is the target, not a measurement. The second number is the cull working and is the thing to instrument first: if <code>drawn</code> is close to <code>total</code>, culling is broken and the fps number is meaningless. Measure a release-profile build if the debug build is close to the line; debug Rust is not the shipped code, though the front-end bundle is what actually paints.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npx vitest run src/features/canvas &amp;&amp; node -e "const fs=require('fs');const t=fs.readFileSync('scripts/perf-gate.md','utf8');if(!/median/i.test(t))process.exit(1);if(!/\b(25[0-9]|2[6-9][0-9]|[3-9][0-9]{2})\b/.test(t))process.exit(1);const m=t.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i);if(!m)process.exit(1);if(parseFloat(m[1])&lt;60)process.exit(1);"</code></li>
+</ul>
+
+<h4 class="task" data-task="22">Task 22: Build the Windows installer and check the size budget</h4>
+<p>The phase ends with a real NSIS installer under 20&nbsp;MB, which is the constraint the whole stack choice exists to satisfy.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> UPDATE <code>src-tauri/tauri.conf.json</code> with the release metadata — product name, version <code>0.1.0</code>, publisher, the application icon set (generate placeholders with <code>npx tauri icon</code> from a simple mark if none exists), and confirm <code>bundle.targets: ["nsis"]</code> and the WebView2 bootstrapper install mode. UPDATE <code>Cargo.toml</code> with a release profile tuned for size: <code>opt-level = "s"</code>, <code>lto = true</code>, <code>codegen-units = 1</code>, <code>panic = "abort"</code>, <code>strip = true</code>. RUN <code>npm run tauri build</code>. RECORD the produced installer path and its byte size in <code>scripts/perf-gate.md</code> alongside the fps result. UPDATE <code>README.md</code> with a short section covering the build and test commands and the developer path into a project (<code>--project &lt;path&gt;</code>). VERIFY the front-end bundle contains no reference to an external host.</li>
+  <li><strong>PATTERN:</strong> <code>deployment-target</code> in <code>docs/architecture.html</code> §9 — Windows 11 x64, NSIS, built locally, not signed, no CI.</li>
+  <li><strong>IMPORTS:</strong> none.</li>
+  <li><strong>GOTCHA:</strong> the 20&nbsp;MB budget is on the installer, and the WebView2 <code>downloadBootstrapper</code> mode keeps it small because the runtime is already on Windows 11 — an <code>embedBootstrapper</code> or offline installer mode would blow it immediately. <code>panic = "abort"</code> is safe here because there is no unwinding contract to honour across the FFI boundary.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>npm run tauri build &amp;&amp; node -e "const fs=require('fs'),p=require('path');const d='src-tauri/target/release/bundle/nsis';const f=fs.readdirSync(d).filter(x=&gt;x.endsWith('.exe'));if(!f.length)process.exit(1);const size=fs.statSync(p.join(d,f[0])).size;console.log(f[0],size);if(size&gt;20*1024*1024)process.exit(1);"</code></li>
+</ul>
+
+<h3 class="milestone" data-milestone="6">Milestone 6: Commit, push, and open PR</h3>
+<p>The phase terminates cleanly with a reviewable pull request.</p>
+<p><strong>Validation checkpoint:</strong> the branch exists on origin, the pull request is open against the default branch with the correct head ref, and the full validation suite (Levels 1–3) passes on the pushed tree.</p>
+
+<h4 class="task" data-task="23">Task 23: Commit, push, and open PR</h4>
+<p>After every prior validation checkpoint has passed:</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> stage and commit uncommitted changes with a descriptive message summarizing the phase; push with <code>git push -u origin phase-1-canvas-core</code>; open a PR with <code>gh pr create --head phase-1-canvas-core --title "Phase 1: Canvas core" --body "&lt;body&gt;"</code> (omitting <code>--base</code> targets the repo's default branch, <code>main</code>).</li>
+  <li><strong>PR title format:</strong> <code>Phase 1: Canvas core</code></li>
+  <li><strong>PR body format:</strong> copy the Acceptance Criteria as a checklist with each box checked off, followed by a <code>Notes</code> section listing assumptions and trade-offs decided during execution — at minimum the measured fps and drawn-card numbers, the installer size, the Markdown renderer's bundle cost, whether the per-card box check cleared the gate or grid buckets were needed, and the four added elevation tokens.</li>
+  <li><strong>GOTCHA:</strong> <code>gh</code> is installed and authenticated on this machine (verified at plan time). No AI attribution anywhere in the commit message or the PR body — <code>CLAUDE.md</code> Commit Authorship is explicit: no <code>Co-Authored-By</code>, no session trailer, no generated-with footer. Write in the repository owner's voice.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> <code>gh pr view --json number,title,state,headRefName</code> returns the new PR with <code>"state": "OPEN"</code> and <code>"headRefName": "phase-1-canvas-core"</code>.</li>
+</ul>
+
+<h2>Testing Strategy</h2>
+
+<h3>Unit Tests</h3>
+<p>Vitest with plain <code>expect</code>, jsdom environment. Test the stores and pure logic, not the visual output (<code>CLAUDE.md</code> Testing). Named <code>methodName_condition_expectedResult</code>.</p>
+<ul>
+  <li><code>src/lib/__tests__/</code> — <code>geometry</code> (intersect, contains, screen/world round trip), <code>culling</code> (the full matrix in Task 10), <code>markdown</code> (render and sanitize), <code>shortcuts</code> (every mapping and the text-input suppression), <code>ipc</code> (error translation), <code>tokens</code> and <code>assets</code> (static assertions over the CSS)</li>
+  <li><code>src/stores/__tests__/canvasStore.test.ts</code> — selection operations, derived values, zoom clamping</li>
+  <li><code>src/features/cards/__tests__/</code> — z-order, resize clamping, duplicate semantics</li>
+  <li><code>src/features/undo/__tests__/</code> — the undo/redo invariants</li>
+  <li>Rust <code>#[cfg(test)]</code> modules per area, using a real SQLite file in a <code>tempfile::TempDir</code> — the same engine that ships, so migrations and WAL behave identically. Named <code>fn name_condition_expected()</code>.</li>
+</ul>
+
+<h3>Integration Tests</h3>
+<ul>
+  <li>Rust: open → migrate → create canvas → create note card → move → delete → reopen, asserting durability across connection close (Milestone 1 and Milestone 5 checkpoints)</li>
+  <li>Rust: <code>update_placements</code> rollback — one bad row in a batch leaves every row unchanged</li>
+  <li>Rust: lifecycle — deleting the last placement of an item deletes the item; deleting one of two does not</li>
+  <li>Front end: the Milestone 4 scripted session against a mocked IPC layer, driving store and components together</li>
+  <li>Front end: the Milestone 2 theme-parity spec — every shell measurement identical across <code>data-theme</code> while the role colours change</li>
+</ul>
+
+<h3>Edge Cases</h3>
+<ul>
+  <li>A project folder that does not exist yet, and one that exists but holds no database</li>
+  <li>A database file that is present but unreadable — a plain message names the file; the application does not crash (the picker surface for this is Phase&nbsp;4)</li>
+  <li>A canvas with zero placements — the empty-canvas state, not a blank screen</li>
+  <li>Resize to exactly 50&nbsp;px, and an attempt to go below it, from all four handles</li>
+  <li>A card being edited while the view pans it off screen — it must not be culled and must not lose text</li>
+  <li>Markdown containing script tags, event-handler attributes, <code>javascript:</code> hrefs and malformed nesting</li>
+  <li>A drag interrupted by the window losing focus — the flush must still happen</li>
+  <li>Zoom at both clamp ends, and a wheel event with the modifier both set and unset</li>
+  <li>Undo with an empty stack, redo after a new action, and undo of a multi-card operation</li>
+  <li>A window narrowed below 420&nbsp;px (panel auto-collapses) and to the 350&nbsp;px minimum</li>
+  <li><code>prefers-reduced-motion: reduce</code> — the rise, the panel slide and the zoom transform all go to 0&nbsp;ms</li>
+  <li>Right-click near the right or bottom window edge — the menu flips rather than clipping</li>
+</ul>
+
+<h2>Validation Commands</h2>
+
+<h3>Level 1: Syntax &amp; Style</h3>
+<pre><code>npm run check
+npx prettier --check .
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+</code></pre>
+<p>Expected: exit code 0 from each.</p>
+
+<h3>Level 2: Unit Tests</h3>
+<pre><code>npm test -- --run
+cargo test --manifest-path src-tauri/Cargo.toml
+</code></pre>
+
+<h3>Level 3: Integration Tests</h3>
+<pre><code>cargo test --manifest-path src-tauri/Cargo.toml -- --include-ignored
+npx vitest run src/features src/stores
+</code></pre>
+
+<h3>Level 4: Manual Validation</h3>
+<p>One non-interactive block. It builds the application, asserts the bundle is self-contained, and asserts the recorded gate result. Exits 0 on success, non-zero on failure.</p>
+<pre><code>set -e
+npm run build
+npm run tauri build
+node -e "
+const fs=require('fs'), p=require('path');
+const walk=d=&gt;fs.readdirSync(d,{withFileTypes:true}).flatMap(e=&gt;e.isDirectory()?walk(p.join(d,e.name)):[p.join(d,e.name)]);
+const files=walk('dist');
+const css=files.filter(f=&gt;f.endsWith('.css')).map(f=&gt;fs.readFileSync(f,'utf8')).join('');
+if(/url\(\s*['\&quot;]?https?:/.test(css)) { console.error('external asset reference in bundle'); process.exit(1); }
+if(!files.some(f=&gt;f.endsWith('.woff2'))) { console.error('fonts not vendored'); process.exit(1); }
+const d='src-tauri/target/release/bundle/nsis';
+const exe=fs.readdirSync(d).find(x=&gt;x.endsWith('.exe'));
+if(!exe) { console.error('no NSIS installer'); process.exit(1); }
+const size=fs.statSync(p.join(d,exe)).size;
+console.log('installer', exe, size, 'bytes');
+if(size &gt; 20*1024*1024) { console.error('installer over 20 MB'); process.exit(1); }
+const gate=fs.readFileSync('scripts/perf-gate.md','utf8');
+const m=gate.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i);
+if(!m) { console.error('no median fps recorded'); process.exit(1); }
+if(parseFloat(m[1]) &lt; 60) { console.error('performance gate not met: ' + m[1] + ' fps'); process.exit(1); }
+console.log('gate ok:', m[1], 'fps');
+"
+</code></pre>
+
+<h3>Level 5: Additional Validation (Optional)</h3>
+<pre><code># Confirm no forbidden logging reached shipped source
+! grep -rn "console\.log" src --include=*.ts --include=*.svelte | grep -v "logger.ts"
+! grep -rn "println!" src-tauri/src
+
+# Confirm the import direction rule holds: no feature imports another feature
+! grep -rn "from '\.\./\.\./features/" src/features
+! grep -rn "features/" src/lib src/stores
+
+# Confirm no literal hex colours outside the token layer
+! grep -rniE "#[0-9a-f]{6}\b" src --include=*.svelte
+</code></pre>
+
+<h2>Acceptance Criteria</h2>
+<ul class="checklist">
+  <li data-checked="false">A Tauri 2 window opens on Windows 11 showing the IdeaScape shell, and <code>npm run tauri build</code> produces an NSIS installer</li>
+  <li data-checked="false">The installer is under 20 MB, with the WebView2 bootstrapper in download mode</li>
+  <li data-checked="false">A project folder is created or opened via <code>--project &lt;path&gt;</code>, holding <code>ideascape.db</code> and an <code>assets/</code> folder</li>
+  <li data-checked="false">The database runs in WAL mode with foreign keys on, and <code>rusqlite_migration</code> applies <code>0001_initial_schema.sql</code> creating all five §6.9 tables when the project opens</li>
+  <li data-checked="false">Every colour, radius, shadow, easing and duration in the application comes from <code>src/lib/tokens.css</code>; no literal hex appears in a component</li>
+  <li data-checked="false">Setting <code>data-theme="dark"</code> on the root element renders every Phase 1 screen in the dark palette with no measurement changing</li>
+  <li data-checked="false">Source Serif 4 and the Phosphor regular glyphs are vendored locally; the built bundle contains no external asset URL</li>
+  <li data-checked="false">The title bar (34 px), left column (168 px) and properties panel (177 px expanded / 32 px collapsed) render at their locked measurements, and the panel auto-collapses below 420 px</li>
+  <li data-checked="false">The left column and properties panel scroll with the thin overlay scrollbar, not the WebView2 default</li>
+  <li data-checked="false">Dragging the background pans and scrolling zooms, both untransitioned; the dot grid scales with the view; the zoom bar shows the percentage and offers Zoom To Fit and Reset Zoom</li>
+  <li data-checked="false">Only cards inside the view window plus the margin exist in the page, and the drawn count is instrumented and visible in the development overlay</li>
+  <li data-checked="false"><strong>Gate:</strong> panning a canvas of 250 note cards holds a median 60 frames per second, measured in the running application and recorded in <code>scripts/perf-gate.md</code></li>
+  <li data-checked="false"><strong>Gate:</strong> the shell renders at the locked token values in light and in dark</li>
+  <li data-checked="false"><code>N</code> creates a note card at the pointer; <code>Enter</code> opens the plain text box over the Markdown source; the floating text bar inserts bold, italic, bullet and numbered marks</li>
+  <li data-checked="false">A note card renders sanitized Markdown; a script tag, an event-handler attribute and a <code>javascript:</code> href are all stripped and never reach the page</li>
+  <li data-checked="false">Cards move, resize with a 50 px minimum and no maximum, and reorder with <code>Ctrl+]</code> / <code>Ctrl+[</code>; the panel's X/Y/W/H fields are the typed equivalent</li>
+  <li data-checked="false">Click selects, <code>Ctrl</code>+click toggles, marquee selects exactly the enclosed cards, <code>Ctrl+A</code> selects all, <code>Esc</code> clears, <code>Del</code> deletes</li>
+  <li data-checked="false"><code>Ctrl+D</code> duplicates the selection as independent cards; <code>Ctrl+C</code> / <code>Ctrl+V</code> copy and paste, and pasted plain text becomes a note card</li>
+  <li data-checked="false">Both context menus render at their drawn widths with every item label and shortcut label exactly as specified, and the background menu creates at the pointer</li>
+  <li data-checked="false">The empty-canvas state appears on a canvas with no cards</li>
+  <li data-checked="false">Every change reaches SQLite; one drag produces exactly one multi-row transaction; the title bar shows the save state</li>
+  <li data-checked="false">Closing and reopening the application restores every card and the per-canvas view position and zoom exactly</li>
+  <li data-checked="false"><code>Ctrl+Z</code> / <code>Ctrl+Y</code> undo and redo every action in this phase within the session; undoing a delete restores the item and its placement together; the stacks clear when the project closes</li>
+  <li data-checked="false">All twelve Phase 1 shortcuts work, and every shortcut printed on a context menu is honoured</li>
+  <li data-checked="false">No feature imports another feature; <code>lib/</code> and <code>stores/</code> import no feature; <code>db/</code> never calls <code>commands/</code></li>
+  <li data-checked="false">No <code>console.log</code> outside <code>src/lib/logger.ts</code> and no <code>println!</code> in <code>src-tauri/src</code></li>
+  <li data-checked="false">All UI labels, buttons, headings and menu items are Title Case; body and helper copy is sentence case</li>
+  <li data-checked="false">Every icon-only control has an accessible name — the three window controls, the four zoom-bar buttons, the panel's Duplicate, Delete, Front and Back, and the collapsed-panel caret</li>
+  <li data-checked="false">Keyboard focus draws a 2 px accent ring at 2 px offset on every interactive element; no browser default survives anywhere</li>
+  <li data-checked="false">Accent-coloured <em>text</em> uses <code>--color-accent-700</code>, never <code>--color-accent</code>, which is reserved for fills, outlines, borders and icons</li>
+  <li data-checked="false">Only the 34 glyphs in the closed Phosphor set are used; the shipped stylesheet is the regular weight only</li>
+  <li data-checked="false">Colour is never the only signal — the active tool row and active canvas row each carry weight 600 plus a fill, and disabled rows carry opacity plus a <code>disabled</code> attribute</li>
+</ul>
+
+<h2>Completion Checklist</h2>
+<ul class="checklist">
+  <li data-checked="false">Level 1 passes — <code>npm run check</code>, <code>prettier --check</code>, <code>cargo fmt --check</code>, <code>cargo clippy -D warnings</code> all exit 0</li>
+  <li data-checked="false">Level 2 passes — <code>npm test -- --run</code> and <code>cargo test</code> both green</li>
+  <li data-checked="false">Level 3 passes — the Rust durability and rollback integration tests and the front-end feature/store specs are green</li>
+  <li data-checked="false">Level 4 passes — the build block exits 0: bundle self-contained, installer under 20 MB, median fps at or above 60 recorded</li>
+  <li data-checked="false">Level 5 passes — no forbidden logging, no cross-feature import, no literal hex in a component</li>
+  <li data-checked="false">All five milestone validation checkpoints have been run and passed</li>
+  <li data-checked="false"><code>scripts/perf-gate.md</code> records the machine, date, median and 5th-percentile fps, drawn-card count, culling method used, and installer size</li>
+  <li data-checked="false"><code>README.md</code> documents the build/test commands and the <code>--project</code> developer path</li>
+  <li data-checked="false">Every acceptance criterion above is checked</li>
+  <li data-checked="false">The branch is pushed and the pull request is open against <code>main</code></li>
+</ul>
+
+<h2>Notes</h2>
+
+<h3>Architecture decisions this phase conforms to</h3>
+<p>Read from <code>docs/architecture.html</code>. Every one is <code>data-status="settled"</code>; none is open, so the phase is plannable within the architecture. Slugs touched: <code>runtime-shell</code>, <code>frontend-framework</code>, <code>rendering-approach</code>, <code>storage-engine</code>, <code>db-access-layer</code>, <code>note-text-format</code>, <code>settings-storage</code> (defaults only — the file lands in Phase 5), <code>architecture-pattern</code>, <code>module-layout</code>, <code>import-direction</code>, <code>boundary-table</code> (the WebView2 and SQLite rows), <code>ipc-contract</code>, <code>persistence-strategy</code>, <code>undo-model</code>, <code>failure-surfaces</code>, <code>nfr-targets</code>, <code>deployment-target</code>. Not touched in this phase: <code>search-method</code> (Phase 4), <code>asset-storage</code> and <code>network-boundary</code> (Phase 3).</p>
+
+<h3>Assumptions and decisions made at plan time</h3>
+<p>This was an unattended planning run. No requirements question was put to the user; each was decided in the authority order <code>docs/architecture.html</code> → <code>docs/prd.html</code> → <code>CLAUDE.md</code> → earlier phase docs' Notes → the codebase's dominant pattern → the smallest reversible option. There is no earlier phase doc, and the repository holds no code, so the last two rungs carried the choices the documents left open.</p>
+
+<ul>
+  <li><strong>ASSUMPTION:</strong> The Markdown renderer is <code>marked</code> for parsing plus <code>dompurify</code> for cleaning. Authority: <code>docs/architecture.html</code> §11 delegates this choice to P1 with the direction "a small renderer with built-in cleaning, measure the added bundle size". No single library both parses and cleans well; <code>marked</code> is the smallest well-maintained parser and DOMPurify is the sanitizer of record, and together they are roughly 60 KB gzipped against a 20 MB budget. The pair sits behind <code>src/lib/markdown.ts</code>, so swapping either is one file.</li>
+  <li><strong>ASSUMPTION:</strong> Culling is a per-card axis-aligned box check against the viewport rectangle expanded by a 200 px screen-space margin. Authority: <code>docs/architecture.html</code> §11 states this explicitly — build the simple box check first, measure, move to fixed grid buckets only if the frame rate misses. The margin value is the smallest reversible option: one constant.</li>
+  <li><strong>ASSUMPTION:</strong> Scrollbar styling is a thin overlay — <code>scrollbar-width: thin</code> with <code>scrollbar-color: var(--color-neutral-400) transparent</code>, plus a matching 8 px <code>::-webkit-scrollbar</code> block — applied as a <code>.scroll-thin</code> utility. Authority: <code>docs/design-system.html</code> §15.4 settles this question in P1 and names exactly this as "the obvious fit"; it was simply never drawn.</li>
+  <li><strong>ASSUMPTION:</strong> Source Serif 4 is vendored through the <code>@fontsource/source-serif-4</code> npm package (weights 400 and 600 only) and the Phosphor glyphs through <code>@phosphor-icons/web</code>, importing only <code>src/regular/style.css</code>. Authority: PRD §7.1 requires both to be local with no network fetch, but names no delivery mechanism; these are the standard npm vendoring routes and keep the assets in the build rather than in the repository.</li>
+  <li><strong>ASSUMPTION:</strong> The developer path into a project is a <code>--project &lt;path&gt;</code> command-line argument, falling back to <code>%USERPROFILE%\Documents\IdeaScape\Dev project</code>. Authority: PRD §11 offers "a fixed folder or a command-line argument" and leaves the choice open; the argument is strictly more useful and the fallback covers a double-click launch. It is removed in Phase 4 when the picker lands.</li>
+  <li><strong>ASSUMPTION:</strong> Of the four elevations <code>docs/handoff/README.md</code> flags as drift against the seven <code>docs/design-system.html</code> §5.3 declares closed, only two are added in this phase — <code>--shadow-card-drag</code> and <code>--shadow-textbar</code>. Card hover is <em>not</em> added: §11.2 already specifies that hover lifts a card to the selected shadow, and the design system outranks the handoff on anything both cover. The dialog shadow belongs to Phase 4. Authority: <code>docs/design-system.html</code> authority rule 1, then the handoff's own "Open against the design system" item 2, which leaves the residue to an owner's call — adding two clearly named tokens is the smallest reversible move and changes nothing already signed off. Flag both for the owner in the PR body.</li>
+  <li><strong>ASSUMPTION:</strong> Motion follows <code>docs/design-system.html</code> §11.3, not the handoff's turn-22 sheet, wherever the two disagree. That means <strong>one</strong> easing curve <code>cubic-bezier(.2, 0, .2, 1)</code> (not the handoff's two), context menus and the search popover opening over <strong>110&nbsp;ms with a 3&nbsp;px rise</strong> (not 140&nbsp;ms / 4&nbsp;px), the properties panel collapsing over <strong>140&nbsp;ms</strong> (not 160&nbsp;ms), and menus closing at 0&nbsp;ms. The two documents agree on 90&nbsp;ms hover, 160&nbsp;ms for the zoom transform, 0&nbsp;ms for anything tracking the pointer, and the 900&nbsp;ms linear fetch spinner. Authority: <code>docs/design-system.html</code> is the visual authority and states its own precedence rule; the handoff's README says the same about itself. Reduced motion follows the handoff, which is the only source that specifies it — the rise, the panel slide and the zoom transform go to 0&nbsp;ms; hover tints and the spinner stay, because they carry state.</li>
+  <li><strong>ASSUMPTION:</strong> Zoom is clamped to 10%–400% with 10% button steps. Authority: <strong>no document states a range or a step anywhere</strong> — the only drawn values are 100%, 80% and the 24% of frame <code>21h</code>, so the floor must sit below 24%. This is the smallest reversible option: two constants in one file. Record it so a later design pass can revise it.</li>
+  <li><strong>ASSUMPTION:</strong> A <code>--z-layer</code> ladder is introduced (connections 10, cards 20, marquee 30, canvas bars 40, search popover 50, context menus 60, dialogs 70). Authority: <strong>neither document defines a z-index scale</strong>; both give only prose ordering rules — connections are an SVG sibling placed before the cards in DOM order so cards always paint over lines, and a connection label chip may correctly be occluded by an open menu. The ladder encodes exactly those stated rules and nothing more.</li>
+  <li><strong>ASSUMPTION:</strong> A new note card is created 236&nbsp;px wide with a content-driven height. Authority: <strong>no default size is stated as a rule</strong>; 236&nbsp;px is what every note and link card in the mockups is drawn at, and the handoff states card heights are content-driven where no height is authored. Contract 1 forbids the application choosing a <em>position</em>, not a default size.</li>
+  <li><strong>ASSUMPTION:</strong> The development performance overlay omits the <code>ph-gauge</code> glyph that frame <code>21h</code> draws, and the six align glyphs of frame <code>21c</code> are not needed because the Align group is out of scope. Authority: <code>docs/design-system.html</code> §7.1 declares the glyph set closed at 34, and <code>ph-gauge</code> plus the align set are turn-21/22 additions the design system has not seen. A development-only badge is not worth reopening a closed set; a text label carries the same information.</li>
+  <li><strong>ASSUMPTION:</strong> Where a Phase 1 state is listed as undesigned in <code>docs/design-system.html</code> §15.1 but fully specified in the newer <code>docs/handoff/README.md</code> — marquee multi-select (<code>21c</code>), a note mid-edit (<code>21d</code>) and the 250-card cull screen (<code>21h</code>) — the README values are used, because they are the only specification that exists. Authority: the design system wins on anything <em>both</em> cover; on states it does not cover, there is nothing to outrank. Folding turns 21–22 into the design system via <code>dev-ui-update</code> is recommended but does not block this phase, and §15.4 confirms neither remaining open question blocks P1.</li>
+  <li><strong>ASSUMPTION:</strong> The scrollbar thumb is <code>--color-neutral-400</code> #bab6b6 on light and <code>--color-neutral-600</code> #7d7979 on dark, 8&nbsp;px wide, <code>--radius-sm</code>, on a transparent track. Authority: <code>docs/design-system.html</code> §15.4 assigns this question to P1 and names the light thumb and the transparent track as "the obvious fit"; the width, radius and dark thumb are not given anywhere and are chosen here as the smallest set of values consistent with the rest of the chrome.</li>
+  <li><strong>ASSUMPTION:</strong> Broadsheet's own <code>--space-*</code> ladder (5/10/15/20/30/40) is deleted rather than shipped, and the project's tighter scale (2, 5, 6, 7, 9, 10, 12, 13, 14, 16, 22, 26, 34, 36, 44, 64) is used. Authority: <code>docs/design-system.html</code> §5.1 records this as deviation #4 explicitly. Likewise <code>--color-process-yellow</code> is dropped (§4.4: IdeaScape never uses it) and Broadsheet's component layer is not shipped at all (§14).</li>
+  <li><strong>ASSUMPTION:</strong> Disabled controls sit at opacity <strong>.35</strong>, not Broadsheet's own .45, and take no focus ring. Authority: <code>docs/design-system.html</code> §6.4 — ".35 is the drawn value"; the single exception it names, the disabled Refetch button at .45, belongs to Phase 3.</li>
+  <li><strong>ASSUMPTION:</strong> Entity ids are <code>INTEGER PRIMARY KEY AUTOINCREMENT</code> (Rust <code>i64</code>) and <code>payload</code> is a JSON <code>TEXT</code> column. Authority: PRD §9.2's illustrative command signature already types ids as <code>i64</code>, and PRD §6.9 describes <code>payload</code> as "typed per kind" without naming a storage form; JSON text is the only form that keeps one column across four kinds and stays readable in the project file, which <code>storage-engine</code> requires.</li>
+  <li><strong>ASSUMPTION:</strong> Timestamps are ISO-8601 <code>TEXT</code>. Authority: the codebase has no precedent; text keeps the database file human-readable, which is the stated point of a readable SQLite file in the project folder.</li>
+  <li><strong>ASSUMPTION:</strong> Zoom is clamped to 10%–400%. Authority: no document states a range; frame <code>21h</code> shows 24% as a working zoom, so the lower bound must sit below it. This is one constant and trivially reversible.</li>
+  <li><strong>ASSUMPTION:</strong> <code>src/lib/settings.ts</code> ships in this phase holding typed defaults only — <code>autoSaveMs</code> 3000, <code>snapToGrid</code> false, <code>zoomWith</code> <code>'scroll'</code>, <code>theme</code> <code>'light'</code>. Authority: <code>settings-storage</code> puts <code>settings.json</code> under <code>%APPDATA%\IdeaScape</code> and PRD §11 puts the Settings screen in Phase 5, but Phase 1 needs snap-to-grid and the zoom modifier read from somewhere. <code>CLAUDE.md</code> requires "a typed settings module. No scattered env lookups", so the module exists now and gains its file in Phase 5. The defaults are the Settings screen's own drawn defaults in <code>docs/design-system.html</code> §9.11. The properties panel's footer literal "autosave in 2s" contradicts the 3&nbsp;s default; the footer copy is derived from the setting rather than hard-coded, which makes the discrepancy disappear rather than picking a winner.</li>
+  <li><strong>ASSUMPTION:</strong> Duplicate creates a new item, not a second placement of the same item. Authority: PRD §6.9 reserves multiple placements of one item for reusable library items, which are explicitly out of MVP scope; sharing the item would make an edit to one copy silently change the other.</li>
+  <li><strong>ASSUMPTION:</strong> The test harness is Vitest with the jsdom environment and <code>@testing-library/svelte</code>. Authority: <code>CLAUDE.md</code> names Vitest and <code>npm test</code> but no environment; jsdom is what lets the UI tasks carry a real executable VALIDATE instead of a structural grep, which the unattended-execution rules require.</li>
+  <li><strong>ASSUMPTION:</strong> The performance gate is measured with a development-only <code>requestAnimationFrame</code> overlay (the <code>21h</code> badge) plus a seeded 250-card canvas, and the result is written to <code>scripts/perf-gate.md</code> so a later task and the PR body can both cite it. Authority: <code>CLAUDE.md</code> requires the gate be measured in the running app, not a unit test; a recorded artefact is the only way an automated VALIDATE can assert on a measurement taken by hand.</li>
+  <li><strong>ASSUMPTION:</strong> The Align group drawn on frame <code>21c</code> and the search box's behaviour in the left column are rendered but inert in this phase. Authority: PRD §11 puts search in Phase 4 and never lists Align as an MVP deliverable; the chrome is drawn so the shell is not built twice, which is the same reasoning §16 gives for shipping the dark tokens in P1.</li>
+  <li><strong>ASSUMPTION:</strong> No CI workflow is added. Authority: <code>docs/architecture.html</code> §9 — "built on the developer machine. There is no CI service." Validation commands run locally.</li>
+  <li><strong>DECISION:</strong> Rendering is Milestones rather than Flat, at five substantive milestones plus the PR milestone. Twenty-three tasks across five real sub-layers is well past the ~6-task threshold where a flat list stops being scannable, and each milestone's checkpoint asserts something genuinely cross-task (durability across a process boundary, theme parity across chrome, store/transform/cull agreement, a full scripted session, undo and persistence composing) that no individual task's VALIDATE covers.</li>
+  <li><strong>DECISION:</strong> The IPC seam (Task 2) is built before the first real command (Task 4), and the keyboard dispatcher (Task 11) before the first shortcut consumer (Task 14). Both invert the obvious order deliberately: a seam added after the commands is a seam something has already bypassed, and a dispatcher added after the features is a dispatcher three features already duplicated.</li>
+  <li><strong>DECISION:</strong> <code>list_placements</code> returns placements joined to their items in one call rather than N follow-up item fetches, because opening a canvas of 250 cards is on the two-second project-open budget.</li>
+  <li><strong>DECISION:</strong> Below roughly 40% zoom, note cards render as simplified boxes with text bars rather than full Markdown, per frame <code>21h</code>. This is drawn design, not an optimisation invented here, and it is also the cheapest available lever if the gate is close.</li>
+</ul>
+
+<h3>Conflicts found between documents</h3>
+<p>None material. Three points were checked and resolved:</p>
+<ul>
+  <li>The note payload is <code>{ title, text }</code>, not the original <code>{ text }</code>. <code>docs/prd.html</code> §6.9, <code>docs/design-system.html</code> §15.3 answer 5, and the <code>search-method</code> amendment in <code>docs/architecture.html</code> all agree on the amended shape. Use <code>{ title, text }</code>.</li>
+  <li><code>docs/handoff/IdeaScape UI.dc.html</code> sets <code>font-family: Verdana</code> on every frame. <code>docs/design-system.html</code> reverted that on 2026-09-05 and is the newer authority. Build in Source Serif 4; the design file is the stale copy on this point and its own README says so.</li>
+  <li><code>docs/handoff/README.md</code> gives the Phosphor icons as an unpkg URL, and Broadsheet's <code>styles.css</code> pulls Source Serif 4 from Google Fonts with an <code>@import</code>. PRD §7.1 requires vendored local assets and the privacy rule forbids any network call the user did not start. <code>docs/design-system.html</code> §14 states outright that removing that <code>@import</code> is not optional. Vendor both locally.</li>
+  <li><strong>Motion.</strong> <code>docs/design-system.html</code> §11.3 specifies one easing curve and nine durations; <code>docs/handoff/README.md</code> turn 22 specifies two curves and four durations, and the two disagree on the menu-open duration (110 vs 140&nbsp;ms), the rise distance (3 vs 4&nbsp;px), the panel-collapse duration (140 vs 160&nbsp;ms) and the card hover shadow. The design system wins on every point both cover, per its own authority rule and the handoff's own acknowledgement that it is the stale copy. Resolved values are in the assumptions above. Note that §11.8 says <code>prefers-reduced-motion</code> "currently changes nothing" — that line is stale against §11.3 directly above it, so the handoff's reduced-motion rule is used instead.</li>
+  <li><strong>Cursors.</strong> §11.5 puts <code>grab</code>/<code>grabbing</code> on the canvas background at rest and <code>move</code> on a card body with the Select tool; the handoff puts <code>grab</code> only under the Pan tool and <code>grabbing</code> on a dragged card. Follow §11.5 for the canvas and the card body; the dragging card additionally takes <code>grabbing</code> while the pointer is down, which is the one place the two are compatible.</li>
+  <li>Two questions the design system counts as still open — the four undrawn dark shadows and the <code>--color-accent-2-400</code> contrast check — are assigned to Phase 5 and explicitly do not block P1. The interim rule (§15.4) is applied: scale each light shadow with the same offsets and blur, black ink, roughly triple the alpha.</li>
+</ul>
+
+<h3>Risks carried into execution</h3>
+<ul>
+  <li><strong>The gate is the phase's whole reason for existing.</strong> If 250 cards will not hold 60 fps, the fallback ladder is: confirm the drawn count is actually small (a broken cull makes the number meaningless), then simplify the card's paint at low zoom, then move <code>visiblePlacements</code> to fixed grid buckets behind an unchanged signature. Only if all three miss does <code>rendering-approach</code> come back into question — and that is precisely why it is being measured now, while nothing is built on it.</li>
+  <li><strong>Rust is unfamiliar to the repository owner</strong>, which <code>docs/mvp-plan.html</code> already records as a risk. This phase keeps the Rust surface to eleven commands over five tables and no async, which is the mitigation the architecture chose.</li>
+  <li><strong>Nine text roles sit at or under 12 px in a serif face.</strong> If a role is illegible on real Windows 11 hardware at 100% and 150% scaling, raise that size and record it — never reintroduce a second font family (<code>docs/design-system.html</code> §15.3 answer 2).</li>
+  <li><strong>The 20 MB installer budget</strong> is checked only at the very end, in Task 22. The two things most likely to break it are importing the whole Phosphor package instead of the single regular stylesheet, and importing every Fontsource subset. Both are guarded in Task 6's VALIDATE, but the budget itself is not proven until the installer exists.</li>
+</ul>
+
+</body>
+</html>

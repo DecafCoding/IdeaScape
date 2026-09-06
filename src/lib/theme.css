@@ -1,0 +1,93 @@
+/* The dark palette. It redefines role tokens only — never a measurement, never a radius,
+   duration, spacing or type step. That is what makes "nothing moves between the two
+   themes" structurally true rather than a promise, and what the theme-parity spec asserts.
+
+   The same block appears twice: once under an explicit data-theme="dark", and once under
+   prefers-color-scheme guarded as :root:not([data-theme="light"]), so the unset (System)
+   setting resolves correctly in both directions. The control that sets the attribute is
+   Phase 5; the palette ships now. */
+
+:root[data-theme='dark'] {
+  --color-bg: #1a1817;
+  --color-surface: #262322;
+  --color-raised: #302d2b;
+  --color-text: #ece9e6;
+  --color-divider: #3b3735;
+  --color-accent: #62c5ee;
+  --color-accent-2: #ff90b1;
+  --color-on-accent: #151312;
+  --color-accent-tint-fill: #0a303e;
+  --color-accent-tint-text: #cbeeff;
+
+  --color-dot: rgba(255, 255, 255, 0.16);
+  --color-connection: rgba(236, 233, 230, 0.38);
+  --color-arrowhead: rgba(236, 233, 230, 0.5);
+  --color-placeholder: rgba(236, 233, 230, 0.42);
+
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.42);
+  --shadow-card-selected: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --shadow-zoom-bar: 0 3px 10px rgba(0, 0, 0, 0.45);
+  /* Undrawn on dark; §15.4's interim rule applies until Phase 5 signs the dark theme off:
+     same offsets and blur, black ink, roughly triple the alpha. */
+  --shadow-picker-card: 0 2px 8px rgba(0, 0, 0, 0.36);
+  --shadow-context-menu: 0 10px 28px rgba(0, 0, 0, 0.62);
+  --shadow-search-popover: 0 12px 30px rgba(0, 0, 0, 0.62);
+  --shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.62);
+  --shadow-card-drag: 0 8px 22px rgba(0, 0, 0, 0.58);
+  --shadow-textbar: 0 6px 18px rgba(0, 0, 0, 0.6);
+
+  /* The dark steps are larger because a tint over a dark ground reads weaker (§11.1). */
+  --tint-accent-hover: color-mix(in srgb, var(--color-accent-400) 12%, transparent);
+  --tint-accent-press: color-mix(in srgb, var(--color-accent-400) 20%, transparent);
+  --tint-neutral-hover: color-mix(in srgb, #ece9e6 8%, transparent);
+  --tint-neutral-press: color-mix(in srgb, #ece9e6 13%, transparent);
+
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] ::selection {
+  background: var(--color-accent-900);
+  color: #ece9e6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-bg: #1a1817;
+    --color-surface: #262322;
+    --color-raised: #302d2b;
+    --color-text: #ece9e6;
+    --color-divider: #3b3735;
+    --color-accent: #62c5ee;
+    --color-accent-2: #ff90b1;
+    --color-on-accent: #151312;
+    --color-accent-tint-fill: #0a303e;
+    --color-accent-tint-text: #cbeeff;
+
+    --color-dot: rgba(255, 255, 255, 0.16);
+    --color-connection: rgba(236, 233, 230, 0.38);
+    --color-arrowhead: rgba(236, 233, 230, 0.5);
+    --color-placeholder: rgba(236, 233, 230, 0.42);
+
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.42);
+    --shadow-card-selected: 0 4px 14px rgba(0, 0, 0, 0.5);
+    --shadow-zoom-bar: 0 3px 10px rgba(0, 0, 0, 0.45);
+    --shadow-picker-card: 0 2px 8px rgba(0, 0, 0, 0.36);
+    --shadow-context-menu: 0 10px 28px rgba(0, 0, 0, 0.62);
+    --shadow-search-popover: 0 12px 30px rgba(0, 0, 0, 0.62);
+    --shadow-toggle-knob: 0 1px 3px rgba(0, 0, 0, 0.62);
+    --shadow-card-drag: 0 8px 22px rgba(0, 0, 0, 0.58);
+    --shadow-textbar: 0 6px 18px rgba(0, 0, 0, 0.6);
+
+    --tint-accent-hover: color-mix(in srgb, var(--color-accent-400) 12%, transparent);
+    --tint-accent-press: color-mix(in srgb, var(--color-accent-400) 20%, transparent);
+    --tint-neutral-hover: color-mix(in srgb, #ece9e6 8%, transparent);
+    --tint-neutral-press: color-mix(in srgb, #ece9e6 13%, transparent);
+
+    color-scheme: dark;
+  }
+
+  :root:not([data-theme='light']) ::selection {
+    background: var(--color-accent-900);
+    color: #ece9e6;
+  }
+}

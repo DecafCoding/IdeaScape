@@ -1,0 +1,39 @@
+/* The document reset. Everything here resolves to a token; no literal value survives. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-12-5);
+  /* The shell is a tool window, not a document: the WebView's own selection and context
+     menu on the chrome get in the way of the canvas ones. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+}
+
+/* Text the user is reading or editing is selectable again. */
+input,
+textarea,
+[data-testid='note-card'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
