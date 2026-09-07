@@ -1,5 +1,5 @@
 /**
- * The closed Phosphor glyph set — 34 names, exactly as docs/design-system.html §7.1 lists
+ * The closed Phosphor glyph set — 33 names, exactly as docs/design-system.html §7.1 lists
  * them. Typed as a union so `Icon.svelte` cannot be handed a glyph outside the set, which
  * is what keeps the set closed in practice and not only on paper.
  */
@@ -39,7 +39,6 @@ export const GLYPHS = [
   'image-broken',
   'link-simple',
   'circle-dashed',
-  'play',
   'youtube-logo',
   // Menus and pages
   'folder-plus',

@@ -8,7 +8,7 @@
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
   import { canvasStore } from '../../stores/canvasStore.svelte';
-  import { assetStatus } from '../../lib/assets';
+  import { assetStatus } from '../../lib/assets.svelte';
   import {
     CONNECTION_COLORS,
     CONNECTION_ROUTES,
@@ -424,7 +424,7 @@
               checked={image.title_visible}
               onchange={(e) => onImageTitleVisibleChange?.(e.currentTarget.checked)}
             />
-            Show Title On Card
+            Show Title
           </label>
         </section>
       {/if}
@@ -469,7 +469,7 @@
               checked={image.alt_visible}
               onchange={(e) => onAltVisibleChange?.(e.currentTarget.checked)}
             />
-            Show Description On Card
+            Show Description
           </label>
         </section>
       {/if}

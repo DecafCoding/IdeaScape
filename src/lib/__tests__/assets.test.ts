@@ -17,15 +17,22 @@ describe('vendored assets', () => {
     expect(imports).toEqual(['@phosphor-icons/web/regular']);
   });
 
-  it('assets_fontStylesheet_pullsOnlyTheThreeFacesTheDesignUses', () => {
-    expect(fonts).toContain('latin-400.css');
-    expect(fonts).toContain('latin-600.css');
-    expect(fonts).toContain('latin-400-italic.css');
-    expect(fonts.match(/@import/g)?.length).toBe(3);
+  it('assets_fontStylesheet_pullsOnlyTheLatinFacesTheThreeChoicesUse', () => {
+    const imports = [...fonts.matchAll(/@import\s+'([^']+)'/g)].map((m) => m[1]);
+    // Three faces each for the two full families, one for the single-weight hand.
+    expect(imports).toEqual([
+      '@fontsource/source-serif-4/latin-400.css',
+      '@fontsource/source-serif-4/latin-600.css',
+      '@fontsource/source-serif-4/latin-400-italic.css',
+      '@fontsource/inter/latin-400.css',
+      '@fontsource/inter/latin-600.css',
+      '@fontsource/inter/latin-400-italic.css',
+      '@fontsource/patrick-hand/latin-400.css',
+    ]);
   });
 
-  it('assets_glyphSet_holdsExactlyTheThirtyFourClosedNames', () => {
-    expect(GLYPHS).toHaveLength(34);
-    expect(new Set(GLYPHS).size).toBe(34);
+  it('assets_glyphSet_holdsExactlyTheThirtyThreeClosedNames', () => {
+    expect(GLYPHS).toHaveLength(33);
+    expect(new Set(GLYPHS).size).toBe(33);
   });
 });

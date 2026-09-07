@@ -14,7 +14,7 @@
  */
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import { invokeSafe } from '../lib/ipc';
-import { clearAssetStatuses, refreshAssetStatuses } from '../lib/assets';
+import { clearAssetStatuses, refreshAssetStatuses } from '../lib/assets.svelte';
 import { clampZoom, type Point, type Size, type View } from '../lib/geometry';
 import {
   payloadAssetNames,

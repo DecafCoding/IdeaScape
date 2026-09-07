@@ -268,17 +268,17 @@ carried from the MVP plan, section 4.</p>
 <code>%APPDATA%\IdeaScape</code>. That is one file per machine, not one per project. The Settings
 screen names this path in its own footer, so it is user-visible.</p>
 
-<p>It holds the four values the Settings screen edits: the auto-save cadence, snap to grid, the
-zoom modifier, and the theme. The project folder path shown there is read-only and comes from the
+<p>It holds the five values the Settings screen edits: the auto-save cadence, snap to grid, the
+zoom modifier, the theme and the font. The project folder path shown there is read-only and comes from the
 open project, not from this file.</p>
 
 <p>It is deliberately <b>not</b> in the project folder. A project folder must stay portable &mdash;
 moved, zipped or backed up whole &mdash; and it would be wrong for a copied folder to carry another
-machine's theme choice. Nothing in this file is user data; losing it resets the four values to
+machine's theme choice. Nothing in this file is user data; losing it resets the five values to
 their defaults and nothing else.</p>
 
-<p>SQLite was considered for these four values and rejected. It would mean a second database with
-its own migrations for four scalars. Windows registry keys were rejected: the plan's privacy rule
+<p>SQLite was considered for these five values and rejected. It would mean a second database with
+its own migrations for five scalars. Windows registry keys were rejected: the plan's privacy rule
 favours a file the user can read and delete.</p>
 
 <p><i>Added 2026-09-05 by <code>dev-ui-update</code>. The Settings screen arrived with the design
@@ -691,7 +691,7 @@ information goes out over the network. The rest of the decision is unchanged. Th
 with no key configured and nothing to fill in to start.<br>
 <b>No capability was added.</b> The video card stays on the public YouTube oEmbed path, so
 <code>network-boundary</code>, <code>boundary-table</code> and <code>settings-storage</code> are
-untouched. <code>settings.json</code> still holds four values.<br>
+untouched. <code>settings.json</code> still holds five values.<br>
 <a href="prd.html">docs/prd.html</a> section 8.2 and <code>CLAUDE.md</code> were corrected to match
 before this entry was written. Twenty decisions stand: four expensive, eight moderate, eight cheap.
 </p>

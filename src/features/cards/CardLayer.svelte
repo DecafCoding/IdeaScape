@@ -15,7 +15,7 @@
   import LinkCard from './LinkCard.svelte';
   import VideoCard from './VideoCard.svelte';
   import { canvasStore } from '../../stores/canvasStore.svelte';
-  import { assetStatus } from '../../lib/assets';
+  import { assetStatus } from '../../lib/assets.svelte';
   import { cullWithCounts, recordCullCounts } from '../../lib/culling';
   import { resizeRect, snapToGrid, type ResizeHandle } from '../../lib/geometry';
   import { getSettings } from '../../lib/settings.svelte';

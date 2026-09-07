@@ -1,10 +1,20 @@
 <!--
-  A video card's contents, per design-system §9.6: a 153 px thumbnail band with a centred
-  play badge, then the provider row, the title and the invitation to open it.
+  A video card's contents, per design-system §9.6: a 153 px thumbnail band with the red
+  YouTube mark in its bottom-right corner, then the title.
+
+  There is no play badge. It was drawn in the mockups and shipped in Phase 3, and the owner
+  removed it on 2026-09-07: the badge promised playback the card does not do, and a YouTube
+  thumbnail usually carries its own.
 
   Video never plays in place. There is no iframe: watching happens in the system browser,
   which is what the boundary table's YouTube row requires, and an embedded player is a
   documented post-MVP gap rather than an omission to fix here.
+
+  The YouTube mark IS the open control — it is the one thing on the card that opens the
+  address in the system browser. Opening is never the card body: that belongs to selection
+  and dragging like every other card kind, so a click meaning "select this" cannot be
+  mistaken for one meaning "leave the application". The mark carries `data-owns-press` so
+  the card layer's pointer capture leaves its click alone.
 
   The drawn duration chip is deliberately NOT built — YouTube's public oEmbed response
   carries no duration, and the only endpoint that does needs an API key, which CLAUDE.md
@@ -12,72 +22,50 @@
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
-  import { assetUrl } from '../../lib/assets';
+  import { assetUrl } from '../../lib/assets.svelte';
   import { LOW_ZOOM } from '../../lib/geometry';
   import type { VideoPayload } from '../../lib/types';
 
   interface Props {
     payload: VideoPayload;
     zoom: number;
-    /** A stationary click, not a drag. The root decides what opening means. */
+    /** The YouTube mark was clicked. The root decides what opening means. */
     onOpen?: () => void;
   }
 
   const { payload, zoom, onOpen }: Props = $props();
 
-  /** Past this many pixels of pointer travel the gesture was a drag, not a click. */
-  const CLICK_SLOP = 3;
-
   const simplified = $derived(zoom < LOW_ZOOM);
   const fetched = $derived(payload.fetched_at !== null);
   const thumbnail = $derived(assetUrl(payload.thumbnail_asset));
-
-  let pressedAt: { x: number; y: number } | null = null;
-
-  /**
-   * The press position comes from `mousedown` rather than `pointerdown`: the card shell owns
-   * the pointer events for dragging, and a mouse event carries the coordinates in every
-   * environment the tests run in as well as in the real WebView.
-   */
-  function onMouseDown(event: MouseEvent) {
-    pressedAt = { x: event.clientX, y: event.clientY };
-  }
-
-  function onClick(event: MouseEvent) {
-    const start = pressedAt;
-    pressedAt = null;
-    if (!start) return;
-    const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
-    if (moved >= CLICK_SLOP) return;
-    onOpen?.();
-  }
 </script>
 
-<!-- The shell already owns selection and dragging; this only adds the open gesture. -->
-<div
-  class="video"
-  data-testid="video-card"
-  role="presentation"
-  onmousedown={onMouseDown}
-  onclick={onClick}
->
+<div class="video" data-testid="video-card">
   <div class="band" class:fill={simplified}>
     {#if thumbnail}
       <img src={thumbnail} alt="" decoding="async" loading="lazy" draggable="false" />
     {/if}
-    <span class="badge" data-testid="video-card-play" aria-hidden="true">
-      <Icon glyph="play" size={16} />
-    </span>
+    <!-- The provider is a mark on the thumbnail, not a word: the logo says "YouTube" on its
+         own, and the corner keeps the body to the title alone. It is also the open button. -->
+    <button
+      type="button"
+      class="provider-mark"
+      data-testid="video-card-provider"
+      data-owns-press
+      title="Open In Your Browser"
+      aria-label="Open In Your Browser"
+      onclick={(event) => {
+        event.stopPropagation();
+        onOpen?.();
+      }}
+    >
+      <Icon glyph="youtube-logo" size={13} />
+    </button>
   </div>
 
   {#if !simplified}
     <div class="body">
-      <p class="provider">
-        <Icon glyph="youtube-logo" size={13} />
-        <span class="provider-text">{payload.provider}</span>
-      </p>
       <p class="title">{fetched && payload.title ? payload.title : payload.url}</p>
-      <p class="open">Click to open in your browser</p>
     </div>
   {/if}
 </div>
@@ -86,10 +74,13 @@
   .video {
     height: 100%;
     box-sizing: border-box;
+    /* The shell's own radius, repeated here: the thumbnail band starts at the very top of
+       the card, and without this its square corners paint over the shell's rounded ones.
+       `overflow: hidden` is what clips the picture to it. */
+    border-radius: var(--radius-card);
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    cursor: pointer;
   }
 
   /* §9.6 draws the band 153 px tall, which is 16:9 against the card's authored 272 px
@@ -121,37 +112,25 @@
     display: block;
   }
 
-  .badge {
-    position: absolute;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: var(--color-play-badge);
-    display: grid;
-    place-items: center;
-    color: var(--color-text);
-  }
-
   .body {
     padding: 10px 13px 12px;
     min-width: 0;
   }
 
-  .provider {
-    margin: 0 0 var(--space-6);
-    display: flex;
-    align-items: center;
-    gap: var(--space-6);
-    font-size: var(--text-10);
-    letter-spacing: var(--tracking-6);
-    text-transform: uppercase;
-    opacity: 0.5;
-  }
-
-  .provider-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  /* The logo in its own brand red, straight on the thumbnail with no ground: it is a mark,
+     not a chip. §9.6's duration-chip corner: 7px in. It is also the card's only control, so
+     it is a real button — hence the reset of the browser's own button paint. */
+  .provider-mark {
+    position: absolute;
+    right: 7px;
+    bottom: 7px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-provider-youtube);
+    cursor: pointer;
   }
 
   .title {
@@ -161,11 +140,5 @@
     line-height: 1.35;
     overflow: hidden;
     word-break: break-word;
-  }
-
-  .open {
-    margin: var(--space-6) 0 0;
-    font-size: var(--text-11);
-    opacity: 0.45;
   }
 </style>

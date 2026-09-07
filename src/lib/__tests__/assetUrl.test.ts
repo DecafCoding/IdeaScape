@@ -16,7 +16,7 @@ const {
   noteAssetPresent,
   refreshAssetStatuses,
   setAssetsFolder,
-} = await import('../assets');
+} = await import('../assets.svelte');
 
 describe('assetUrl', () => {
   beforeEach(() => {

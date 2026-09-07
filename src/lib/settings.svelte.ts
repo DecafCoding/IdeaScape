@@ -1,5 +1,5 @@
 /**
- * The typed settings module — the one place the four values in
+ * The typed settings module — the one place the five values in
  * `%APPDATA%\IdeaScape\settings.json` are read and written. CLAUDE.md requires settings be
  * read once through one typed module, so nothing else in the front end may hold them.
  *
@@ -17,6 +17,8 @@ import { logWarn } from './logger';
 
 export type ZoomModifier = 'scroll' | 'ctrl-scroll';
 export type Theme = 'light' | 'dark' | 'system';
+/** The three type families the Font row offers. `serif` is the product's own face. */
+export type FontChoice = 'serif' | 'sans' | 'marker';
 
 export interface Settings {
   /** The ceiling on how long queued geometry may sit unwritten. Options: 1000 / 3000 / 10000. */
@@ -24,6 +26,7 @@ export interface Settings {
   snapToGrid: boolean;
   zoomWith: ZoomModifier;
   theme: Theme;
+  font: FontChoice;
 }
 
 /** The Settings screen's own drawn defaults (design-system §9.11). */
@@ -32,12 +35,14 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   snapToGrid: false,
   zoomWith: 'scroll',
   theme: 'light',
+  font: 'serif',
 });
 
 /** The three cadences the Auto-save segmented control offers. */
 export const AUTO_SAVE_OPTIONS = [1000, 3000, 10000] as const;
 export const ZOOM_OPTIONS: readonly ZoomModifier[] = ['scroll', 'ctrl-scroll'];
 export const THEME_OPTIONS: readonly Theme[] = ['light', 'dark', 'system'];
+export const FONT_OPTIONS: readonly FontChoice[] = ['serif', 'sans', 'marker'];
 
 const store = $state<Settings>({ ...DEFAULT_SETTINGS });
 
@@ -58,7 +63,7 @@ export function resetSettings(): void {
 /**
  * The same allowed sets the Rust `sanitize` enforces, so a hand-edited file cannot put the
  * UI into a state no control can draw. An invalid value falls back per field: a user who
- * edits one line badly does not lose the other three.
+ * edits one line badly does not lose the other four.
  */
 export function sanitizeSettings(raw: unknown): Settings {
   const source = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
@@ -71,9 +76,12 @@ export function sanitizeSettings(raw: unknown): Settings {
   const theme = THEME_OPTIONS.includes(source.theme as Theme)
     ? (source.theme as Theme)
     : DEFAULT_SETTINGS.theme;
+  const font = FONT_OPTIONS.includes(source.font as FontChoice)
+    ? (source.font as FontChoice)
+    : DEFAULT_SETTINGS.font;
   const snapToGrid =
     typeof source.snapToGrid === 'boolean' ? source.snapToGrid : DEFAULT_SETTINGS.snapToGrid;
-  return { autoSaveMs, snapToGrid, zoomWith, theme };
+  return { autoSaveMs, snapToGrid, zoomWith, theme, font };
 }
 
 /** Read the file. Never throws: a failure is the defaults plus a warning in the log. */

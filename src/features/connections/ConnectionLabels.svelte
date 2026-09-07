@@ -1,8 +1,8 @@
 <!--
   Label chips (design-system §9.13). HTML spans rather than SVG text, so a label sits on a
   solid ground and stays readable over a card, a line or the grid. The chip is drawn at full
-  strength with a hairline divider border; selecting its connection turns that border to the
-  accent.
+  strength with a hairline border in its own connection's colour, so a chip reads as part of
+  the line it names; selecting the connection turns that border to the accent.
 
   Below 50 px of *on-screen* line length the chip is not drawn — not truncated, not shrunk,
   not offset. The label itself is kept: it still shows in the properties panel and returns
@@ -21,6 +21,7 @@
     routePoints,
     segmentMidpoint,
   } from '../../lib/connectionGeometry';
+  import { connectionStroke } from '../../lib/connectionStyle';
   import type { Point, Rect } from '../../lib/geometry';
   import type { Placement } from '../../lib/types';
 
@@ -33,6 +34,8 @@
     label: string;
     at: Point;
     selected: boolean;
+    /** The line's own ink, as a CSS value — the chip's border matches its connection. */
+    stroke: string;
   }
 
   const chips = $derived.by(() => {
@@ -55,6 +58,7 @@
         label,
         at: segmentMidpoint(segment.a, segment.b),
         selected: canvasStore.selectedConnectionId === connection.id,
+        stroke: connectionStroke(connection.color),
       });
     }
     return result;
@@ -68,7 +72,8 @@
       class="chip"
       class:selected={chip.selected}
       data-connection-id={chip.id}
-      style="left: {chip.at.x}px; top: {chip.at.y}px;">{chip.label}</span
+      style="left: {chip.at.x}px; top: {chip.at.y}px; --chip-border: {chip.stroke};"
+      >{chip.label}</span
     >
   {/each}
 </div>
@@ -92,7 +97,9 @@
        let the stroke read straight through the text. */
     white-space: nowrap;
     color: var(--color-text);
-    border: 1px solid var(--color-divider);
+    /* The line's ink, passed in per chip. The fallback keeps the hairline divider for a
+       chip drawn before its colour resolves. */
+    border: 1px solid var(--chip-border, var(--color-divider));
     box-sizing: border-box;
   }
 

@@ -523,7 +523,7 @@ video  { url, provider, title, thumbnail_asset, fetched_at }</code></pre>
   </tr>
   <tr>
     <td>Settings</td><td>One <code>settings.json</code> per machine under <code>%APPDATA%\IdeaScape</code></td><td><code>settings-storage</code></td>
-    <td>Outside every project folder, so a copied project never carries another machine's theme. A second SQLite database for four scalars was rejected; registry keys were rejected against the privacy rule</td>
+    <td>Outside every project folder, so a copied project never carries another machine's theme. A second SQLite database for five scalars was rejected; registry keys were rejected against the privacy rule</td>
   </tr>
   <tr>
     <td>Link previews</td><td><code>reqwest</code> + <code>scraper</code>, reading Open Graph tags</td><td><code>network-boundary</code></td>
@@ -571,8 +571,8 @@ video  { url, provider, title, thumbnail_asset, fetched_at }</code></pre>
 
 <h3>8.2 Configuration management</h3>
 <ul>
-  <li>One configuration file: <code>%APPDATA%\IdeaScape\settings.json</code>, holding auto-save cadence, snap to grid, zoom modifier and theme.</li>
-  <li>It is written by the application, has working defaults, and is never required to exist. Deleting it resets those four values and nothing else. It holds no user data.</li>
+  <li>One configuration file: <code>%APPDATA%\IdeaScape\settings.json</code>, holding auto-save cadence, snap to grid, zoom modifier, theme and font.</li>
+  <li>It is written by the application, has working defaults, and is never required to exist. Deleting it resets those five values and nothing else. It holds no user data.</li>
   <li><strong>No environment variables, and no key the application ships with.</strong> Nothing the user must fill in to start.</li>
   <li><strong>A user-supplied API key is allowed</strong> &mdash; for example a YouTube data key, or an AI key as noted in section 13. It would be held in this same file and used only for a call the user started. None is used in the MVP. The absolute rule is the privacy rule: no user information goes out over the network.</li>
   <li>The project folder path shown in Settings is read-only and comes from the open project, not from this file.</li>
@@ -796,7 +796,7 @@ const p = await invokeSafe&lt;Placement&gt;('create_placement', {
 
 <h3 class="phase" data-phase="5">Phase 5: Settings and appearance</h3>
 <p class="meta">Estimate: small. Added 2026-09-05 with the design handoff. It sits last so no earlier phase is renumbered.</p>
-<p><strong>Goal:</strong> the user controls the four settings and the theme, and the dark theme is signed off end to end.</p>
+<p><strong>Goal:</strong> the user controls the five settings and the theme, and the dark theme is signed off end to end.</p>
 <p><strong>Deliverables:</strong></p>
 <ul class="checklist">
   <li data-checked="false">The Settings page: project folder (read-only), auto-save cadence, snap to grid, zoom with, theme</li>

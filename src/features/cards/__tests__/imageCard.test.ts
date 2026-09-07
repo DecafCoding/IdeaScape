@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cleanup, fireEvent, render } from '@testing-library/svelte';
 import ImageCard from '../ImageCard.svelte';
-import { setAssetsFolder } from '../../../lib/assets';
+import { setAssetsFolder } from '../../../lib/assets.svelte';
 import { LOW_ZOOM } from '../../../lib/geometry';
 import type { ImagePayload } from '../../../lib/types';
 

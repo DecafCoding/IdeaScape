@@ -64,12 +64,12 @@
   } from './features/undo/commands';
   import { canvasStore } from './stores/canvasStore.svelte';
   import { invokeSafe, IpcError } from './lib/ipc';
-  import { getAssetsFolder, noteAssetPresent, setAssetsFolder } from './lib/assets';
+  import { getAssetsFolder, noteAssetPresent, setAssetsFolder } from './lib/assets.svelte';
   import { LINK_SIZE, NOTE_SIZE, VIDEO_SIZE } from './lib/cardKinds';
   import { decidePaste, type UrlClassification } from './lib/paste';
   import { registerShortcuts } from './lib/shortcuts';
   import { getSettings, loadSettings } from './lib/settings.svelte';
-  import { applyTheme } from './lib/theme';
+  import { applyFont, applyTheme } from './lib/theme';
   import {
     debounce,
     flushPlacements,
@@ -189,7 +189,9 @@
    */
   $effect(() => {
     void guard(async () => {
-      applyTheme((await loadSettings()).theme);
+      const loaded = await loadSettings();
+      applyTheme(loaded.theme);
+      applyFont(loaded.font);
       await projectsState.loadRecents();
       await maybeRunPerfGate();
     });
@@ -214,6 +216,8 @@
   async function openProject(path: string) {
     try {
       await canvasStore.openProject(path);
+      // Read after the project is open — the folder is per project — but the value is
+      // reactive, so the cards drawn by `openProject` pick their pictures up from here.
       setAssetsFolder(await invokeSafe<string>('assets_folder'));
       folderPath = path;
       // The stack holds ids from the project that is closing. `undo-model`: session only.

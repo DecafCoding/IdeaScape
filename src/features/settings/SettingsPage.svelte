@@ -1,6 +1,6 @@
 <!--
   The Settings page (design-system §9.11, frame 16a): a full-screen page replacing the canvas,
-  with five rows in three groups. The title bar and the left column stay, and the left column's
+  with six rows in three groups. The title bar and the left column stay, and the left column's
   gear is the active row.
 
   There is no Save, no Cancel, no confirm and no toast. §10 contract 6 is explicit: changes
@@ -16,12 +16,13 @@
   import Icon from '../../lib/Icon.svelte';
   import SegmentedControl from './SegmentedControl.svelte';
   import Toggle from './Toggle.svelte';
-  import { applyTheme } from '../../lib/theme';
+  import { applyFont, applyTheme } from '../../lib/theme';
   import {
     AUTO_SAVE_OPTIONS,
     getSettings,
     setSetting,
     settingsLocation,
+    type FontChoice,
     type Theme,
     type ZoomModifier,
   } from '../../lib/settings.svelte';
@@ -51,6 +52,12 @@
     { value: 'system', label: 'System' },
   ];
 
+  const fontOptions: { value: FontChoice; label: string }[] = [
+    { value: 'serif', label: 'Serif' },
+    { value: 'sans', label: 'Sans' },
+    { value: 'marker', label: 'Marker' },
+  ];
+
   // The drawn literal is the starting value, so the footer line is never empty and is right
   // in every normal case; the command replaces it with whatever the application resolved.
   let location = $state('%APPDATA%\\IdeaScape');
@@ -65,6 +72,12 @@
     // Repaint first, then persist: §11.3 gives the theme change 0 ms and the write is slower.
     applyTheme(theme);
     void setSetting('theme', theme);
+  }
+
+  /** Same order as the theme: swap the family first, then persist. */
+  function chooseFont(font: FontChoice) {
+    applyFont(font);
+    void setSetting('font', font);
   }
 </script>
 
@@ -151,6 +164,19 @@
           value={settings.theme}
           label="Theme"
           onChange={chooseTheme}
+        />
+      </div>
+
+      <div class="row">
+        <div class="text">
+          <span class="label">Font</span>
+          <span class="helper">Marker is a single-weight hand; sizes never change.</span>
+        </div>
+        <SegmentedControl
+          options={fontOptions}
+          value={settings.font}
+          label="Font"
+          onChange={chooseFont}
         />
       </div>
     </section>

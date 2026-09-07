@@ -28,6 +28,7 @@ beforeEach(() => {
   );
   resetSettings();
   document.documentElement.removeAttribute('data-theme');
+  document.documentElement.removeAttribute('data-font');
 });
 
 afterEach(cleanup);
@@ -100,8 +101,9 @@ describe('the Settings page', () => {
 
   /**
    * Milestone 3's checkpoint. Each control in turn: the store moves, exactly one
-   * `write_settings` carries all four values, the drawn active option moves, and Theme also
-   * moves `data-theme` on the root and takes it off again on System.
+   * `write_settings` carries all five values, the drawn active option moves, and Theme and
+   * Font also move `data-theme` / `data-font` on the root — Theme taking its attribute off
+   * again on System, Font never, because Font has no "follow Windows" choice.
    */
   it('milestone3_everyControl_movesTheStoreTheFileAndForThemeTheRootElement', async () => {
     const { getByRole } = show();
@@ -112,7 +114,13 @@ describe('the Settings page', () => {
     await waitFor(() => expect(getSettings().autoSaveMs).toBe(10000));
     expect(writes()).toHaveLength(1);
     expect(writes()[0][1]).toEqual({
-      settings: { autoSaveMs: 10000, snapToGrid: false, zoomWith: 'scroll', theme: 'light' },
+      settings: {
+        autoSaveMs: 10000,
+        snapToGrid: false,
+        zoomWith: 'scroll',
+        theme: 'light',
+        font: 'serif',
+      },
     });
     expect(getByRole('radio', { name: '10s' }).getAttribute('aria-checked')).toBe('true');
     expect(getByRole('radio', { name: '3s' }).getAttribute('aria-checked')).toBe('false');
@@ -132,13 +140,30 @@ describe('the Settings page', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(writes()).toHaveLength(4);
     expect(writes()[3][1]).toEqual({
-      settings: { autoSaveMs: 10000, snapToGrid: true, zoomWith: 'ctrl-scroll', theme: 'dark' },
+      settings: {
+        autoSaveMs: 10000,
+        snapToGrid: true,
+        zoomWith: 'ctrl-scroll',
+        theme: 'dark',
+        font: 'serif',
+      },
     });
 
     await fireEvent.click(getByRole('radio', { name: 'System' }));
     await waitFor(() => expect(getSettings().theme).toBe('system'));
     expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
     expect(writes()).toHaveLength(5);
+
+    await fireEvent.click(getByRole('radio', { name: 'Marker' }));
+    await waitFor(() => expect(getSettings().font).toBe('marker'));
+    expect(document.documentElement.getAttribute('data-font')).toBe('marker');
+    expect(writes()).toHaveLength(6);
+
+    // Serif is the default, and it writes the attribute rather than removing it.
+    await fireEvent.click(getByRole('radio', { name: 'Serif' }));
+    await waitFor(() => expect(getSettings().font).toBe('serif'));
+    expect(document.documentElement.getAttribute('data-font')).toBe('serif');
+    expect(writes()).toHaveLength(7);
   });
 
   it('milestone3_keyboard_reachesEveryControlAndArrowsStayInsideTheirGroup', async () => {
@@ -153,8 +178,8 @@ describe('the Settings page', () => {
     ]
       .filter((el) => el.getAttribute('tabindex') !== '-1')
       .filter((el, index, all) => all.indexOf(el) === index);
-    // 3 checked radios + 1 switch + Back = 5.
-    expect(tabbable).toHaveLength(5);
+    // 4 checked radios + 1 switch + Back = 6.
+    expect(tabbable).toHaveLength(6);
 
     // An arrow key inside the Theme group moves within it and never into Zoom with.
     await fireEvent.keyDown(getByRole('radio', { name: 'Light' }), { key: 'ArrowLeft' });
