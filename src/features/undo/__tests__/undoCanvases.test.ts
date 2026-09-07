@@ -54,6 +54,7 @@ function effectFor(id: number): CanvasDeleteEffect {
         color: 'default',
         width: 1,
         label_visible: true,
+        route: 'straight',
       },
     ],
     assets: ['pic.png'],

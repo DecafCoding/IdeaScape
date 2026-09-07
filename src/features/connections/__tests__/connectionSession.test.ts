@@ -86,6 +86,7 @@ class FakeProject {
         color: 'default',
         width: 1,
         label_visible: true,
+        route: 'straight',
       };
       this.rows.set(row.id, row);
       return row;
@@ -235,6 +236,7 @@ describe('the phase 2 gate session', () => {
         row!.color,
         row!.width,
         row!.label_visible,
+        row!.route,
       );
     }
     expect([...project.rows.values()].map((r) => r.label)).toEqual(['edge 1', 'edge 2', 'edge 3']);
@@ -247,7 +249,15 @@ describe('the phase 2 gate session', () => {
     const row = (await link(1, 2))!;
     expect(row.directed).toBe(1);
 
-    await updateConnection(row.id, row.label, 2, row.color, row.width, row.label_visible);
+    await updateConnection(
+      row.id,
+      row.label,
+      2,
+      row.color,
+      row.width,
+      row.label_visible,
+      row.route,
+    );
     expect(project.rows.get(row.id)?.directed).toBe(2);
 
     // Deselect first: a freshly drawn line is selected, and a selected line draws the
@@ -288,6 +298,7 @@ describe('the phase 2 gate session', () => {
       row.color,
       row.width,
       row.label_visible,
+      row.route,
     );
 
     canvasStore.setView({ zoom: 1 });
@@ -324,7 +335,7 @@ describe('the phase 2 gate session', () => {
   it('step8_undoTheDelete_theCardAndBothLinesComeBackUnderTheirOwnIds', async () => {
     for (let n = 0; n < 3; n += 1) canvasStore.upsertCard(project.note(n * 300));
     const a = (await link(1, 2))!;
-    await updateConnection(a.id, 'first', 3, a.color, a.width, a.label_visible);
+    await updateConnection(a.id, 'first', 3, a.color, a.width, a.label_visible, a.route);
     await link(2, 3);
 
     const effect = (await invokeSafe('delete_placements', { ids: [2] })) as DeleteEffect;
@@ -382,7 +393,15 @@ describe('the phase 2 gate session', () => {
     canvasStore.upsertCard(project.note(0));
     canvasStore.upsertCard(project.note(300));
     const row = (await link(1, 2))!;
-    await updateConnection(row.id, 'survives', 3, row.color, row.width, row.label_visible);
+    await updateConnection(
+      row.id,
+      'survives',
+      3,
+      row.color,
+      row.width,
+      row.label_visible,
+      row.route,
+    );
 
     // Close: the store is emptied. The fake project keeps its rows, as SQLite would.
     canvasStore.closeProject();

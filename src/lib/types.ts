@@ -149,6 +149,8 @@ export interface Connection {
   width: number;
   /** Whether the label chip is drawn. The label text is kept when this is false. */
   label_visible: boolean;
+  /** The line's shape: a key from `lib/connectionStyle.ts` — `straight` or `elbow`. */
+  route: string;
 }
 
 /** Arrow direction: none, an arrow at the `to` end, at the `from` end, or both. */

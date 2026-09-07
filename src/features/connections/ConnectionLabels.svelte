@@ -6,14 +6,21 @@
 
   Below 50 px of *on-screen* line length the chip is not drawn — not truncated, not shrunk,
   not offset. The label itself is kept: it still shows in the properties panel and returns
-  unchanged when the cards move apart or the canvas zooms in.
+  unchanged when the cards move apart or the canvas zooms in. On an elbow route both the
+  measurement and the chip's position use the route's LONGEST segment: it is the only one
+  with room, and a chip on the midpoint of the whole path would sit on a bend.
 
   The layer sits above the connection layer and below the card layer, and is
   pointer-events: none throughout — a chip is a label, never a target.
 -->
 <script lang="ts">
   import { canvasStore } from '../../stores/canvasStore.svelte';
-  import { connectionEndpoints, labelVisible, segmentMidpoint } from '../../lib/connectionGeometry';
+  import {
+    labelVisible,
+    longestSegment,
+    routePoints,
+    segmentMidpoint,
+  } from '../../lib/connectionGeometry';
   import type { Point, Rect } from '../../lib/geometry';
   import type { Placement } from '../../lib/types';
 
@@ -38,13 +45,15 @@
       const from = canvasStore.placements.get(connection.from_placement_id);
       const to = canvasStore.placements.get(connection.to_placement_id);
       if (!from || !to) continue;
-      const points = connectionEndpoints(rectOf(from), rectOf(to));
+      const points = routePoints(rectOf(from), rectOf(to), connection.route);
       if (!points) continue;
-      if (!labelVisible(points.start, points.end, canvasStore.view.zoom)) continue;
+      const segment = longestSegment(points);
+      if (!segment) continue;
+      if (!labelVisible(segment.a, segment.b, canvasStore.view.zoom)) continue;
       result.push({
         id: connection.id,
         label,
-        at: segmentMidpoint(points.start, points.end),
+        at: segmentMidpoint(segment.a, segment.b),
         selected: canvasStore.selectedConnectionId === connection.id,
       });
     }

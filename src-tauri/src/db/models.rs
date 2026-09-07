@@ -83,6 +83,9 @@ pub struct Connection {
     pub width: i64,
     /// Whether the label chip is drawn. The label text is kept when it is false.
     pub label_visible: bool,
+    /// The line's shape: 'straight' or 'elbow'. A key, like `color` — the front end owns the
+    /// geometry, so a bend radius change needs no migration.
+    pub route: String,
 }
 
 /// Everything `delete_placements` actually removed, so one undo command can restore the
@@ -186,5 +189,6 @@ pub fn row_to_connection(row: &rusqlite::Row<'_>) -> rusqlite::Result<Connection
         color: row.get("color")?,
         width: row.get("width")?,
         label_visible: row.get("label_visible")?,
+        route: row.get("route")?,
     })
 }

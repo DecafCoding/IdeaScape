@@ -117,8 +117,8 @@ export async function completeLink(
 }
 
 /**
- * Write a connection's label, direction, colour, width and chip visibility, and mirror the
- * row back into the store. They all travel together — the panel holds them all and one
+ * Write a connection's label, direction, colour, width, route and chip visibility, and mirror
+ * the row back into the store. They all travel together — the panel holds them all and one
  * command writes them.
  */
 export async function updateConnection(
@@ -128,6 +128,7 @@ export async function updateConnection(
   color: string,
   width: number,
   labelVisible: boolean,
+  route: string,
   hooks?: SaveHooks,
 ): Promise<Connection> {
   const updated = await writeNow(
@@ -139,6 +140,7 @@ export async function updateConnection(
         color,
         width,
         labelVisible,
+        route,
       }),
     hooks,
   );

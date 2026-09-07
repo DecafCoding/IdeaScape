@@ -7,14 +7,22 @@
 
 :root {
   /* Roles */
-  --color-bg: #f3f2f2;
+  /* The canvas ground is a light grey; the cards sitting on it are white. --color-card is
+     a project addition naming that white so no component carries a literal. */
+  --color-bg: #e6e5e5;
   --color-surface: #eae9e9;
-  --color-raised: #eae7e7;
+  --color-raised: #ffffff;
+  --color-card: #ffffff;
+  /* The title bar sits one step lighter than the rest of the chrome, so the window's top
+     edge reads as separate from the left column and the properties panel. */
+  --color-title-bar: #f2f1f1;
   --color-text: #201e1d;
   --color-accent: #0088b0;
   --color-accent-2: #d6006c;
   --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
-  --color-on-accent: var(--color-bg);
+  /* Pinned rather than following --color-bg: the ground went grey, the ink on the accent
+     did not. */
+  --color-on-accent: #f3f2f2;
   --color-accent-tint-fill: #e9f8ff;
   --color-accent-tint-text: #004961;
   /* Phase 5 additions, flagged for the owner: four role tokens standing in for ramp steps

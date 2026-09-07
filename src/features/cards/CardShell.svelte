@@ -76,7 +76,7 @@
 <style>
   .card {
     position: absolute;
-    background: var(--color-surface);
+    background: var(--color-card);
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-card);
     /* Deliberately NOT `will-change: transform`: 250 promoted layers exhaust the

@@ -13,10 +13,11 @@
 <script lang="ts">
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import {
-    connectionEndpoints,
-    connectionInView,
+    polylinePath,
     rectEdgePoint,
-    trimSegment,
+    routeInView,
+    routePoints,
+    trimRoute,
   } from '../../lib/connectionGeometry';
   import {
     arrowHeadSize,
@@ -26,6 +27,7 @@
     connectionWidthPx,
     CONNECTION_COLORS,
     CONNECTION_WIDTHS,
+    ELBOW_RADIUS,
   } from '../../lib/connectionStyle';
   import { CULL_MARGIN_PX, recordConnectionCullCounts } from '../../lib/culling';
   import { viewportWorldRect, type Point, type Rect } from '../../lib/geometry';
@@ -46,8 +48,8 @@
 
   interface DrawnConnection {
     connection: Connection;
-    start: Point;
-    end: Point;
+    /** The whole route, first point to last: two points straight, four for an elbow. */
+    points: Point[];
     fromLabel: string;
     toLabel: string;
   }
@@ -74,23 +76,14 @@
       const from = canvasStore.placements.get(connection.from_placement_id);
       const to = canvasStore.placements.get(connection.to_placement_id);
       if (!from || !to) continue;
-      const points = connectionEndpoints(rectOf(from), rectOf(to));
+      const points = routePoints(rectOf(from), rectOf(to), connection.route);
       if (!points) continue;
-      if (
-        !connectionInView(
-          points.start,
-          points.end,
-          canvasStore.view,
-          canvasStore.viewportSize,
-          CULL_MARGIN_PX,
-        )
-      ) {
+      if (!routeInView(points, canvasStore.view, canvasStore.viewportSize, CULL_MARGIN_PX)) {
         continue;
       }
       result.push({
         connection,
-        start: points.start,
-        end: points.end,
+        points,
         fromLabel: nameOf(from),
         toLabel: nameOf(to),
       });
@@ -132,10 +125,14 @@
 
     const target = hoveredTarget(link.fromPlacementId, link.pointer);
     if (target) {
-      const points = connectionEndpoints(rectOf(from), rectOf(target));
-      if (points) return { ...points, snapped: true };
+      // The preview is straight because a new connection starts straight (§9.13 rule 7).
+      const points = routePoints(rectOf(from), rectOf(target), PENDING_STYLE.route);
+      if (points) return { points, snapped: true };
     }
-    return { start: rectEdgePoint(rectOf(from), link.pointer), end: link.pointer, snapped: false };
+    return {
+      points: [rectEdgePoint(rectOf(from), link.pointer), link.pointer],
+      snapped: false,
+    };
   });
 
   /** The card under the pointer that is a legal drop target for this link. */
@@ -166,26 +163,28 @@
     color: 'default',
     width: 1,
     label_visible: true,
+    route: 'straight',
   };
 
-  function pathFor(start: Point, end: Point): string {
-    return `M${start.x},${start.y} L${end.x},${end.y}`;
+  /** The untrimmed path — what the hit target and the pending line are drawn from. */
+  function pathFor(points: Point[]): string {
+    return polylinePath(points, ELBOW_RADIUS);
   }
 
   /**
-   * The path for the DRAWN stroke: the segment with each arrowed end pulled back to the
-   * arrowhead's back edge. The hit path is never trimmed — the head is part of the line as
-   * far as pointing at it goes.
+   * The path for the DRAWN stroke: the route with each arrowed END pulled back to the
+   * arrowhead's back edge. Only the first and last segment move; the hit path is never
+   * trimmed at all, because the head is part of the line as far as pointing at it goes.
    */
-  function strokePathFor(connection: Connection, start: Point, end: Point): string {
+  function strokePathFor(connection: Connection, points: Point[]): string {
     const inset = arrowInset(connection.width);
-    const trimmed = trimSegment(
-      start,
-      end,
-      markerStartFor(connection) ? inset : 0,
-      markerEndFor(connection) ? inset : 0,
+    return pathFor(
+      trimRoute(
+        points,
+        markerStartFor(connection) ? inset : 0,
+        markerEndFor(connection) ? inset : 0,
+      ),
     );
-    return pathFor(trimmed.start, trimmed.end);
   }
 
   /**
@@ -277,11 +276,13 @@
 
   {#each drawn as row (row.connection.id)}
     {@const selected = canvasStore.selectedConnectionId === row.connection.id}
-    {@const d = pathFor(row.start, row.end)}
+    {@const d = pathFor(row.points)}
+    {@const first = row.points[0]}
+    {@const last = row.points[row.points.length - 1]}
     <g class="connection" class:selected data-connection-id={row.connection.id}>
       <path
         class="stroke"
-        d={strokePathFor(row.connection, row.start, row.end)}
+        d={strokePathFor(row.connection, row.points)}
         fill="none"
         stroke={connectionStroke(row.connection.color)}
         stroke-width={connectionWidthPx(row.connection.width, selected)}
@@ -306,8 +307,9 @@
         <!-- The selection signal is the square handles plus the extra width, exactly as it
              is on a card. The stroke keeps its own colour: §10 contract 7 says a line never
              takes the accent. -->
-        <rect class="handle" x={row.start.x - 3.5} y={row.start.y - 3.5} width="7" height="7" />
-        <rect class="handle" x={row.end.x - 3.5} y={row.end.y - 3.5} width="7" height="7" />
+        <!-- A bend carries no handle: the route is computed, never dragged (§9.13 rule 8). -->
+        <rect class="handle" x={first.x - 3.5} y={first.y - 3.5} width="7" height="7" />
+        <rect class="handle" x={last.x - 3.5} y={last.y - 3.5} width="7" height="7" />
       {/if}
     </g>
   {/each}
@@ -317,9 +319,7 @@
       class="pending"
       class:snapped={pending.snapped}
       data-testid="pending-link"
-      d={pending.snapped
-        ? strokePathFor(PENDING_STYLE, pending.start, pending.end)
-        : pathFor(pending.start, pending.end)}
+      d={pending.snapped ? strokePathFor(PENDING_STYLE, pending.points) : pathFor(pending.points)}
       fill="none"
       stroke-width="1.5"
       marker-end={pending.snapped ? 'url(#ideascape-arrow-default-1)' : undefined}

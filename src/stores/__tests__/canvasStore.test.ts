@@ -25,6 +25,7 @@ function connection(id: number, from = 1, to = 2): Connection {
     color: 'default',
     width: 1,
     label_visible: true,
+    route: 'straight',
   };
 }
 

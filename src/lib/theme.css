@@ -11,6 +11,8 @@
   --color-bg: #1a1817;
   --color-surface: #262322;
   --color-raised: #302d2b;
+  --color-card: #302d2b;
+  --color-title-bar: #2e2b2a;
   --color-text: #ece9e6;
   --color-divider: #3b3735;
   --color-accent: #62c5ee;
@@ -96,6 +98,8 @@
     --color-bg: #1a1817;
     --color-surface: #262322;
     --color-raised: #302d2b;
+    --color-card: #302d2b;
+    --color-title-bar: #2e2b2a;
     --color-text: #ece9e6;
     --color-divider: #3b3735;
     --color-accent: #62c5ee;

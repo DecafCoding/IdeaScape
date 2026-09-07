@@ -233,8 +233,8 @@ of the data model, and that rewrite would take every existing canvas with it.</p
   </tr>
   <tr>
     <td><code>connection</code></td>
-    <td>id, canvas_id, from_placement_id, to_placement_id, label, directed</td>
-    <td>Joins two placements on the same canvas</td>
+    <td>id, canvas_id, from_placement_id, to_placement_id, label, directed, color, width, label_visible, route</td>
+    <td>Joins two placements on the same canvas. <code>color</code>, <code>width</code>, <code>label_visible</code> and <code>route</code> are style keys resolved by the front end; <code>route</code> is <code>straight</code> or <code>elbow</code> — see <code>docs/design-system.html</code> §9.13</td>
   </tr>
 </table>
 

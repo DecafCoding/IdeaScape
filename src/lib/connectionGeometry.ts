@@ -9,7 +9,6 @@
  * it swappable and its tests readable — the same reasoning `culling.ts` applies.
  */
 import {
-  rectFromCorners,
   rectsIntersect,
   viewportWorldRect,
   type Point,
@@ -68,6 +67,123 @@ export function connectionEndpoints(from: Rect, to: Rect): { start: Point; end: 
 }
 
 /**
+ * The points a connection's line runs through, first to last — two for a straight route,
+ * four for an elbow. Null in the same two cases `connectionEndpoints` returns null for.
+ *
+ * This is the one seam the whole overlay is written against: the stroke, the hit path, the
+ * arrow trim, the label chip and the cull all take a point LIST, so a future route can add
+ * points without touching any of them. Design-system §9.13, "Route".
+ *
+ * An unknown route key falls back to `straight`, the same way an unknown colour key falls
+ * back to the default ink.
+ */
+export function routePoints(from: Rect, to: Rect, route: string): Point[] | null {
+  const straight = connectionEndpoints(from, to);
+  if (!straight) return null;
+  if (route !== 'elbow') return [straight.start, straight.end];
+  return elbowPoints(from, to);
+}
+
+/**
+ * The four points of an elbow: out of one card's side, across the gap, and into the other
+ * card's facing side. Design-system §9.13 sets the rules this follows.
+ *
+ * The axis is chosen from the *gap* between the rectangles, not from the distance between
+ * their centres alone. Two rectangles that do not intersect are separated on at least one
+ * axis, so this always puts the across segment inside real empty space — which is what stops
+ * the line doubling back on itself when the cards overlap on the other axis. When both axes
+ * have a gap, the larger centre distance wins, and a tie goes to horizontal.
+ *
+ * Callers get three segments, or one when the two side midpoints already line up: the middle
+ * pair coincide there and are dropped rather than drawn as a zero-length bend.
+ */
+function elbowPoints(from: Rect, to: Rect): Point[] {
+  const a = rectCentre(from);
+  const b = rectCentre(to);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+
+  const gapX = dx >= 0 ? to.x - (from.x + from.width) : from.x - (to.x + to.width);
+  const gapY = dy >= 0 ? to.y - (from.y + from.height) : from.y - (to.y + to.height);
+  const horizontal = gapX >= 0 && gapY >= 0 ? Math.abs(dx) >= Math.abs(dy) : gapX >= 0;
+
+  let start: Point;
+  let end: Point;
+  if (horizontal) {
+    start = { x: dx >= 0 ? from.x + from.width : from.x, y: a.y };
+    end = { x: dx >= 0 ? to.x : to.x + to.width, y: b.y };
+    const midX = (start.x + end.x) / 2;
+    return simplify([start, { x: midX, y: start.y }, { x: midX, y: end.y }, end]);
+  }
+  start = { x: a.x, y: dy >= 0 ? from.y + from.height : from.y };
+  end = { x: b.x, y: dy >= 0 ? to.y : to.y + to.height };
+  const midY = (start.y + end.y) / 2;
+  return simplify([start, { x: start.x, y: midY }, { x: end.x, y: midY }, end]);
+}
+
+/**
+ * The same list with the points that draw nothing removed: any point equal to the one
+ * before it, and any interior point sitting on a straight run between its two neighbours.
+ *
+ * Both matter to the label chip, not just to the path. A chip sits on the LONGEST segment,
+ * so leaving a straight run split in two would halve the segment it is measured against and
+ * hide the chip on a line with plenty of room. The collinear test is an exact equality
+ * because every elbow point shares an axis with its neighbours by construction.
+ */
+function simplify(points: Point[]): Point[] {
+  const kept = points.filter(
+    (p, i) => i === 0 || p.x !== points[i - 1].x || p.y !== points[i - 1].y,
+  );
+  return kept.filter((p, i) => {
+    if (i === 0 || i === kept.length - 1) return true;
+    const prev = kept[i - 1];
+    const next = kept[i + 1];
+    const onARun = (prev.x === p.x && p.x === next.x) || (prev.y === p.y && p.y === next.y);
+    return !onARun;
+  });
+}
+
+/**
+ * One SVG path through the points, with each interior corner rounded to `radius` world
+ * units. A radius of 0, or a route with no corner, gives plain `M`/`L`.
+ *
+ * Every corner is clamped to half of the shorter of the two segments meeting at it, so two
+ * corners on one short segment can never eat into each other and a tight elbow rounds off
+ * instead of overshooting.
+ */
+export function polylinePath(points: Point[], radius = 0): string {
+  if (points.length < 2) return '';
+  let d = `M${points[0].x},${points[0].y}`;
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const prev = points[i - 1];
+    const corner = points[i];
+    const next = points[i + 1];
+    const inLength = segmentLength(prev, corner);
+    const outLength = segmentLength(corner, next);
+    const r = Math.min(radius, inLength / 2, outLength / 2);
+    if (r <= 0) {
+      d += ` L${corner.x},${corner.y}`;
+      continue;
+    }
+    const enter = along(corner, prev, r);
+    const leave = along(corner, next, r);
+    d += ` L${enter.x},${enter.y} Q${corner.x},${corner.y} ${leave.x},${leave.y}`;
+  }
+  const last = points[points.length - 1];
+  return `${d} L${last.x},${last.y}`;
+}
+
+/** `distance` world units from `origin` along the direction of `toward`. */
+function along(origin: Point, toward: Point, distance: number): Point {
+  const length = segmentLength(origin, toward);
+  if (length === 0) return origin;
+  return {
+    x: origin.x + ((toward.x - origin.x) / length) * distance,
+    y: origin.y + ((toward.y - origin.y) / length) * distance,
+  };
+}
+
+/**
  * The same segment with each end pulled inward along its own direction.
  *
  * The overlay uses it to stop the drawn stroke at the BACK of an arrowhead rather than at
@@ -112,26 +228,63 @@ export function labelVisible(a: Point, b: Point, zoom: number): boolean {
 }
 
 /**
- * Cull on the *line's* own bounding box, never on the visible card set: two off-screen
- * cards can have a line crossing the middle of the viewport, and culling on their
- * visibility would wrongly drop it.
+ * The whole route with its first and last segment pulled in by the arrowhead insets. Only
+ * those two segments move: an inset must never run backwards past a bend, so a first or last
+ * segment shorter than its own inset collapses to a point instead.
  */
-export function connectionInView(
-  a: Point,
-  b: Point,
+export function trimRoute(points: Point[], startInset: number, endInset: number): Point[] {
+  if (points.length < 2) return points;
+  if (points.length === 2) {
+    const both = trimSegment(points[0], points[1], startInset, endInset);
+    return [both.start, both.end];
+  }
+  const head = trimSegment(points[0], points[1], startInset, 0).start;
+  const tail = trimSegment(points[points.length - 2], points[points.length - 1], 0, endInset).end;
+  return [head, ...points.slice(1, -1), tail];
+}
+
+/**
+ * The longest segment of a route — the only one with room for a label chip, and the one
+ * rule 4's 50px threshold is measured on. Null for a route with no segment at all.
+ */
+export function longestSegment(points: Point[]): { a: Point; b: Point } | null {
+  if (points.length < 2) return null;
+  let best = { a: points[0], b: points[1] };
+  let bestLength = segmentLength(points[0], points[1]);
+  for (let i = 2; i < points.length; i += 1) {
+    const length = segmentLength(points[i - 1], points[i]);
+    if (length > bestLength) {
+      best = { a: points[i - 1], b: points[i] };
+      bestLength = length;
+    }
+  }
+  return best;
+}
+
+/**
+ * Cull on the box around EVERY point of the route, not around its two ends. An elbow reaches
+ * outside the straight line's box, and culling on the ends alone would drop a line whose
+ * bend crosses the viewport.
+ */
+export function routeInView(
+  points: Point[],
   view: View,
   viewportSize: Size,
   marginPx = 0,
 ): boolean {
+  if (points.length < 2) return false;
   const window = viewportWorldRect(view, viewportSize, marginPx);
-  const box = rectFromCorners(a, b);
-  // A perfectly horizontal or vertical line has a zero-area box, which `rectsIntersect`
-  // would reject. Give it a hair of thickness so it is still tested honestly.
-  const line: Rect = {
-    x: box.x,
-    y: box.y,
-    width: Math.max(box.width, 0.001),
-    height: Math.max(box.height, 0.001),
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  // A perfectly straight run has a zero-area box, which `rectsIntersect` would reject. Give
+  // it a hair of thickness so it is still tested honestly.
+  const box: Rect = {
+    x: minX,
+    y: minY,
+    width: Math.max(Math.max(...xs) - minX, 0.001),
+    height: Math.max(Math.max(...ys) - minY, 0.001),
   };
-  return rectsIntersect(window, line);
+  return rectsIntersect(window, box);
 }

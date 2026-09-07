@@ -280,12 +280,13 @@ export interface ConnectionEdit {
   color: string;
   width: number;
   labelVisible: boolean;
+  route: string;
 }
 
 /**
- * Changing a connection's label, arrow direction, colour, width or chip visibility. Pushed on
- * commit, not per keystroke — and every field travels together, because one command writes
- * them all.
+ * Changing a connection's label, arrow direction, colour, width, route or chip visibility.
+ * Pushed on commit, not per keystroke — and every field travels together, because one command
+ * writes them all.
  */
 export function editConnectionCommand(
   connectionId: number,
@@ -300,6 +301,7 @@ export function editConnectionCommand(
       color: state.color,
       width: state.width,
       labelVisible: state.labelVisible,
+      route: state.route,
     });
     canvasStore.upsertConnection(row);
   }

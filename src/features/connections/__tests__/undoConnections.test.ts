@@ -56,6 +56,7 @@ function connection(overrides: Partial<Connection> = {}): Connection {
     color: 'default',
     width: 1,
     label_visible: true,
+    route: 'straight',
     ...overrides,
   };
 }
@@ -94,8 +95,22 @@ describe('editConnectionCommand', () => {
   it('editConnectionCommand_undone_restoresTheEarlierLabelDirectionAndAppearance', async () => {
     const command = editConnectionCommand(
       7,
-      { label: 'causes', directed: 1, color: 'default', width: 1, labelVisible: true },
-      { label: 'blocks', directed: 3, color: 'red', width: 3, labelVisible: false },
+      {
+        label: 'causes',
+        directed: 1,
+        color: 'default',
+        width: 1,
+        labelVisible: true,
+        route: 'straight',
+      },
+      {
+        label: 'blocks',
+        directed: 3,
+        color: 'red',
+        width: 3,
+        labelVisible: false,
+        route: 'elbow',
+      },
     );
 
     invokeSafe.mockResolvedValueOnce(connection({ label: 'causes', directed: 1 }));
@@ -107,11 +122,19 @@ describe('editConnectionCommand', () => {
       color: 'default',
       width: 1,
       labelVisible: true,
+      route: 'straight',
     });
     expect(canvasStore.connections.get(7)?.directed).toBe(1);
 
     invokeSafe.mockResolvedValueOnce(
-      connection({ label: 'blocks', directed: 3, color: 'red', width: 3, label_visible: false }),
+      connection({
+        label: 'blocks',
+        directed: 3,
+        color: 'red',
+        width: 3,
+        label_visible: false,
+        route: 'elbow',
+      }),
     );
     await command.redo();
     expect(canvasStore.connections.get(7)?.label).toBe('blocks');
@@ -119,6 +142,7 @@ describe('editConnectionCommand', () => {
     expect(canvasStore.connections.get(7)?.color).toBe('red');
     expect(canvasStore.connections.get(7)?.width).toBe(3);
     expect(canvasStore.connections.get(7)?.label_visible).toBe(false);
+    expect(canvasStore.connections.get(7)?.route).toBe('elbow');
   });
 });
 
