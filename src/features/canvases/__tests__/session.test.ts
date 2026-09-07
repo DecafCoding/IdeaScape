@@ -317,6 +317,9 @@ describe('the canvas lifecycle', () => {
       to_placement_id: noteB.placement.id,
       label: 'joins',
       directed: 1,
+      color: 'default',
+      width: 1,
+      label_visible: true,
     });
     await canvasStore.loadCanvas(second);
     expect(canvasStore.cardCount).toBe(2);

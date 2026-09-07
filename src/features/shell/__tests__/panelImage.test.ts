@@ -63,11 +63,14 @@ describe('the properties panel for an image card', () => {
     await refreshAssetStatuses(['deadbeef.png']);
 
     const { getByTestId, getByLabelText } = render(PropertiesPanel, { props });
-    expect(getByTestId('panel-file-group').textContent).toContain('assets/deadbeef.png');
+    // The stored file name is a content hash, so it is deliberately not shown; the original
+    // name is.
+    expect(getByTestId('panel-file-group').textContent).not.toContain('deadbeef.png');
+    expect(getByTestId('panel-file-group').textContent).toContain('truss-reference.jpg');
     expect(getByTestId('panel-file-meta').textContent).toContain('1920 × 1080');
     expect(getByTestId('panel-file-meta').textContent).toContain('200 KB');
     expect(getByTestId('panel-file-meta').textContent).toContain('copied in');
-    expect((getByLabelText('Alt Text') as HTMLTextAreaElement).value).toBe('A steel truss');
+    expect((getByLabelText('Description') as HTMLTextAreaElement).value).toBe('A steel truss');
   });
 
   it('panel_anImageSelection_readsAsImageRatherThanTheGenericCard', () => {
@@ -75,7 +78,17 @@ describe('the properties panel for an image card', () => {
     const { getByTestId } = render(PropertiesPanel, { props });
     const panel = getByTestId('properties-panel');
     expect(panel.querySelector('.kind')?.textContent).toBe('Image');
-    expect(panel.querySelector('.item-id')?.textContent).toBe('truss-reference.jpg');
+    // The original name is not repeated under the heading — it is in the File group.
+    expect(panel.querySelector('.item-id')?.textContent).toBe('');
+  });
+
+  it('panel_anImageSelection_putsTheFileGroupLastAndTheDescriptionBeforeIt', () => {
+    seedImageCard('deadbeef.png');
+    const { getByTestId } = render(PropertiesPanel, { props });
+    const labels = [...getByTestId('properties-panel').querySelectorAll('.group-label')].map(
+      (el) => el.textContent,
+    );
+    expect(labels).toEqual(['Position', 'Size', 'Description', 'Order', 'File']);
   });
 
   it('panel_aMissingAsset_printsMissingTheCardIsKeptAndNoDimensions', async () => {
@@ -119,7 +132,7 @@ describe('the properties panel for an image card', () => {
     const { getByLabelText } = render(PropertiesPanel, {
       props: { ...props, onAltTextChange },
     });
-    const box = getByLabelText('Alt Text') as HTMLTextAreaElement;
+    const box = getByLabelText('Description') as HTMLTextAreaElement;
     box.value = 'A different description';
     await fireEvent.blur(box);
     expect(onAltTextChange).toHaveBeenCalledExactlyOnceWith('A different description');

@@ -1,5 +1,5 @@
 <!--
-  The 34 px title bar (design-system §8.2): brand, breadcrumb, save state, counts and the
+  The 34 px title bar (design-system §8.2): brand, project name, save state, counts and the
   three window controls. Every measurement here is a token, never a literal.
 
   In `pickerMode` — no project open — only the brand and the three window controls are
@@ -66,23 +66,28 @@
       {folderPath}
     </span>
   {:else}
-    <span class="breadcrumb">
-      {canvasStore.project?.name ?? ''} / {canvasStore.activeCanvas?.name ?? ''}
-    </span>
+    <!-- The project only. The canvas is named in the left column's canvas list, and saying
+         it twice on one screen bought nothing. -->
+    <span class="breadcrumb">{canvasStore.project?.name ?? ''}</span>
   {/if}
 
   {#if !pickerMode}
-    <span class="save-state">
-      {#if canvasStore.saveState === 'saving'}
-        <Icon glyph="circle-dashed" size={14} />
-        Saving…
-      {:else if savedAgo}
-        <Icon glyph="check-circle" size={14} />
-        {savedAgo}
-      {/if}
-    </span>
+    <!-- Centred on the WINDOW, not on the room the breadcrumb leaves, so the save state and
+         the counts do not shuffle sideways as a canvas name grows. It keeps the drag region
+         attribute because it covers the middle of the bar. -->
+    <div class="status" data-tauri-drag-region>
+      <span class="save-state">
+        {#if canvasStore.saveState === 'saving'}
+          <Icon glyph="circle-dashed" size={14} />
+          Saving…
+        {:else if savedAgo}
+          <Icon glyph="check-circle" size={14} />
+          {savedAgo}
+        {/if}
+      </span>
 
-    <span class="counts">{countsLabel}</span>
+      <span class="counts">{countsLabel}</span>
+    </div>
   {/if}
 
   <!-- Not a drag region: a press here must reach the button. -->
@@ -101,6 +106,7 @@
 
 <style>
   .title-bar {
+    position: relative;
     height: var(--size-title-bar);
     flex: none;
     display: flex;
@@ -127,6 +133,18 @@
     opacity: 0.5;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .status {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--space-14);
+    /* It gives way to the breadcrumb and the window controls rather than overlapping them. */
+    max-width: 46%;
+    overflow: hidden;
   }
 
   .save-state {

@@ -22,6 +22,9 @@ function connection(id: number, from = 1, to = 2): Connection {
     to_placement_id: to,
     label: null,
     directed: 1,
+    color: 'default',
+    width: 1,
+    label_visible: true,
   };
 }
 

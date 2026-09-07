@@ -116,15 +116,18 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
         }
         conn.execute(
             "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id, label,
-                                     directed)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                                     directed, color, width, label_visible)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             rusqlite::params![
                 connection.id,
                 connection.canvas_id,
                 connection.from_placement_id,
                 connection.to_placement_id,
                 connection.label,
-                connection.directed
+                connection.directed,
+                connection.color,
+                connection.width,
+                connection.label_visible
             ],
         )?;
         Ok(conn.query_row(
@@ -135,19 +138,27 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
     })
 }
 
-/// Change a connection's label and arrow direction. Both are always sent together, because
-/// the properties panel holds both and a partial update would need a second command.
+/// Change a connection's label, arrow direction and appearance. Every field is always sent
+/// together, because the properties panel holds them all and a partial update would need a
+/// second command. The width step is clamped to 1-3; an unknown colour key is stored as
+/// given and resolved to the default ink by the front end.
 pub fn update_connection_for(
     state: &AppState,
     connection_id: i64,
     label: Option<String>,
     directed: i64,
+    color: String,
+    width: i64,
+    label_visible: bool,
 ) -> AppResult<Connection> {
     let label = normalise_label(label);
+    let width = width.clamp(1, 3);
     state.with_db(|conn| {
         let changed = conn.execute(
-            "UPDATE connection SET label = ?2, directed = ?3 WHERE id = ?1",
-            rusqlite::params![connection_id, label, directed],
+            "UPDATE connection SET label = ?2, directed = ?3, color = ?4, width = ?5,
+                                   label_visible = ?6
+             WHERE id = ?1",
+            rusqlite::params![connection_id, label, directed, color, width, label_visible],
         )?;
         if changed == 0 {
             return Err(AppError::NotFound(format!("connection {connection_id}")));
@@ -224,8 +235,19 @@ pub fn update_connection(
     connection_id: i64,
     label: Option<String>,
     directed: i64,
+    color: String,
+    width: i64,
+    label_visible: bool,
 ) -> AppResult<Connection> {
-    update_connection_for(&state, connection_id, label, directed)
+    update_connection_for(
+        &state,
+        connection_id,
+        label,
+        directed,
+        color,
+        width,
+        label_visible,
+    )
 }
 
 #[tauri::command]
@@ -281,6 +303,10 @@ mod tests {
         assert_eq!(rows[0], made);
         assert_eq!(rows[0].label.as_deref(), Some("causes"));
         assert_eq!(rows[0].directed, 1);
+        // A new line starts on the default ink at the thin step, with its chip shown.
+        assert_eq!(rows[0].color, "default");
+        assert_eq!(rows[0].width, 1);
+        assert!(rows[0].label_visible);
         assert_eq!(rows[0].from_placement_id, a);
         assert_eq!(rows[0].to_placement_id, b);
     }
@@ -314,9 +340,21 @@ mod tests {
         let b = card(&state, canvas_id, 400.0);
         let made = create_connection_for(&state, canvas_id, a, b, Some("x".into()), 1).unwrap();
 
-        let updated = update_connection_for(&state, made.id, Some("   ".into()), 3).unwrap();
+        let updated = update_connection_for(
+            &state,
+            made.id,
+            Some("   ".into()),
+            3,
+            "red".into(),
+            2,
+            false,
+        )
+        .unwrap();
         assert_eq!(updated.label, None);
         assert_eq!(updated.directed, 3);
+        assert_eq!(updated.color, "red");
+        assert_eq!(updated.width, 2);
+        assert!(!updated.label_visible);
         assert_eq!(
             list_connections_for(&state, canvas_id).unwrap()[0].label,
             None
@@ -357,11 +395,31 @@ mod tests {
 
         // Step 3: label all three. Step 4: flip one direction.
         for (i, row) in made.iter().enumerate() {
-            update_connection_for(&state, row.id, Some(format!("edge {}", i + 1)), 1).unwrap();
+            update_connection_for(
+                &state,
+                row.id,
+                Some(format!("edge {}", i + 1)),
+                1,
+                "default".into(),
+                1,
+                true,
+            )
+            .unwrap();
         }
-        update_connection_for(&state, made[0].id, Some("edge 1".into()), 2).unwrap();
+        update_connection_for(
+            &state,
+            made[0].id,
+            Some("edge 1".into()),
+            2,
+            "blue".into(),
+            3,
+            true,
+        )
+        .unwrap();
         let rows = list_connections_for(&state, canvas_id).unwrap();
         assert_eq!(rows[0].directed, 2);
+        assert_eq!(rows[0].color, "blue");
+        assert_eq!(rows[0].width, 3);
         assert_eq!(rows[2].label.as_deref(), Some("edge 3"));
 
         // Step 7: delete a connected card; both its lines are reported and gone.
@@ -397,7 +455,7 @@ mod tests {
         assert_eq!(rows.len(), 3);
         assert!(rows
             .iter()
-            .any(|r| r.label.as_deref() == Some("edge 1") && r.directed == 2));
+            .any(|r| r.label.as_deref() == Some("edge 1") && r.directed == 2 && r.color == "blue"));
 
         // Step 10: close and reopen — every line, label and direction survives.
         drop(state);

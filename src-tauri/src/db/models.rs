@@ -76,6 +76,13 @@ pub struct Connection {
     pub to_placement_id: i64,
     pub label: Option<String>,
     pub directed: i64,
+    /// A key from the front end's line palette ('default' plus seven hues), never a hex
+    /// value — each theme resolves the key to its own ink.
+    pub color: String,
+    /// The width step: 1 thin, 2 medium, 3 thick. Pixel values live in the front end.
+    pub width: i64,
+    /// Whether the label chip is drawn. The label text is kept when it is false.
+    pub label_visible: bool,
 }
 
 /// Everything `delete_placements` actually removed, so one undo command can restore the
@@ -176,5 +183,8 @@ pub fn row_to_connection(row: &rusqlite::Row<'_>) -> rusqlite::Result<Connection
         to_placement_id: row.get("to_placement_id")?,
         label: row.get("label")?,
         directed: row.get("directed")?,
+        color: row.get("color")?,
+        width: row.get("width")?,
+        label_visible: row.get("label_visible")?,
     })
 }

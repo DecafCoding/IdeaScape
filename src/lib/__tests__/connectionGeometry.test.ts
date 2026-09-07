@@ -8,6 +8,7 @@ import {
   rectEdgePoint,
   segmentLength,
   segmentMidpoint,
+  trimSegment,
 } from '../connectionGeometry';
 
 const box = (x: number, y: number, width = 100, height = 100): Rect => ({ x, y, width, height });
@@ -114,5 +115,30 @@ describe('connectionInView', () => {
 describe('rectCentre', () => {
   it('rectCentre_aRect_isItsMiddle', () => {
     expect(rectCentre(box(10, 20, 100, 60))).toEqual({ x: 60, y: 50 });
+  });
+});
+
+describe('trimSegment', () => {
+  const a = { x: 0, y: 0 };
+  const b = { x: 100, y: 0 };
+
+  it('trimSegment_oneArrowedEnd_pullsOnlyThatEndInward', () => {
+    expect(trimSegment(a, b, 0, 7.5)).toEqual({ start: a, end: { x: 92.5, y: 0 } });
+  });
+
+  it('trimSegment_bothEnds_pullsEachAlongItsOwnDirection', () => {
+    expect(trimSegment(a, b, 10, 20)).toEqual({ start: { x: 10, y: 0 }, end: { x: 80, y: 0 } });
+  });
+
+  it('trimSegment_insetsLongerThanTheLine_collapsesRatherThanCrossing', () => {
+    // 30 + 30 of trim on a 20-unit line: each end gets its half, and the stroke vanishes
+    // instead of pointing backwards.
+    const trimmed = trimSegment(a, { x: 20, y: 0 }, 30, 30);
+    expect(trimmed.start).toEqual({ x: 10, y: 0 });
+    expect(trimmed.end).toEqual({ x: 10, y: 0 });
+  });
+
+  it('trimSegment_azeroLengthSegment_isReturnedUnchanged', () => {
+    expect(trimSegment(a, a, 5, 5)).toEqual({ start: a, end: a });
   });
 });

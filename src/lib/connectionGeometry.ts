@@ -67,6 +67,37 @@ export function connectionEndpoints(from: Rect, to: Rect): { start: Point; end: 
   };
 }
 
+/**
+ * The same segment with each end pulled inward along its own direction.
+ *
+ * The overlay uses it to stop the drawn stroke at the BACK of an arrowhead rather than at
+ * the tip: a thick line running all the way to the tip shows its own width through the
+ * head's point. Insets are clamped so the two ends can never cross — on a segment shorter
+ * than the two insets together, both collapse to the midpoint and no stroke is drawn.
+ */
+export function trimSegment(
+  a: Point,
+  b: Point,
+  fromInset: number,
+  toInset: number,
+): { start: Point; end: Point } {
+  const length = segmentLength(a, b);
+  if (length === 0) return { start: a, end: b };
+
+  const from = Math.max(0, fromInset);
+  const to = Math.max(0, toInset);
+  const wanted = from + to;
+  // Share the room that is actually there, keeping the two insets in proportion.
+  const scale = wanted > length ? length / wanted : 1;
+  const ux = (b.x - a.x) / length;
+  const uy = (b.y - a.y) / length;
+
+  return {
+    start: { x: a.x + ux * from * scale, y: a.y + uy * from * scale },
+    end: { x: b.x - ux * to * scale, y: b.y - uy * to * scale },
+  };
+}
+
 export function segmentMidpoint(a: Point, b: Point): Point {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }

@@ -107,6 +107,6 @@ describe('the properties panel for a link card', () => {
     seedLinkCard(null);
     const { queryByTestId, queryByLabelText } = render(PropertiesPanel, { props });
     expect(queryByTestId('panel-file-group')).toBeNull();
-    expect(queryByLabelText('Alt Text')).toBeNull();
+    expect(queryByLabelText('Description')).toBeNull();
   });
 });
