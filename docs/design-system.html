@@ -211,6 +211,28 @@ appearing here first.</p>
 <tr>
   <td>2026-09-07</td>
   <td><span class="frames">owner decision</span></td>
+  <td><b>Added: a hand-placed bend.</b> A connection may carry one bend, placed by dragging a
+    hollow handle in the middle of a selected line. It is stored in the frame of the two card
+    centres, never as a canvas coordinate, so the shape survives a card being moved — the owner
+    chose this over a fixed canvas point precisely so that moving a card does not make the line
+    look broken. Both ends then aim at the bend. Enter on the handle, or <b>Straighten Line</b> in
+    the new Bend group in the properties panel, removes it. The full geometry, storage, handle and
+    control spec is in §9.13 under <b>Bend</b>. A bend is kept 8px clear of both cards, so its
+    handle is always on the drawn line. On a <b>straight</b> line the handle moves across the
+    line only, never along it; on an <b>elbow</b> it slides the crossing — the middle run — on
+    that run's own axis, and adds no corner. Not drawn by the designer: authored here at the
+    owner's instruction, so a later drawn pass supersedes it and gets its own row.</td>
+  <td><b>Amended: §9.13.</b> The property table gains a <code>Bend</code> row; rule 8 is rewritten
+    a second time, from "a bend is computed" to "a line's shape is derived until the user says
+    otherwise", and it now records what is authored, what is still derived, and that everything
+    authored is held relative to the cards. <b>Amended: the data model.</b> <code>connection</code>
+    gains a <code>bend</code> column — a change to <code>docs/mvp-plan.html</code> §4 and
+    <code>docs/prd.html</code> §4. <b>Still a non-goal:</b> more than one bend per line, and
+    routing around cards. <i>Owner, 2026-09-07.</i></td>
+</tr>
+<tr>
+  <td>2026-09-07</td>
+  <td><span class="frames">owner decision</span></td>
   <td><b>Added: connection anchors.</b> Each END of a connection now carries an anchor —
     <code>auto</code>, or one of the four card sides. It is set by <b>dragging that end's selection
     handle</b> onto a side, and a pinned end always leaves that side's midpoint. Both ends default
@@ -1373,6 +1395,10 @@ order</b>, so cards always paint over the lines.</p>
   <td colspan="2">Per END. <code>auto</code> (default) or a card side — <code>top</code>,
   <code>right</code>, <code>bottom</code>, <code>left</code>. Set by dragging that end's selection
   handle. Stub 12px. See <b>Anchor</b> below</td></tr>
+<tr><td>Bend</td>
+  <td colspan="2">One per connection, or none (default). Placed by dragging the hollow handle in
+  the middle of a selected line. Held in the frame of the two card centres, never as a canvas
+  coordinate. See <b>Bend</b> below</td></tr>
 </tbody>
 </table>
 
@@ -1402,12 +1428,15 @@ order</b>, so cards always paint over the lines.</p>
     an application-wide setting. <i>Set by the owner, 2026-09-07.</i> Reason: a diagram normally
     mixes the two, and an app-wide switch would restyle every line on every canvas at once. New
     connections start on <code>straight</code>, so no existing canvas changes shape.</li>
-  <li><b>A bend is computed, never authored.</b> There are no waypoint handles and no way to drag
-    the middle of a line. Move a card and the elbow re-forms. <i>Narrowed by the owner,
-    2026-09-07:</i> the rule used to cover the whole route. The two ENDS can now be pinned to a
-    card side — see <b>Anchor</b> below — because "which side does this line come out of" is a
-    diagramming decision the application cannot read off the rectangles. Everything between those
-    two ends is still derived, which is contract 1 in section 10 kept where it earns its keep.</li>
+  <li><b>A line's shape is derived until the user says otherwise.</b> A line with no anchor and
+    no bend is computed from the two rectangles alone, and every line starts that way — which is
+    what keeps contract 1 in section 10 true of the default. <i>Twice narrowed by the owner,
+    2026-09-07:</i> the rule first said the whole route was computed, then that only a bend was.
+    Both ENDS can now be pinned to a card side (see <b>Anchor</b>) and the MIDDLE can be bent by
+    hand (see <b>Bend</b>), because "which side does this come out of" and "go round that way" are
+    diagramming decisions the application cannot read off two rectangles. What is authored is held
+    <b>relative to the cards</b>, never as a canvas coordinate, so moving a card still re-forms
+    the line rather than breaking it. <b>Still a non-goal:</b> more than one bend per line.</li>
   <li><b>An elbow does not go around cards.</b> It may cross one. Obstacle avoidance is a
     <b>deliberate non-goal</b> — it is per-line path finding that has to re-run on every drag, and
     it is the wrong thing to put in front of the 60 fps / 250 card gate. The seam is left open: the
@@ -1544,6 +1573,93 @@ properties panel, sitting <b>between Route and Color</b>, reads
 <b>Reset To Auto</b> button in the Width group's grammar, disabled while both ends are already
 automatic. No per-side buttons: ten of them would not earn their room in a 177px panel when the
 handle on the canvas is the direct gesture.</p>
+
+<h4>Bend — moving the middle of a line <span class="tag warn">new</span></h4>
+<p><i>Added by the owner, 2026-09-07.</i> A connection may carry <b>one</b> hand-placed bend. A
+selected line shows a <b>hollow</b> handle in the middle; dragging it bends the line, and the line
+follows the drag. Both ends then aim at the bend rather than at the other card, because that is
+where the line is actually going first.</p>
+
+<table>
+<thead><tr><th>Step</th><th>No bend</th><th>Bent by hand</th></tr></thead>
+<tbody>
+<tr><td>Endpoints</td><td>Unchanged</td>
+  <td>An <code>auto</code> end clips toward <b>the bend</b>. A pinned end still leaves its side's
+  midpoint — an anchor outranks a bend on the question of which side</td></tr>
+<tr><td>Straight</td><td>One segment</td>
+  <td>Two segments through the bend, with the same 2px rounding a bend on an elbow gets</td></tr>
+<tr><td>Elbow</td><td>Out, across, in</td>
+  <td>Still out, across, in — the bend moves <b>the crossing</b>, the middle run, and nothing
+  else. It never adds a corner: the two sides are still chosen from the gap or from an anchor,
+  and the route still has three runs. Dragging the middle of an elbow has to feel like moving
+  the line, not like grabbing a corner that was not there a moment ago</td></tr>
+<tr><td>What the handle does</td>
+  <td colspan="2"><b>Straight:</b> the handle is the bend, and it moves <b>across</b> the line
+  only — the along-the-line half is fixed when the press lands. <b>Elbow:</b> the handle sits in
+  the middle of the crossing and slides on the crossing's own one axis, carrying the whole run
+  with it</td></tr>
+<tr><td>When there is no handle</td>
+  <td colspan="2">An elbow whose crossing has <b>no length</b> — two cards level with each other
+  draw one straight run, and there is no middle section to slide — and an elbow that meets at a
+  <b>single corner</b>, where both runs are pinned by a card. Better no handle than a handle that
+  does nothing. A straight line always has one</td></tr>
+<tr><td>Where the bend may sit</td><td>—</td>
+  <td>Anywhere <b>8px clear of both cards</b>. One that lands inside a card is pushed out past its
+  nearest border, so the handle never leaves the drawn line. See below</td></tr>
+<tr><td>Arrowheads, trim, chip, hit target, cull</td>
+  <td colspan="2">All unchanged. Every one of them reads the route as a <b>list of points</b>,
+  which is the seam rule 9 left open</td></tr>
+</tbody>
+</table>
+
+<p><b>Storage, and why it is not a coordinate.</b> One new column, <code>bend</code>, text, default
+empty, holding <code>{"a":…,"b":…}</code>. The pair is a position in the frame of the two card
+<b>centres</b>: <code>a</code> runs along the line from one centre to the other, 0 at one end and 1
+at the other, and <code>b</code> runs at a right angle to it in the same units as that distance. So
+a bend <b>slides, stretches and turns with its two cards</b> — move a card and the shape the user
+drew is kept, which is the whole reason for the frame. The frame is the two centres and not the two
+endpoints on purpose: an endpoint depends on where the line is going, and the bend is what decides
+that, so measuring against endpoints would be circular. An unreadable value draws as a plain line
+rather than failing the overlay. This is an amendment to the data model in
+<code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4.</p>
+
+<p><b>What a drag may do depends on the route, and the geometry decides it — not the handle.</b>
+The same stored bend is read differently by the two routes, and each one reports back where its
+handle goes and the one direction it may travel.</p>
+<ul>
+  <li><b>Straight.</b> The handle IS the bend, and it moves <b>at a right angle to the line</b>:
+    drag the middle of a horizontal line and it moves up and down, and sideways travel is ignored.
+    Where along the line the bend sits is fixed when the press lands — the stored bend's own place,
+    or the midpoint the ghost handle sits on — so the handle never jumps as a gesture starts.
+    Sliding it along its own line changes no shape worth having, and it walks the handle off the
+    drawn line: a bend dragged out past a card sends the route back across that card to reach it.</li>
+  <li><b>Elbow.</b> The handle sits in the middle of the <b>crossing</b> — the middle run, the only
+    one whose position nothing but taste decides — and slides on that run's own single axis,
+    carrying the whole run with it. The route keeps its three runs and gains no corner. The
+    geometry reads only that one axis off the bend, so the other half of the stored pair is simply
+    not consulted while the line is an elbow.</li>
+</ul>
+
+<p><b>The bend is kept off both cards.</b> It is held 8px clear of either card's border, and it is
+pushed out of one it has landed inside — by a drag, or by a card later being moved over it. A bend
+under a card is a bend the line cannot show: the route is clipped at the border, so the drawn line
+stops there while the bend, and the handle on it, sit under the card with nothing reaching them.
+The route and the handle read the <b>same</b> pushed-out point, so the handle is always ON the
+drawn line and the two can never disagree.</p>
+
+<p><b>The handle.</b> 7 × 7 like the endpoint handles and on the same rung above the cards, but
+<b>hollow</b> — <code>--color-surface</code> fill, 1.5px <code>--color-accent</code> border, 1px
+radius — so it never reads as an endpoint. It is the same language a card's resize handle uses. On
+a line with no bend it sits on the midpoint of the route's <b>longest segment</b> — the same
+segment the label chip uses, the only one with room — and is drawn at <b>.55 opacity</b>: at that
+point it is an invitation, not a state. It goes to full strength once the line is bent. The
+transparent grab target is 14 × 14, as it is on an endpoint.</p>
+
+<p><b>Straightening.</b> A drag can only place a bend, never remove one. Two things remove it:
+<b>Enter</b> or <b>Space</b> on the focused middle handle, and a new <b>Bend</b> group in the
+properties panel, sitting <b>between Anchor and Color</b>, which reads
+<code>One hand-placed bend</code> or <code>No bend</code> in 11px at .45 opacity and carries one
+full-width <b>Straighten Line</b> button, disabled while there is no bend.</p>
 
 <p>Entry points: the <b>Connect</b> tool in the left column, or <b>Connect from here</b>
 (<code>ph-flow-arrow</code>, shortcut <code>C</code>) in a card's context menu.</p>

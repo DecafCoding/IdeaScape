@@ -123,6 +123,7 @@ beforeEach(() => {
           route: 'straight',
           from_anchor: 'auto',
           to_anchor: 'auto',
+          bend: '',
         };
         connections.push(row);
         return Promise.resolve(row);

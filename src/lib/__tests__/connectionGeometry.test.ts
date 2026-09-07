@@ -9,8 +9,14 @@ import {
   longestSegment,
   polylinePath,
   routeInView,
+  bendGrip,
+  bendPoint,
+  bendToWorld,
   nearestSide,
+  parseBend,
   routePoints,
+  serializeBend,
+  worldToBend,
   segmentMidpoint,
   sideMidpoint,
   sideNormal,
@@ -428,5 +434,152 @@ describe('anchors', () => {
     expect(nearestSide(a, { x: 500, y: 60 })).toBe('right');
     expect(nearestSide(a, { x: -500, y: 60 })).toBe('left');
     expect(nearestSide(a, { x: 50, y: 900 })).toBe('bottom');
+  });
+});
+
+describe('bends', () => {
+  // A at 0..100, B at 300..400, both 100 tall. Their centres are 300 apart, on the x axis.
+  const a = box(0, 0);
+  const b = box(300, 0);
+  const bend = { a: 0.5, b: -0.5 };
+
+  it('parseBend_theStoredTextOfABend_readsItBack', () => {
+    expect(parseBend(serializeBend(bend))).toEqual(bend);
+  });
+
+  it('parseBend_noBendOrRubbish_isNull', () => {
+    expect(parseBend('')).toBeNull();
+    expect(parseBend('not json')).toBeNull();
+    expect(parseBend('{"a":1}')).toBeNull();
+    expect(parseBend('{"a":1,"b":null}')).toBeNull();
+    expect(serializeBend(null)).toBe('');
+  });
+
+  it('worldToBend_aPointOnTheCanvas_roundTripsBackToIt', () => {
+    const point = { x: 200, y: -100 };
+    expect(bendToWorld(a, b, worldToBend(a, b, point)!)).toEqual(point);
+  });
+
+  /**
+   * The whole reason a bend is stored in the cards' frame rather than as a canvas
+   * coordinate: move both cards and the shape the user drew moves with them.
+   */
+  it('bendToWorld_bothCardsMoved_theBendMovesTheSameWay', () => {
+    const before = bendToWorld(a, b, bend);
+    const after = bendToWorld(box(50, 50), box(350, 50), bend);
+    expect(after).toEqual({ x: before.x + 50, y: before.y + 50 });
+  });
+
+  it('bendToWorld_theCardsPulledApart_theBendStretchesWithThem', () => {
+    // Twice the distance between the centres, so the bend sits twice as far out.
+    const before = bendToWorld(a, b, bend);
+    const after = bendToWorld(a, box(600, 0), bend);
+    expect(after.y - 50).toBe((before.y - 50) * 2);
+  });
+
+  it('routePoints_straightWithABend_runsThroughItAndBothEndsAimAtIt', () => {
+    // Each end clips toward the bend, not toward the other card's centre.
+    expect(routePoints(a, b, 'straight', 'auto', 'auto', bend)).toEqual([
+      { x: 100, y: 0 },
+      { x: 200, y: -100 },
+      { x: 300, y: 0 },
+    ]);
+  });
+
+  /**
+   * An elbow's bend moves the CROSSING — the middle run — and nothing else. It never drops a
+   * new corner into the route: dragging the middle of an elbow has to feel like moving the
+   * line, not like grabbing a corner that was not there a moment ago.
+   */
+  describe('an elbow, where a bend moves the crossing', () => {
+    // Offset on both axes, so the elbow really has three runs to show.
+    const lower = box(300, 200);
+    const defaultCrossing = { a: box(0, 0), b: lower };
+
+    it('routePoints_noBend_putsTheCrossingHalfwayAsItAlwaysHas', () => {
+      expect(routePoints(defaultCrossing.a, defaultCrossing.b, 'elbow')).toEqual([
+        { x: 100, y: 50 },
+        { x: 200, y: 50 },
+        { x: 200, y: 250 },
+        { x: 300, y: 250 },
+      ]);
+    });
+
+    it('routePoints_aBend_movesTheCrossingAndKeepsTheThreeRuns', () => {
+      // The frame is diagonal here, so the round trip through it lands a hair off 150.
+      const moved = worldToBend(a, lower, { x: 150, y: 0 })!;
+      const route = routePoints(a, lower, 'elbow', 'auto', 'auto', moved)!;
+
+      expect(route).toHaveLength(4);
+      expect(route[0]).toEqual({ x: 100, y: 50 });
+      expect(route[3]).toEqual({ x: 300, y: 250 });
+      // Still one crossing, still vertical, and now at the x the bend names rather than at
+      // the halfway 200 the same pair draws without one.
+      expect(route[1].x).toBeCloseTo(150, 9);
+      expect(route[2].x).toBe(route[1].x);
+      expect(route[1].y).toBe(50);
+      expect(route[2].y).toBe(250);
+    });
+
+    it('bendGrip_anElbow_sitsInTheMiddleOfTheCrossingAndSlidesOnItsAxis', () => {
+      expect(bendGrip(a, lower, 'elbow')).toEqual({ at: { x: 200, y: 150 }, slide: 'x' });
+    });
+
+    it('bendGrip_twoCardsLevelWithEachOther_offersNoHandleAtAll', () => {
+      // The elbow draws as one straight run. There is no middle section to slide, and a
+      // handle that does nothing is worse than no handle.
+      expect(bendGrip(a, b, 'elbow')).toBeNull();
+    });
+
+    it('bendGrip_anElbowMeetingAtOneCorner_offersNoHandleAtAll', () => {
+      // Both runs are pinned by a card, so nothing is free.
+      expect(bendGrip(a, lower, 'elbow', 'right', 'top')).toBeNull();
+    });
+  });
+
+  it('bendGrip_aStraightLine_sitsOnItsMiddleAndMovesAcross', () => {
+    expect(bendGrip(a, b, 'straight')).toEqual({ at: { x: 200, y: 50 }, slide: 'across' });
+  });
+
+  it('bendGrip_aBentStraightLine_sitsOnTheBend', () => {
+    expect(bendGrip(a, b, 'straight', 'auto', 'auto', bend)?.at).toEqual({ x: 200, y: -100 });
+  });
+
+  it('routePoints_aBendOnAPinnedEnd_stillLeavesThatSide', () => {
+    const route = routePoints(a, b, 'straight', 'bottom', 'auto', bend)!;
+    expect(route[0]).toEqual({ x: 50, y: 100 });
+    expect(route[1]).toEqual({ x: 200, y: -100 });
+  });
+
+  /**
+   * A bend inside a card is a bend the line cannot show: the route is clipped at the border,
+   * so the drawn line stops there while the bend, and the handle on it, sit under the card
+   * with nothing reaching them. Both the route and the handle read `bendPoint`, so they are
+   * pushed clear together and the handle never leaves the line.
+   */
+  it('bendPoint_landingInsideACard_isPushedJustOutsideItsNearestBorder', () => {
+    // 8 units past the top edge, which is the nearest border to (60, 10).
+    const inside = worldToBend(a, b, { x: 60, y: 10 })!;
+    expect(bendPoint(a, b, inside)).toEqual({ x: 60, y: -8 });
+  });
+
+  it('bendPoint_inClearSpace_isLeftWhereItIs', () => {
+    expect(bendPoint(a, b, bend)).toEqual({ x: 200, y: -100 });
+  });
+
+  it('routePoints_aBendInsideACard_runsThroughThePushedOutPoint', () => {
+    const inside = worldToBend(a, b, { x: 60, y: 10 })!;
+    expect(routePoints(a, b, 'straight', 'auto', 'auto', inside)).toContainEqual({ x: 60, y: -8 });
+  });
+
+  it('routePoints_noBend_drawsExactlyWhatItDrewBeforeBendsExisted', () => {
+    expect(routePoints(a, b, 'straight', 'auto', 'auto', null)).toEqual(
+      routePoints(a, b, 'straight'),
+    );
+    expect(routePoints(a, b, 'elbow', 'auto', 'auto', null)).toEqual(routePoints(a, b, 'elbow'));
+  });
+
+  it('routePoints_twoOverlappingCards_stillDrawsNothingWithABend', () => {
+    expect(routePoints(a, box(50, 50), 'straight', 'auto', 'auto', bend)).toBeNull();
   });
 });

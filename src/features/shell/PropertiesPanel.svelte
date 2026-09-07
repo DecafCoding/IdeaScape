@@ -140,6 +140,17 @@
     commitConnection({ fromAnchor: 'auto', toAnchor: 'auto' });
   }
 
+  /** Clear a hand-placed bend. Dragging the middle handle is how one is made and moved; this
+      is how it goes away, and Enter on that handle does the same. */
+  function commitStraighten() {
+    if (!connection || connection.bend === '') return;
+    commitConnection({ bend: '' });
+  }
+
+  const isBent = $derived(
+    connection !== null && connection !== undefined && connection.bend !== '',
+  );
+
   const anchorsAreAuto = $derived(
     !connection || (connection.from_anchor === 'auto' && connection.to_anchor === 'auto'),
   );
@@ -315,6 +326,24 @@
             onclick={() => commitAnchorsAuto()}
           >
             Reset To Auto
+          </button>
+        </div>
+      </section>
+
+      <section class="group">
+        <p class="group-label">Bend</p>
+        <!-- A bend is placed by dragging the hollow handle in the middle of a selected line.
+             It is held relative to the two cards, so moving a card keeps the shape — see
+             design-system §9.13, "Bend". -->
+        <p class="anchor-state">{isBent ? 'One hand-placed bend' : 'No bend'}</p>
+        <div class="order">
+          <button
+            type="button"
+            class="order-button"
+            disabled={!isBent}
+            onclick={() => commitStraighten()}
+          >
+            Straighten Line
           </button>
         </div>
       </section>

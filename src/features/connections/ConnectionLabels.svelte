@@ -18,6 +18,7 @@
   import {
     labelVisible,
     longestSegment,
+    parseBend,
     routePoints,
     segmentMidpoint,
   } from '../../lib/connectionGeometry';
@@ -54,6 +55,7 @@
         connection.route,
         connection.from_anchor,
         connection.to_anchor,
+        parseBend(connection.bend),
       );
       if (!points) continue;
       const segment = longestSegment(points);

@@ -310,6 +310,7 @@ describe('the properties panel Connection state', () => {
       route: 'straight',
       from_anchor: 'auto',
       to_anchor: 'auto',
+      bend: '',
     });
     canvasStore.selectConnection(7);
   });
@@ -349,6 +350,7 @@ describe('the properties panel Connection state', () => {
       route: 'straight',
       fromAnchor: 'auto',
       toAnchor: 'auto',
+      bend: '',
     });
   });
 
@@ -367,6 +369,7 @@ describe('the properties panel Connection state', () => {
       route: 'straight',
       fromAnchor: 'auto',
       toAnchor: 'auto',
+      bend: '',
     });
   });
 
@@ -397,7 +400,31 @@ describe('the properties panel Connection state', () => {
       route: 'straight',
       fromAnchor: 'auto',
       toAnchor: 'auto',
+      bend: '',
     });
+  });
+
+  it('panel_aLineWithNoBend_theStraightenButtonIsDisabled', () => {
+    const { getByText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {} },
+    });
+    expect(getByText('No bend')).toBeInTheDocument();
+    expect(getByText('Straighten Line')).toBeDisabled();
+  });
+
+  it('panel_straightenLineClicked_clearsTheBend', async () => {
+    const bent = canvasStore.connections.get(7)!;
+    canvasStore.upsertConnection({ ...bent, bend: '{"a":0.5,"b":-0.5}' });
+    const onConnectionChange = vi.fn();
+    const { getByText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {}, onConnectionChange },
+    });
+    expect(getByText('One hand-placed bend')).toBeInTheDocument();
+
+    await fireEvent.click(getByText('Straighten Line'));
+    expect(onConnectionChange).toHaveBeenCalledWith(
+      expect.objectContaining({ bend: '', label: 'causes' }),
+    );
   });
 
   it('panel_aColourSwatchClicked_invokesUpdateConnectionWithTheNewKey', async () => {
@@ -415,6 +442,7 @@ describe('the properties panel Connection state', () => {
       route: 'straight',
       fromAnchor: 'auto',
       toAnchor: 'auto',
+      bend: '',
     });
   });
 
@@ -434,6 +462,7 @@ describe('the properties panel Connection state', () => {
       route: 'straight',
       fromAnchor: 'auto',
       toAnchor: 'auto',
+      bend: '',
     });
   });
 
@@ -452,6 +481,7 @@ describe('the properties panel Connection state', () => {
       route: 'elbow',
       fromAnchor: 'auto',
       toAnchor: 'auto',
+      bend: '',
     });
   });
 
@@ -482,6 +512,7 @@ describe('the properties panel Connection state', () => {
       route: 'straight',
       fromAnchor: 'auto',
       toAnchor: 'auto',
+      bend: '',
     });
   });
 

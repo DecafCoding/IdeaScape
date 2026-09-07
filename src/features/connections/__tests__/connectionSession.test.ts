@@ -90,6 +90,7 @@ class FakeProject {
         route: 'straight',
         from_anchor: 'auto',
         to_anchor: 'auto',
+        bend: '',
       };
       this.rows.set(row.id, row);
       return row;
@@ -190,7 +191,7 @@ beforeEach(async () => {
 
 function drawnConnections(): number {
   const { getByTestId } = render(ConnectionLayer, {
-    props: { onSelect: () => {}, onAnchorChange: () => {} },
+    props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange: () => {} },
   });
   const count = Number(getByTestId('connection-layer').getAttribute('data-drawn'));
   cleanup();
@@ -253,7 +254,7 @@ describe('the phase 2 gate session', () => {
     // accent marker rather than the resting one.
     canvasStore.selectConnection(null);
     const { container } = render(ConnectionLayer, {
-      props: { onSelect: () => {}, onAnchorChange: () => {} },
+      props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange: () => {} },
     });
     const stroke = container.querySelector('path.stroke');
     expect(stroke?.getAttribute('marker-start')).toBe('url(#ideascape-arrow-default-1)');
@@ -266,7 +267,7 @@ describe('the phase 2 gate session', () => {
     await link(1, 2);
 
     const { container } = render(ConnectionLayer, {
-      props: { onSelect: () => {}, onAnchorChange: () => {} },
+      props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange: () => {} },
     });
     // The hit path holds the untrimmed geometry; the stroke stops at the arrowhead.
     expect(container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L300,50');
@@ -275,7 +276,7 @@ describe('the phase 2 gate session', () => {
     invokeSafe.mockClear();
     canvasStore.patchPlacement(2, { x: 700 });
     const second = render(ConnectionLayer, {
-      props: { onSelect: () => {}, onAnchorChange: () => {} },
+      props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange: () => {} },
     });
     expect(second.container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L700,50');
     // The move wrote nothing at all to the connection table.

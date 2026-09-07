@@ -1128,6 +1128,21 @@
     });
   }
 
+  /**
+   * Move, or clear, a line's hand-placed bend. Like an anchor it goes through the one edit
+   * command, so a dragged bend and a Straighten Line click share an undo entry shape, and it
+   * names its own connection rather than the selected one.
+   */
+  async function changeConnectionBend(connectionId: number, bend: string) {
+    const before = canvasStore.connections.get(connectionId);
+    if (!before || before.bend === bend) return;
+    const edit = { ...connectionEdit(before), bend };
+    await guard(async () => {
+      await updateConnection(connectionId, edit, saveHooks);
+      undoStack.push(editConnectionCommand(connectionId, connectionEdit(before), edit));
+    });
+  }
+
   async function deleteSelectedConnection() {
     const id = canvasStore.selectedConnectionId;
     if (id === null) return;
@@ -1488,6 +1503,7 @@
           <ConnectionLayer
             onSelect={(id) => canvasStore.selectConnection(id)}
             onAnchorChange={(id, end, anchor) => void changeConnectionAnchor(id, end, anchor)}
+            onBendChange={(id, bend) => void changeConnectionBend(id, bend)}
           />
           <ConnectionLabels />
 
