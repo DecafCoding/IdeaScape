@@ -13,7 +13,7 @@
 <script lang="ts">
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import {
-    bendToWorld,
+    bendPoint,
     longestSegment,
     nearestSide,
     parseBend,
@@ -427,12 +427,16 @@
    * Where the middle handle sits: on the bend when there is one, and otherwise on the
    * midpoint of the route's longest segment — the same segment the label chip uses, which is
    * the one place on any route with room to be grabbed.
+   *
+   * It reads `bendPoint`, the same function the route does, so the handle is always ON the
+   * drawn line — a bend that has ended up under a card is pushed clear for both of them
+   * together, and never for only one.
    */
   function bendHandleAt(row: DrawnConnection): Point | null {
     const bend = bendFor(row.connection);
     if (bend) {
       const rects = rectsOf(row.connection.id);
-      if (rects) return bendToWorld(rects.from, rects.to, bend);
+      if (rects) return bendPoint(rects.from, rects.to, bend);
     }
     const longest = longestSegment(row.points);
     return longest ? segmentMidpoint(longest.a, longest.b) : null;

@@ -217,7 +217,8 @@ appearing here first.</p>
     chose this over a fixed canvas point precisely so that moving a card does not make the line
     look broken. Both ends then aim at the bend. Enter on the handle, or <b>Straighten Line</b> in
     the new Bend group in the properties panel, removes it. The full geometry, storage, handle and
-    control spec is in §9.13 under <b>Bend</b>. Not drawn by the designer: authored here at the
+    control spec is in §9.13 under <b>Bend</b>. A bend is kept 8px clear of both cards, so its
+    handle is always on the drawn line. Not drawn by the designer: authored here at the
     owner's instruction, so a later drawn pass supersedes it and gets its own row.</td>
   <td><b>Amended: §9.13.</b> The property table gains a <code>Bend</code> row; rule 8 is rewritten
     a second time, from "a bend is computed" to "a line's shape is derived until the user says
@@ -1589,6 +1590,9 @@ where the line is actually going first.</p>
   <td>Out of each card's side by the 12px stub, then <b>across the normal first</b> and into the
   bend along it. Turning the other way round draws a spike: two cards side by side with the bend
   above them would run out to the bend's column, up, and straight back down the same line</td></tr>
+<tr><td>Where the bend may sit</td><td>—</td>
+  <td>Anywhere <b>8px clear of both cards</b>. One that lands inside a card is pushed out past its
+  nearest border, so the handle never leaves the drawn line. See below</td></tr>
 <tr><td>Arrowheads, trim, chip, hit target, cull</td>
   <td colspan="2">All unchanged. Every one of them reads the route as a <b>list of points</b>,
   which is the seam rule 9 left open</td></tr>
@@ -1605,6 +1609,13 @@ endpoints on purpose: an endpoint depends on where the line is going, and the be
 that, so measuring against endpoints would be circular. An unreadable value draws as a plain line
 rather than failing the overlay. This is an amendment to the data model in
 <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4.</p>
+
+<p><b>The bend is kept off both cards.</b> It is held 8px clear of either card's border, and it is
+pushed out of one it has landed inside — by a drag, or by a card later being moved over it. A bend
+under a card is a bend the line cannot show: the route is clipped at the border, so the drawn line
+stops there while the bend, and the handle on it, sit under the card with nothing reaching them.
+The route and the handle read the <b>same</b> pushed-out point, so the handle is always ON the
+drawn line and the two can never disagree.</p>
 
 <p><b>The handle.</b> 7 × 7 like the endpoint handles and on the same rung above the cards, but
 <b>hollow</b> — <code>--color-surface</code> fill, 1.5px <code>--color-accent</code> border, 1px

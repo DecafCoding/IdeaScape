@@ -109,7 +109,7 @@ export function routePoints(
 
   // What each end aims at. A bend outranks everything: it is the first thing the line is
   // travelling towards, so both ends have to point at it.
-  const through = bend ? bendToWorld(from, to, bend) : null;
+  const through = bend ? bendPoint(from, to, bend) : null;
   const fromTarget = through ?? (pinnedTo ? sideMidpoint(to, pinnedTo) : rectCentre(to));
   const toTarget = through ?? (pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectCentre(from));
   const start = pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectEdgePoint(from, fromTarget);
@@ -186,6 +186,44 @@ export function bendToWorld(from: Rect, to: Rect, bend: Bend): Point {
     x: origin.x + bend.a * dx + bend.b * length * acrossX,
     y: origin.y + bend.a * dy + bend.b * length * acrossY,
   };
+}
+
+/**
+ * How far outside a card a bend is held. A bend inside a card is a bend the line cannot show:
+ * the route is clipped at the card's border, so the drawn line stops there while the bend —
+ * and the handle on it — sit under the card with nothing reaching them.
+ */
+export const BEND_CLEARANCE = 8;
+
+/**
+ * Where a stored bend is actually drawn: its place on the canvas, pushed clear of either card
+ * it has landed inside.
+ *
+ * This, not `bendToWorld`, is what both the route and the middle handle read, which is what
+ * keeps the handle ON the line at all times — including after a card has been dragged over a
+ * bend that was in clear space when it was made.
+ */
+export function bendPoint(from: Rect, to: Rect, bend: Bend): Point {
+  return pushOutside(to, pushOutside(from, bendToWorld(from, to, bend), BEND_CLEARANCE));
+}
+
+/**
+ * The same point, moved `BEND_CLEARANCE` past the nearest border if it is inside `rect`, and
+ * returned untouched if it is not. The nearest border wins, so the push is the shortest one
+ * that gets the point out.
+ */
+function pushOutside(rect: Rect, point: Point, margin = BEND_CLEARANCE): Point {
+  const fromLeft = point.x - rect.x;
+  const fromRight = rect.x + rect.width - point.x;
+  const fromTop = point.y - rect.y;
+  const fromBottom = rect.y + rect.height - point.y;
+  if (fromLeft < 0 || fromRight < 0 || fromTop < 0 || fromBottom < 0) return point;
+
+  const nearest = Math.min(fromLeft, fromRight, fromTop, fromBottom);
+  if (nearest === fromLeft) return { x: rect.x - margin, y: point.y };
+  if (nearest === fromRight) return { x: rect.x + rect.width + margin, y: point.y };
+  if (nearest === fromTop) return { x: point.x, y: rect.y - margin };
+  return { x: point.x, y: rect.y + rect.height + margin };
 }
 
 /** A canvas point as a bend. Null when the two centres coincide and there is no frame. */

@@ -9,6 +9,7 @@ import {
   longestSegment,
   polylinePath,
   routeInView,
+  bendPoint,
   bendToWorld,
   nearestSide,
   parseBend,
@@ -498,6 +499,27 @@ describe('bends', () => {
     const route = routePoints(a, b, 'straight', 'bottom', 'auto', bend)!;
     expect(route[0]).toEqual({ x: 50, y: 100 });
     expect(route[1]).toEqual({ x: 200, y: -100 });
+  });
+
+  /**
+   * A bend inside a card is a bend the line cannot show: the route is clipped at the border,
+   * so the drawn line stops there while the bend, and the handle on it, sit under the card
+   * with nothing reaching them. Both the route and the handle read `bendPoint`, so they are
+   * pushed clear together and the handle never leaves the line.
+   */
+  it('bendPoint_landingInsideACard_isPushedJustOutsideItsNearestBorder', () => {
+    // 8 units past the top edge, which is the nearest border to (60, 10).
+    const inside = worldToBend(a, b, { x: 60, y: 10 })!;
+    expect(bendPoint(a, b, inside)).toEqual({ x: 60, y: -8 });
+  });
+
+  it('bendPoint_inClearSpace_isLeftWhereItIs', () => {
+    expect(bendPoint(a, b, bend)).toEqual({ x: 200, y: -100 });
+  });
+
+  it('routePoints_aBendInsideACard_runsThroughThePushedOutPoint', () => {
+    const inside = worldToBend(a, b, { x: 60, y: 10 })!;
+    expect(routePoints(a, b, 'straight', 'auto', 'auto', inside)).toContainEqual({ x: 60, y: -8 });
   });
 
   it('routePoints_noBend_drawsExactlyWhatItDrewBeforeBendsExisted', () => {
