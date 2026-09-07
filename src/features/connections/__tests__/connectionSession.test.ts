@@ -8,6 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/svelte';
+import { connectionEdit } from '../../../lib/types';
 import type {
   Connection,
   DeleteEffect,
@@ -87,6 +88,8 @@ class FakeProject {
         width: 1,
         label_visible: true,
         route: 'straight',
+        from_anchor: 'auto',
+        to_anchor: 'auto',
       };
       this.rows.set(row.id, row);
       return row;
@@ -186,7 +189,9 @@ beforeEach(async () => {
 });
 
 function drawnConnections(): number {
-  const { getByTestId } = render(ConnectionLayer, { props: { onSelect: () => {} } });
+  const { getByTestId } = render(ConnectionLayer, {
+    props: { onSelect: () => {}, onAnchorChange: () => {} },
+  });
   const count = Number(getByTestId('connection-layer').getAttribute('data-drawn'));
   cleanup();
   return count;
@@ -229,15 +234,7 @@ describe('the phase 2 gate session', () => {
     for (let n = 0; n < 4; n += 1) canvasStore.upsertCard(project.note(n * 300));
     const made = [await link(1, 2), await link(2, 3), await link(3, 4)];
     for (const [i, row] of made.entries()) {
-      await updateConnection(
-        row!.id,
-        `edge ${i + 1}`,
-        row!.directed,
-        row!.color,
-        row!.width,
-        row!.label_visible,
-        row!.route,
-      );
+      await updateConnection(row!.id, { ...connectionEdit(row!), label: `edge ${i + 1}` });
     }
     expect([...project.rows.values()].map((r) => r.label)).toEqual(['edge 1', 'edge 2', 'edge 3']);
     expect(drawnChips()).toBe(3);
@@ -249,21 +246,15 @@ describe('the phase 2 gate session', () => {
     const row = (await link(1, 2))!;
     expect(row.directed).toBe(1);
 
-    await updateConnection(
-      row.id,
-      row.label,
-      2,
-      row.color,
-      row.width,
-      row.label_visible,
-      row.route,
-    );
+    await updateConnection(row.id, { ...connectionEdit(row), directed: 2 });
     expect(project.rows.get(row.id)?.directed).toBe(2);
 
     // Deselect first: a freshly drawn line is selected, and a selected line draws the
     // accent marker rather than the resting one.
     canvasStore.selectConnection(null);
-    const { container } = render(ConnectionLayer, { props: { onSelect: () => {} } });
+    const { container } = render(ConnectionLayer, {
+      props: { onSelect: () => {}, onAnchorChange: () => {} },
+    });
     const stroke = container.querySelector('path.stroke');
     expect(stroke?.getAttribute('marker-start')).toBe('url(#ideascape-arrow-default-1)');
     expect(stroke?.getAttribute('marker-end')).toBeNull();
@@ -274,14 +265,18 @@ describe('the phase 2 gate session', () => {
     canvasStore.upsertCard(project.note(300));
     await link(1, 2);
 
-    const { container } = render(ConnectionLayer, { props: { onSelect: () => {} } });
+    const { container } = render(ConnectionLayer, {
+      props: { onSelect: () => {}, onAnchorChange: () => {} },
+    });
     // The hit path holds the untrimmed geometry; the stroke stops at the arrowhead.
     expect(container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L300,50');
     cleanup();
 
     invokeSafe.mockClear();
     canvasStore.patchPlacement(2, { x: 700 });
-    const second = render(ConnectionLayer, { props: { onSelect: () => {} } });
+    const second = render(ConnectionLayer, {
+      props: { onSelect: () => {}, onAnchorChange: () => {} },
+    });
     expect(second.container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L700,50');
     // The move wrote nothing at all to the connection table.
     expect(invokeSafe.mock.calls.map((c) => c[0])).not.toContain('update_connection');
@@ -291,15 +286,7 @@ describe('the phase 2 gate session', () => {
     canvasStore.upsertCard(project.note(0));
     canvasStore.upsertCard(project.note(300));
     const row = (await link(1, 2))!;
-    await updateConnection(
-      row.id,
-      'because',
-      row.directed,
-      row.color,
-      row.width,
-      row.label_visible,
-      row.route,
-    );
+    await updateConnection(row.id, { ...connectionEdit(row), label: 'because' });
 
     canvasStore.setView({ zoom: 1 });
     expect(drawnChips()).toBe(1);
@@ -335,7 +322,7 @@ describe('the phase 2 gate session', () => {
   it('step8_undoTheDelete_theCardAndBothLinesComeBackUnderTheirOwnIds', async () => {
     for (let n = 0; n < 3; n += 1) canvasStore.upsertCard(project.note(n * 300));
     const a = (await link(1, 2))!;
-    await updateConnection(a.id, 'first', 3, a.color, a.width, a.label_visible, a.route);
+    await updateConnection(a.id, { ...connectionEdit(a), label: 'first', directed: 3 });
     await link(2, 3);
 
     const effect = (await invokeSafe('delete_placements', { ids: [2] })) as DeleteEffect;
@@ -393,15 +380,7 @@ describe('the phase 2 gate session', () => {
     canvasStore.upsertCard(project.note(0));
     canvasStore.upsertCard(project.note(300));
     const row = (await link(1, 2))!;
-    await updateConnection(
-      row.id,
-      'survives',
-      3,
-      row.color,
-      row.width,
-      row.label_visible,
-      row.route,
-    );
+    await updateConnection(row.id, { ...connectionEdit(row), label: 'survives', directed: 3 });
 
     // Close: the store is emptied. The fake project keeps its rows, as SQLite would.
     canvasStore.closeProject();

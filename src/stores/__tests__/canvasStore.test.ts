@@ -26,6 +26,8 @@ function connection(id: number, from = 1, to = 2): Connection {
     width: 1,
     label_visible: true,
     route: 'straight',
+    from_anchor: 'auto',
+    to_anchor: 'auto',
   };
 }
 

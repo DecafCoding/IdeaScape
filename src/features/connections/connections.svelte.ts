@@ -14,7 +14,7 @@ import { invokeSafe } from '../../lib/ipc';
 import { writeNow, type SaveHooks } from '../../lib/save';
 import { canvasStore } from '../../stores/canvasStore.svelte';
 import type { Point } from '../../lib/geometry';
-import { DIRECTED_FORWARD, type Connection } from '../../lib/types';
+import { DIRECTED_FORWARD, type Connection, type ConnectionEdit } from '../../lib/types';
 
 /**
  * Begin drawing a line from `fromPlacementId`.
@@ -117,31 +117,17 @@ export async function completeLink(
 }
 
 /**
- * Write a connection's label, direction, colour, width, route and chip visibility, and mirror
- * the row back into the store. They all travel together — the panel holds them all and one
- * command writes them.
+ * Write a connection's label, direction, appearance, route and anchors, and mirror the row
+ * back into the store. They all travel together as one `ConnectionEdit` — the panel holds
+ * them all and one command writes them.
  */
 export async function updateConnection(
   connectionId: number,
-  label: string | null,
-  directed: number,
-  color: string,
-  width: number,
-  labelVisible: boolean,
-  route: string,
+  edit: ConnectionEdit,
   hooks?: SaveHooks,
 ): Promise<Connection> {
   const updated = await writeNow(
-    () =>
-      invokeSafe<Connection>('update_connection', {
-        connectionId,
-        label,
-        directed,
-        color,
-        width,
-        labelVisible,
-        route,
-      }),
+    () => invokeSafe<Connection>('update_connection', { connectionId, ...edit }),
     hooks,
   );
   canvasStore.upsertConnection(updated);

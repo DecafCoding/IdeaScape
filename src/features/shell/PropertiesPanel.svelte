@@ -13,6 +13,7 @@
     CONNECTION_COLORS,
     CONNECTION_ROUTES,
     CONNECTION_WIDTHS,
+    anchorLabel,
     connectionStroke,
     connectionWidthPx,
   } from '../../lib/connectionStyle';
@@ -21,6 +22,7 @@
   import { relativeTime } from '../../lib/relativeTime';
   import {
     cardTitle,
+    connectionEdit,
     DIRECTED_BACK,
     DIRECTED_BOTH,
     DIRECTED_FORWARD,
@@ -29,6 +31,7 @@
     parseLinkPayload,
     parseNotePayload,
     parseVideoPayload,
+    type ConnectionEdit,
     type Placement,
   } from '../../lib/types';
 
@@ -40,15 +43,8 @@
     onSendBack?: () => void;
     onDuplicate?: () => void;
     onDelete?: () => void;
-    /** Commit a connection's label, direction and appearance together. */
-    onConnectionChange?: (
-      label: string | null,
-      directed: number,
-      color: string,
-      width: number,
-      labelVisible: boolean,
-      route: string,
-    ) => void;
+    /** Commit a connection's label, direction, appearance, route and anchors together. */
+    onConnectionChange?: (edit: ConnectionEdit) => void;
     onDeleteConnection?: () => void;
     /** The image card's Title text, committed on blur. */
     onImageTitleChange?: (title: string) => void;
@@ -97,79 +93,56 @@
     { value: DIRECTED_BOTH, label: 'Both' },
   ] as const;
 
+  /** The selected row as an edit, with the one field this control owns replaced. */
+  function commitConnection(change: Partial<ConnectionEdit>) {
+    if (!connection) return;
+    onConnectionChange?.({ ...connectionEdit(connection), ...change });
+  }
+
   function commitLabel(raw: string) {
     if (!connection) return;
     const next = raw.trim() === '' ? null : raw;
     if (next === connection.label) return;
-    onConnectionChange?.(
-      next,
-      connection.directed,
-      connection.color,
-      connection.width,
-      connection.label_visible,
-      connection.route,
-    );
+    commitConnection({ label: next });
   }
 
   function commitDirection(directed: number) {
     if (!connection || connection.directed === directed) return;
-    onConnectionChange?.(
-      connection.label,
-      directed,
-      connection.color,
-      connection.width,
-      connection.label_visible,
-      connection.route,
-    );
+    commitConnection({ directed });
   }
 
   function commitColor(color: string) {
     if (!connection || connection.color === color) return;
-    onConnectionChange?.(
-      connection.label,
-      connection.directed,
-      color,
-      connection.width,
-      connection.label_visible,
-      connection.route,
-    );
+    commitConnection({ color });
   }
 
   function commitRoute(route: string) {
     if (!connection || connection.route === route) return;
-    onConnectionChange?.(
-      connection.label,
-      connection.directed,
-      connection.color,
-      connection.width,
-      connection.label_visible,
-      route,
-    );
+    commitConnection({ route });
   }
 
   function commitWidth(width: number) {
     if (!connection || connection.width === width) return;
-    onConnectionChange?.(
-      connection.label,
-      connection.directed,
-      connection.color,
-      width,
-      connection.label_visible,
-      connection.route,
-    );
+    commitConnection({ width });
   }
 
-  function commitLabelVisible(visible: boolean) {
-    if (!connection || connection.label_visible === visible) return;
-    onConnectionChange?.(
-      connection.label,
-      connection.directed,
-      connection.color,
-      connection.width,
-      visible,
-      connection.route,
-    );
+  function commitLabelVisible(labelVisible: boolean) {
+    if (!connection || connection.label_visible === labelVisible) return;
+    commitConnection({ labelVisible });
   }
+
+  /**
+   * Put both ends back on `auto`. It is the one thing dragging a handle cannot do — a drag
+   * always lands on a side — so the panel owns it.
+   */
+  function commitAnchorsAuto() {
+    if (!connection || anchorsAreAuto) return;
+    commitConnection({ fromAnchor: 'auto', toAnchor: 'auto' });
+  }
+
+  const anchorsAreAuto = $derived(
+    !connection || (connection.from_anchor === 'auto' && connection.to_anchor === 'auto'),
+  );
 
   const selected = $derived(canvasStore.selectedPlacements);
   const hasSelection = $derived(selected.length > 0);
@@ -323,6 +296,26 @@
               {option.label}
             </button>
           {/each}
+        </div>
+      </section>
+
+      <section class="group">
+        <p class="group-label">Anchor</p>
+        <!-- An end is pinned by dragging its square handle on the canvas onto a card side.
+             This group reports where both ends sit and puts them back on Auto, which a drag
+             cannot do — see design-system §9.13, "Anchor". -->
+        <p class="anchor-state">
+          From {anchorLabel(connection.from_anchor)} · To {anchorLabel(connection.to_anchor)}
+        </p>
+        <div class="order">
+          <button
+            type="button"
+            class="order-button"
+            disabled={anchorsAreAuto}
+            onclick={() => commitAnchorsAuto()}
+          >
+            Reset To Auto
+          </button>
         </div>
       </section>
 
@@ -673,6 +666,12 @@
   }
 
   .file-meta {
+    margin: 0 0 var(--space-6);
+    font-size: var(--text-11);
+    opacity: 0.45;
+  }
+
+  .anchor-state {
     margin: 0 0 var(--space-6);
     font-size: var(--text-11);
     opacity: 0.45;

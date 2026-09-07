@@ -48,7 +48,13 @@
       const from = canvasStore.placements.get(connection.from_placement_id);
       const to = canvasStore.placements.get(connection.to_placement_id);
       if (!from || !to) continue;
-      const points = routePoints(rectOf(from), rectOf(to), connection.route);
+      const points = routePoints(
+        rectOf(from),
+        rectOf(to),
+        connection.route,
+        connection.from_anchor,
+        connection.to_anchor,
+      );
       if (!points) continue;
       const segment = longestSegment(points);
       if (!segment) continue;

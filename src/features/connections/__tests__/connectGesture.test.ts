@@ -121,6 +121,8 @@ beforeEach(() => {
           width: 1,
           label_visible: true,
           route: 'straight',
+          from_anchor: 'auto',
+          to_anchor: 'auto',
         };
         connections.push(row);
         return Promise.resolve(row);

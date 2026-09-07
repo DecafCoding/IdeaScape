@@ -116,8 +116,9 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
         }
         conn.execute(
             "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id, label,
-                                     directed, color, width, label_visible, route)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                                     directed, color, width, label_visible, route,
+                                     from_anchor, to_anchor)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             rusqlite::params![
                 connection.id,
                 connection.canvas_id,
@@ -128,7 +129,9 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
                 connection.color,
                 connection.width,
                 connection.label_visible,
-                connection.route
+                connection.route,
+                connection.from_anchor,
+                connection.to_anchor
             ],
         )?;
         Ok(conn.query_row(
@@ -141,8 +144,8 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
 
 /// Change a connection's label, arrow direction and appearance. Every field is always sent
 /// together, because the properties panel holds them all and a partial update would need a
-/// second command. The width step is clamped to 1-3; an unknown colour or route key is
-/// stored as given and resolved to the default by the front end.
+/// second command. The width step is clamped to 1-3; an unknown colour, route or anchor key
+/// is stored as given and resolved to the default by the front end.
 #[allow(clippy::too_many_arguments)]
 pub fn update_connection_for(
     state: &AppState,
@@ -153,13 +156,16 @@ pub fn update_connection_for(
     width: i64,
     label_visible: bool,
     route: String,
+    from_anchor: String,
+    to_anchor: String,
 ) -> AppResult<Connection> {
     let label = normalise_label(label);
     let width = width.clamp(1, 3);
     state.with_db(|conn| {
         let changed = conn.execute(
             "UPDATE connection SET label = ?2, directed = ?3, color = ?4, width = ?5,
-                                   label_visible = ?6, route = ?7
+                                   label_visible = ?6, route = ?7, from_anchor = ?8,
+                                   to_anchor = ?9
              WHERE id = ?1",
             rusqlite::params![
                 connection_id,
@@ -168,7 +174,9 @@ pub fn update_connection_for(
                 color,
                 width,
                 label_visible,
-                route
+                route,
+                from_anchor,
+                to_anchor
             ],
         )?;
         if changed == 0 {
@@ -251,6 +259,8 @@ pub fn update_connection(
     width: i64,
     label_visible: bool,
     route: String,
+    from_anchor: String,
+    to_anchor: String,
 ) -> AppResult<Connection> {
     update_connection_for(
         &state,
@@ -261,6 +271,8 @@ pub fn update_connection(
         width,
         label_visible,
         route,
+        from_anchor,
+        to_anchor,
     )
 }
 
@@ -323,6 +335,9 @@ mod tests {
         assert!(rows[0].label_visible);
         // And on the straight route — an existing canvas never changes shape by itself.
         assert_eq!(rows[0].route, "straight");
+        // And on automatic anchors, so the geometry still picks both sides.
+        assert_eq!(rows[0].from_anchor, "auto");
+        assert_eq!(rows[0].to_anchor, "auto");
         assert_eq!(rows[0].from_placement_id, a);
         assert_eq!(rows[0].to_placement_id, b);
     }
@@ -365,6 +380,8 @@ mod tests {
             2,
             false,
             "elbow".into(),
+            "right".into(),
+            "left".into(),
         )
         .unwrap();
         assert_eq!(updated.label, None);
@@ -373,6 +390,8 @@ mod tests {
         assert_eq!(updated.width, 2);
         assert!(!updated.label_visible);
         assert_eq!(updated.route, "elbow");
+        assert_eq!(updated.from_anchor, "right");
+        assert_eq!(updated.to_anchor, "left");
         assert_eq!(
             list_connections_for(&state, canvas_id).unwrap()[0].label,
             None
@@ -422,6 +441,8 @@ mod tests {
                 1,
                 true,
                 "straight".into(),
+                "auto".into(),
+                "auto".into(),
             )
             .unwrap();
         }
@@ -434,6 +455,8 @@ mod tests {
             3,
             true,
             "elbow".into(),
+            "auto".into(),
+            "auto".into(),
         )
         .unwrap();
         let rows = list_connections_for(&state, canvas_id).unwrap();

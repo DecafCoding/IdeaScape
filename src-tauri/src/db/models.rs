@@ -86,6 +86,11 @@ pub struct Connection {
     /// The line's shape: 'straight' or 'elbow'. A key, like `color` — the front end owns the
     /// geometry, so a bend radius change needs no migration.
     pub route: String,
+    /// Which side of the `from` card the line leaves: 'auto', or 'top'/'right'/'bottom'/'left'.
+    /// A key, like `route` — never a coordinate, so a card that moves writes nothing here.
+    pub from_anchor: String,
+    /// Which side of the `to` card the line enters. Same keys as `from_anchor`.
+    pub to_anchor: String,
 }
 
 /// Everything `delete_placements` actually removed, so one undo command can restore the
@@ -190,5 +195,7 @@ pub fn row_to_connection(row: &rusqlite::Row<'_>) -> rusqlite::Result<Connection
         width: row.get("width")?,
         label_visible: row.get("label_visible")?,
         route: row.get("route")?,
+        from_anchor: row.get("from_anchor")?,
+        to_anchor: row.get("to_anchor")?,
     })
 }

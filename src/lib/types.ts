@@ -135,6 +135,8 @@ export interface CanvasDeleteEffect {
 /**
  * One line joining two cards. Endpoints are derived from the two placement rectangles at
  * render time and never stored, so a card that moves or grows writes no connection row.
+ * Pinning an end (`from_anchor` / `to_anchor`) stores which SIDE it uses, still never a
+ * coordinate, so that stays true.
  */
 export interface Connection {
   id: number;
@@ -151,6 +153,45 @@ export interface Connection {
   label_visible: boolean;
   /** The line's shape: a key from `lib/connectionStyle.ts` — `straight` or `elbow`. */
   route: string;
+  /**
+   * Which side of the `from` card the line leaves: `auto`, or one of `top`, `right`,
+   * `bottom`, `left`. A key, never a coordinate — see `lib/connectionStyle.ts`.
+   */
+  from_anchor: string;
+  /** Which side of the `to` card the line enters. The same keys as `from_anchor`. */
+  to_anchor: string;
+}
+
+/**
+ * The fields the properties panel and the endpoint handles commit together. They travel as
+ * a set because one command writes them all — a partial update would need a second command.
+ */
+export interface ConnectionEdit {
+  label: string | null;
+  directed: number;
+  color: string;
+  width: number;
+  labelVisible: boolean;
+  route: string;
+  fromAnchor: string;
+  toAnchor: string;
+}
+
+/**
+ * A stored row as an edit, so a caller can change the one field it owns and send the rest
+ * back unchanged. It is the only place the snake_case row and the camelCase command meet.
+ */
+export function connectionEdit(connection: Connection): ConnectionEdit {
+  return {
+    label: connection.label,
+    directed: connection.directed,
+    color: connection.color,
+    width: connection.width,
+    labelVisible: connection.label_visible,
+    route: connection.route,
+    fromAnchor: connection.from_anchor,
+    toAnchor: connection.to_anchor,
+  };
 }
 
 /** Arrow direction: none, an arrow at the `to` end, at the `from` end, or both. */

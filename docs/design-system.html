@@ -211,6 +211,27 @@ appearing here first.</p>
 <tr>
   <td>2026-09-07</td>
   <td><span class="frames">owner decision</span></td>
+  <td><b>Added: connection anchors.</b> Each END of a connection now carries an anchor —
+    <code>auto</code>, or one of the four card sides. It is set by <b>dragging that end's selection
+    handle</b> onto a side, and a pinned end always leaves that side's midpoint. Both ends default
+    to <code>auto</code>, so no existing canvas changes shape. The full endpoint, elbow-stub,
+    control and keyboard spec is in §9.13 under <b>Anchor</b>. Not drawn by the designer: authored
+    here at the owner's instruction, so a later drawn pass supersedes it and gets its own row.</td>
+  <td><b>Amended: §9.13.</b> The property table gains an <code>Anchor</code> row; rule 8 is
+    narrowed from "the route is computed" to "a BEND is computed", because the two ends can now be
+    authored and the middle still cannot; the Route table's selection-handles row records that the
+    endpoint squares are draggable. <b>Amended: the stacking ladder.</b> A new rung,
+    <code>--z-connection-handles: 25</code>, carries a selected connection's endpoint handles above
+    the cards — the one exception to "cards always paint over lines", and the only way a handle
+    sitting on a card border can be seen or grabbed. <b>Amended: the data model.</b>
+    <code>connection</code> gains <code>from_anchor</code> and <code>to_anchor</code> — a change to
+    <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4. <b>Still a non-goal:</b>
+    waypoints. There is no handle on the middle of a line and no way to drag a bend.
+    <i>Owner, 2026-09-07.</i></td>
+</tr>
+<tr>
+  <td>2026-09-07</td>
+  <td><span class="frames">owner decision</span></td>
   <td><b>Added: the Font setting.</b> <b>Settings · Appearance · Font</b> offers
     <code>Serif</code> (Source Serif 4, the default), <code>Sans</code> (Inter) and
     <code>Marker</code> (Patrick Hand). It swaps the family tokens only; no size, weight or
@@ -1348,6 +1369,10 @@ order</b>, so cards always paint over the lines.</p>
 <tr><td>Route</td>
   <td colspan="2"><code>straight</code> (default) or <code>elbow</code>. Per connection, chosen in
   the properties panel. Bend radius 2px. See <b>Route</b> below</td></tr>
+<tr><td>Anchor</td>
+  <td colspan="2">Per END. <code>auto</code> (default) or a card side — <code>top</code>,
+  <code>right</code>, <code>bottom</code>, <code>left</code>. Set by dragging that end's selection
+  handle. Stub 12px. See <b>Anchor</b> below</td></tr>
 </tbody>
 </table>
 
@@ -1377,9 +1402,12 @@ order</b>, so cards always paint over the lines.</p>
     an application-wide setting. <i>Set by the owner, 2026-09-07.</i> Reason: a diagram normally
     mixes the two, and an app-wide switch would restyle every line on every canvas at once. New
     connections start on <code>straight</code>, so no existing canvas changes shape.</li>
-  <li><b>The route is computed, never authored.</b> There are no waypoint handles and no way to drag
-    a bend. This is contract 1 in section 10 applied to lines: the application derives the geometry,
-    the user places the cards. Move a card and the elbow re-forms.</li>
+  <li><b>A bend is computed, never authored.</b> There are no waypoint handles and no way to drag
+    the middle of a line. Move a card and the elbow re-forms. <i>Narrowed by the owner,
+    2026-09-07:</i> the rule used to cover the whole route. The two ENDS can now be pinned to a
+    card side — see <b>Anchor</b> below — because "which side does this line come out of" is a
+    diagramming decision the application cannot read off the rectangles. Everything between those
+    two ends is still derived, which is contract 1 in section 10 kept where it earns its keep.</li>
   <li><b>An elbow does not go around cards.</b> It may cross one. Obstacle avoidance is a
     <b>deliberate non-goal</b> — it is per-line path finding that has to re-run on every drag, and
     it is the wrong thing to put in front of the 60 fps / 250 card gate. The seam is left open: the
@@ -1423,7 +1451,8 @@ is.</p>
   threshold is measured on that same segment</td></tr>
 <tr><td>Selection handles</td>
   <td colspan="2">The two 7 × 7 accent squares stay on the two <b>endpoints</b>. A bend carries no
-  handle — there is nothing to drag</td></tr>
+  handle — there is nothing to drag. <i>Amended 2026-09-07:</i> the endpoint squares are themselves
+  draggable, and a drag pins that end to a card side — see <b>Anchor</b> below</td></tr>
 <tr><td>Hit target</td>
   <td colspan="2">The same 12px transparent <code>pointer-events: stroke</code> path, following the
   whole route. Untrimmed, as it already is: the arrowhead is part of the line for pointing at</td></tr>
@@ -1449,6 +1478,72 @@ radius 3px, transparent, 1px <code>--color-divider</code> border, the chosen one
 fill. The labels are the words <code>Straight</code> and <code>Elbow</code>, in Title Case like every
 other control label. Two words fit the 177px panel, so no icon is needed and none is added —
 §7.1's glyph set is closed.</p>
+
+<h4>Anchor — which side a line uses <span class="tag warn">new</span></h4>
+<p><i>Added by the owner, 2026-09-07.</i> Each END of a connection carries an <b>anchor</b>:
+<code>auto</code>, or one of the four card sides. <code>auto</code> is what every line has always
+done — the geometry picks the side from where the two cards sit. A pinned end always leaves the
+<b>midpoint of that side</b>, whatever the cards do afterwards.</p>
+
+<table>
+<thead><tr><th>Step</th><th><code>auto</code> at both ends</th><th>An end pinned to a side</th></tr></thead>
+<tbody>
+<tr><td>Endpoints</td>
+  <td>Unchanged, on both routes. This is the whole reason both columns default to
+  <code>auto</code>: no existing canvas changes shape</td>
+  <td>The pinned end is that side's <b>midpoint</b>. An <code>auto</code> end opposite a pinned one
+  aims at <b>the pinned point</b>, not at the other card's centre — a line has to agree with itself
+  about where it is going</td></tr>
+<tr><td>Straight</td><td>The centre-ray clip</td>
+  <td>One segment between the two resolved points. It may meet a card at an angle: a pinned end
+  says which side, not which direction</td></tr>
+<tr><td>Elbow</td><td>Out, across, in</td>
+  <td>Each end runs <b>12px straight out of its side</b> before it may turn, so a corner never
+  lands on a border and two ends pinned to the same side still leave square-on. The two stubs are
+  then joined with horizontal and vertical segments. Where they cross: <b>halfway</b> when the
+  stubs point at each other, and <b>past the further of the two</b> when either points away —
+  halfway would sit behind a stub and double the line back through its own card. On an
+  <code>auto</code> end the side is worked out first, from the pinned point, and then this is the
+  same case</td></tr>
+<tr><td>Bend radius, arrowheads, trim, chip, hit target, cull</td>
+  <td colspan="2">All unchanged. Every one of them already reads the route as a <b>list of
+  points</b>, which is the seam rule 9 left open, so a pinned end adds points and touches nothing
+  else</td></tr>
+<tr><td>Overlapping cards</td>
+  <td colspan="2">Unchanged. Two rectangles that intersect draw no line, pinned or not</td></tr>
+</tbody>
+</table>
+
+<p><b>Storage.</b> Two new columns on <code>connection</code>: <code>from_anchor</code> and
+<code>to_anchor</code>, text, default <code>auto</code>. They follow the colour rule — the row
+stores a <b>key</b>, never a coordinate, so the stub length and the side rules can be retuned
+without a migration, and a card that moves or grows still writes nothing on the connection. This is
+an amendment to the data model in <code>docs/mvp-plan.html</code> §4 and
+<code>docs/prd.html</code> §4.</p>
+
+<p><b>The control is the handle, not a panel row.</b> A selected connection already shows a 7 × 7
+accent square on each endpoint. Dragging one now pins that end to the card side under the pointer,
+and the line follows the drag rather than jumping when it is let go. Nearest side is measured
+against the card's own half-width and half-height, so a point just above a wide card reads as
+<code>top</code>. A press that does not travel is only a selection.</p>
+
+<p><b>The handles are drawn above the cards</b>, on their own rung between cards and the marquee,
+and they are the one exception to "cards always paint over lines". An endpoint sits on a card's
+<i>border</i>, so on the connection rung a card covered half of every handle and left a 3px sliver
+that could be neither seen nor pointed at. The line itself still paints under every card. Only the
+selected connection has handles, so the layer holds at most two. The drawn square stays 7 × 7;
+the transparent <b>grab target</b> around it is 14 × 14, because a 7px square that shares its
+edge with a card is an unfair thing to ask anyone to hit. The handles and the hit path are the only
+parts of the overlay that take a pointer at all.</p>
+
+<p><b>Getting back to <code>auto</code>.</b> A drag always lands on a side, so it can never reach
+<code>auto</code>. Two things can: <b>Enter</b> or <b>Space</b> on a focused handle steps that end
+through Auto, Top, Right, Bottom, Left and round again; and a new <b>Anchor</b> group in the
+properties panel, sitting <b>between Route and Color</b>, reads
+<code>From&nbsp;… · To&nbsp;…</code> in 11px at .45 opacity and carries one full-width
+<b>Reset To Auto</b> button in the Width group's grammar, disabled while both ends are already
+automatic. No per-side buttons: ten of them would not earn their room in a 177px panel when the
+handle on the canvas is the direct gesture.</p>
 
 <p>Entry points: the <b>Connect</b> tool in the left column, or <b>Connect from here</b>
 (<code>ph-flow-arrow</code>, shortcut <code>C</code>) in a card's context menu.</p>

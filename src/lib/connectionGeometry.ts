@@ -8,6 +8,7 @@
  * culling, marquee and resize; keeping the connection maths behind its own signatures keeps
  * it swappable and its tests readable — the same reasoning `culling.ts` applies.
  */
+import { ANCHOR_STUB, anchorSide, type AnchorSide } from './connectionStyle';
 import {
   rectsIntersect,
   viewportWorldRect,
@@ -68,20 +69,156 @@ export function connectionEndpoints(from: Rect, to: Rect): { start: Point; end: 
 
 /**
  * The points a connection's line runs through, first to last — two for a straight route,
- * four for an elbow. Null in the same two cases `connectionEndpoints` returns null for.
+ * four for an elbow, up to six for an elbow with a pinned end. Null in the same two cases
+ * `connectionEndpoints` returns null for.
  *
  * This is the one seam the whole overlay is written against: the stroke, the hit path, the
  * arrow trim, the label chip and the cull all take a point LIST, so a future route can add
  * points without touching any of them. Design-system §9.13, "Route".
  *
- * An unknown route key falls back to `straight`, the same way an unknown colour key falls
- * back to the default ink.
+ * `fromAnchor` and `toAnchor` are stored keys — `auto`, or a side. With both on `auto` this
+ * is exactly the geometry that shipped before anchors existed, which is what keeps every
+ * existing canvas the shape it was drawn in. An unknown key reads as `auto`, the same way an
+ * unknown colour key falls back to the default ink, and an unknown route falls back to
+ * `straight`.
+ *
+ * A pinned end leaves the MIDPOINT of its side. An `auto` end opposite a pinned one aims at
+ * that pinned point rather than at the other card's centre — a line has to agree with itself
+ * about where it is going. Design-system §9.13, "Anchor".
  */
-export function routePoints(from: Rect, to: Rect, route: string): Point[] | null {
-  const straight = connectionEndpoints(from, to);
-  if (!straight) return null;
-  if (route !== 'elbow') return [straight.start, straight.end];
-  return elbowPoints(from, to);
+export function routePoints(
+  from: Rect,
+  to: Rect,
+  route: string,
+  fromAnchor = 'auto',
+  toAnchor = 'auto',
+): Point[] | null {
+  const pinnedFrom = anchorSide(fromAnchor);
+  const pinnedTo = anchorSide(toAnchor);
+
+  if (!pinnedFrom && !pinnedTo) {
+    const straight = connectionEndpoints(from, to);
+    if (!straight) return null;
+    if (route !== 'elbow') return [straight.start, straight.end];
+    return elbowPoints(from, to);
+  }
+
+  if (rectsIntersect(from, to)) return null;
+  // One of the two is pinned here, so at least one of these targets is a real point.
+  const fromTarget = pinnedTo ? sideMidpoint(to, pinnedTo) : rectCentre(to);
+  const toTarget = pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectCentre(from);
+
+  if (route !== 'elbow') {
+    const start = pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectEdgePoint(from, fromTarget);
+    const end = pinnedTo ? sideMidpoint(to, pinnedTo) : rectEdgePoint(to, toTarget);
+    if (start.x === end.x && start.y === end.y) return null;
+    return [start, end];
+  }
+
+  return anchoredElbow(
+    from,
+    to,
+    pinnedFrom ?? nearestSide(from, fromTarget),
+    pinnedTo ?? nearestSide(to, toTarget),
+  );
+}
+
+/** The midpoint of one side of a rectangle — where a pinned end of a line sits. */
+export function sideMidpoint(rect: Rect, side: AnchorSide): Point {
+  const centre = rectCentre(rect);
+  switch (side) {
+    case 'top':
+      return { x: centre.x, y: rect.y };
+    case 'bottom':
+      return { x: centre.x, y: rect.y + rect.height };
+    case 'left':
+      return { x: rect.x, y: centre.y };
+    default:
+      return { x: rect.x + rect.width, y: centre.y };
+  }
+}
+
+/** The unit vector pointing out of a side, away from the card. */
+export function sideNormal(side: AnchorSide): Point {
+  switch (side) {
+    case 'top':
+      return { x: 0, y: -1 };
+    case 'bottom':
+      return { x: 0, y: 1 };
+    case 'left':
+      return { x: -1, y: 0 };
+    default:
+      return { x: 1, y: 0 };
+  }
+}
+
+/**
+ * The side of `rect` that faces `point` — what an `auto` end resolves to, and what a dragged
+ * endpoint handle lands on when it is let go.
+ *
+ * The two axes are compared against the card's own half-width and half-height rather than
+ * against each other, so a wide card does not claim `left` or `right` for a point sitting
+ * just above it. It is the same normalising `rectEdgePoint` does. A tie goes to horizontal.
+ */
+export function nearestSide(rect: Rect, point: Point): AnchorSide {
+  const centre = rectCentre(rect);
+  const dx = point.x - centre.x;
+  const dy = point.y - centre.y;
+  const reachX = rect.width === 0 ? Infinity : Math.abs(dx) / (rect.width / 2);
+  const reachY = rect.height === 0 ? Infinity : Math.abs(dy) / (rect.height / 2);
+  if (reachX >= reachY) return dx >= 0 ? 'right' : 'left';
+  return dy >= 0 ? 'bottom' : 'top';
+}
+
+/**
+ * An elbow between two sides that are already chosen — the shape a pinned end forces.
+ *
+ * Each end runs `ANCHOR_STUB` straight out of its side before it is allowed to turn, so a
+ * corner never lands on a card's border and two ends pinned to the same side still leave
+ * their cards square-on. The two stub ends are then joined with orthogonal segments; where
+ * they meet is `joinAxis`'s decision. Redundant points are dropped, so an elbow that happens
+ * to line up still draws as one straight run.
+ */
+function anchoredElbow(from: Rect, to: Rect, fromSide: AnchorSide, toSide: AnchorSide): Point[] {
+  const start = sideMidpoint(from, fromSide);
+  const end = sideMidpoint(to, toSide);
+  const outStart = sideNormal(fromSide);
+  const outEnd = sideNormal(toSide);
+  const stubStart = {
+    x: start.x + outStart.x * ANCHOR_STUB,
+    y: start.y + outStart.y * ANCHOR_STUB,
+  };
+  const stubEnd = { x: end.x + outEnd.x * ANCHOR_STUB, y: end.y + outEnd.y * ANCHOR_STUB };
+  const startIsHorizontal = outStart.x !== 0;
+  const endIsHorizontal = outEnd.x !== 0;
+
+  if (startIsHorizontal && endIsHorizontal) {
+    const x = joinAxis(stubStart.x, stubEnd.x, outStart.x, outEnd.x);
+    return simplify([start, stubStart, { x, y: stubStart.y }, { x, y: stubEnd.y }, stubEnd, end]);
+  }
+  if (!startIsHorizontal && !endIsHorizontal) {
+    const y = joinAxis(stubStart.y, stubEnd.y, outStart.y, outEnd.y);
+    return simplify([start, stubStart, { x: stubStart.x, y }, { x: stubEnd.x, y }, stubEnd, end]);
+  }
+  // One stub runs across and the other up or down: they meet at a single corner.
+  const corner = startIsHorizontal
+    ? { x: stubEnd.x, y: stubStart.y }
+    : { x: stubStart.x, y: stubEnd.y };
+  return simplify([start, stubStart, corner, stubEnd, end]);
+}
+
+/**
+ * Where two stubs on the same axis meet.
+ *
+ * When they point at each other there is room between them and the crossing sits halfway,
+ * which is the shape the automatic elbow already draws. When either points away, halfway
+ * would be BEHIND a stub and the line would double back through its own card, so the
+ * crossing runs out past the further of the two instead.
+ */
+function joinAxis(a: number, b: number, outA: number, outB: number): number {
+  const facing = outA * (b - a) > 0 && outB * (a - b) > 0;
+  if (facing) return (a + b) / 2;
+  return outA > 0 || outB > 0 ? Math.max(a, b) : Math.min(a, b);
 }
 
 /**
