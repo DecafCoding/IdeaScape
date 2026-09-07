@@ -48,8 +48,14 @@
       labelVisible: boolean,
     ) => void;
     onDeleteConnection?: () => void;
+    /** The image card's Title text, committed on blur. */
+    onImageTitleChange?: (title: string) => void;
+    /** Whether the image card draws its title above the picture. */
+    onImageTitleVisibleChange?: (visible: boolean) => void;
     /** The image card's Alt text group, committed on blur. */
     onAltTextChange?: (alt: string) => void;
+    /** Whether the image card draws its description below the picture. */
+    onAltVisibleChange?: (visible: boolean) => void;
     /** The note card's Title group, committed on blur. */
     onNoteTitleChange?: (title: string) => void;
     /** Replace the selected image card's picture, keeping its alt text. */
@@ -71,7 +77,10 @@
     onConnectionChange,
     onDeleteConnection,
     onAltTextChange,
+    onAltVisibleChange,
     onNoteTitleChange,
+    onImageTitleChange,
+    onImageTitleVisibleChange,
     onReplaceImage,
     onShowInFolder,
     onRefetch,
@@ -357,6 +366,31 @@
         </section>
       {/if}
 
+      {#if image}
+        <!-- Directly under the Image header, like the note card's Title: the caption is the
+             first thing a user names. The checkbox only decides whether the card draws it;
+             the words are kept either way. -->
+        <section class="group" data-testid="panel-image-title-group">
+          <p class="group-label">Image Title</p>
+          <input
+            class="input"
+            type="text"
+            aria-label="Image Title"
+            placeholder="name this picture"
+            value={image.title}
+            onblur={(e) => onImageTitleChange?.(e.currentTarget.value)}
+          />
+          <label class="check">
+            <input
+              type="checkbox"
+              checked={image.title_visible}
+              onchange={(e) => onImageTitleVisibleChange?.(e.currentTarget.checked)}
+            />
+            Show Title On Card
+          </label>
+        </section>
+      {/if}
+
       {#each ['position', 'size'] as const as group}
         <section class="group">
           <p class="group-label">{group === 'position' ? 'Position' : 'Size'}</p>
@@ -390,6 +424,15 @@
             value={image.alt}
             onblur={(e) => onAltTextChange?.(e.currentTarget.value)}
           ></textarea>
+          <!-- The words are kept either way; this only decides whether the card draws them. -->
+          <label class="check">
+            <input
+              type="checkbox"
+              checked={image.alt_visible}
+              onchange={(e) => onAltVisibleChange?.(e.currentTarget.checked)}
+            />
+            Show Description On Card
+          </label>
         </section>
       {/if}
 

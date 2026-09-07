@@ -82,13 +82,13 @@ describe('the properties panel for an image card', () => {
     expect(panel.querySelector('.item-id')?.textContent).toBe('');
   });
 
-  it('panel_anImageSelection_putsTheFileGroupLastAndTheDescriptionBeforeIt', () => {
+  it('panel_anImageSelection_putsTheImageTitleFirstAndTheFileGroupLast', () => {
     seedImageCard('deadbeef.png');
     const { getByTestId } = render(PropertiesPanel, { props });
     const labels = [...getByTestId('properties-panel').querySelectorAll('.group-label')].map(
       (el) => el.textContent,
     );
-    expect(labels).toEqual(['Position', 'Size', 'Description', 'Order', 'File']);
+    expect(labels).toEqual(['Image Title', 'Position', 'Size', 'Description', 'Order', 'File']);
   });
 
   it('panel_aMissingAsset_printsMissingTheCardIsKeptAndNoDimensions', async () => {
@@ -155,5 +155,39 @@ describe('the properties panel for an image card', () => {
     seedImageCard('deadbeef.png');
     const { queryByTestId } = render(PropertiesPanel, { props });
     expect(queryByTestId('panel-source-group')).toBeNull();
+  });
+  it('panel_theImageTitleCommittedOnBlur_raisesItOnce', async () => {
+    seedImageCard('deadbeef.png');
+    const onImageTitleChange = vi.fn();
+    const { getByLabelText } = render(PropertiesPanel, {
+      props: { ...props, onImageTitleChange },
+    });
+    const box = getByLabelText('Image Title') as HTMLInputElement;
+    box.value = 'North Elevation';
+    await fireEvent.blur(box);
+    expect(onImageTitleChange).toHaveBeenCalledExactlyOnceWith('North Elevation');
+  });
+
+  it('panel_theShowTitleCheckboxToggled_raisesTheNewState', async () => {
+    seedImageCard('deadbeef.png');
+    const onImageTitleVisibleChange = vi.fn();
+    const { getByLabelText } = render(PropertiesPanel, {
+      props: { ...props, onImageTitleVisibleChange },
+    });
+    const box = getByLabelText('Show Title On Card') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    await fireEvent.click(box);
+    expect(onImageTitleVisibleChange).toHaveBeenCalledExactlyOnceWith(true);
+  });
+  it('panel_theShowDescriptionCheckboxToggled_raisesTheNewState', async () => {
+    seedImageCard('deadbeef.png');
+    const onAltVisibleChange = vi.fn();
+    const { getByLabelText } = render(PropertiesPanel, {
+      props: { ...props, onAltVisibleChange },
+    });
+    const box = getByLabelText('Show Description On Card') as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    await fireEvent.click(box);
+    expect(onAltVisibleChange).toHaveBeenCalledExactlyOnceWith(true);
   });
 });
