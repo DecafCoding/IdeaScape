@@ -11,12 +11,13 @@ use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 use std::sync::OnceLock;
 
-const MIGRATION_SQL: [&str; 5] = [
+const MIGRATION_SQL: [&str; 6] = [
     include_str!("../../migrations/0001_initial_schema.sql"),
     include_str!("../../migrations/0002_connection_style.sql"),
     include_str!("../../migrations/0003_connection_label_visible.sql"),
     include_str!("../../migrations/0004_connection_route.sql"),
     include_str!("../../migrations/0005_connection_anchor.sql"),
+    include_str!("../../migrations/0006_connection_bend.sql"),
 ];
 
 fn migrations() -> &'static Migrations<'static> {

@@ -9,8 +9,12 @@ import {
   longestSegment,
   polylinePath,
   routeInView,
+  bendToWorld,
   nearestSide,
+  parseBend,
   routePoints,
+  serializeBend,
+  worldToBend,
   segmentMidpoint,
   sideMidpoint,
   sideNormal,
@@ -428,5 +432,82 @@ describe('anchors', () => {
     expect(nearestSide(a, { x: 500, y: 60 })).toBe('right');
     expect(nearestSide(a, { x: -500, y: 60 })).toBe('left');
     expect(nearestSide(a, { x: 50, y: 900 })).toBe('bottom');
+  });
+});
+
+describe('bends', () => {
+  // A at 0..100, B at 300..400, both 100 tall. Their centres are 300 apart, on the x axis.
+  const a = box(0, 0);
+  const b = box(300, 0);
+  const bend = { a: 0.5, b: -0.5 };
+
+  it('parseBend_theStoredTextOfABend_readsItBack', () => {
+    expect(parseBend(serializeBend(bend))).toEqual(bend);
+  });
+
+  it('parseBend_noBendOrRubbish_isNull', () => {
+    expect(parseBend('')).toBeNull();
+    expect(parseBend('not json')).toBeNull();
+    expect(parseBend('{"a":1}')).toBeNull();
+    expect(parseBend('{"a":1,"b":null}')).toBeNull();
+    expect(serializeBend(null)).toBe('');
+  });
+
+  it('worldToBend_aPointOnTheCanvas_roundTripsBackToIt', () => {
+    const point = { x: 200, y: -100 };
+    expect(bendToWorld(a, b, worldToBend(a, b, point)!)).toEqual(point);
+  });
+
+  /**
+   * The whole reason a bend is stored in the cards' frame rather than as a canvas
+   * coordinate: move both cards and the shape the user drew moves with them.
+   */
+  it('bendToWorld_bothCardsMoved_theBendMovesTheSameWay', () => {
+    const before = bendToWorld(a, b, bend);
+    const after = bendToWorld(box(50, 50), box(350, 50), bend);
+    expect(after).toEqual({ x: before.x + 50, y: before.y + 50 });
+  });
+
+  it('bendToWorld_theCardsPulledApart_theBendStretchesWithThem', () => {
+    // Twice the distance between the centres, so the bend sits twice as far out.
+    const before = bendToWorld(a, b, bend);
+    const after = bendToWorld(a, box(600, 0), bend);
+    expect(after.y - 50).toBe((before.y - 50) * 2);
+  });
+
+  it('routePoints_straightWithABend_runsThroughItAndBothEndsAimAtIt', () => {
+    // Each end clips toward the bend, not toward the other card's centre.
+    expect(routePoints(a, b, 'straight', 'auto', 'auto', bend)).toEqual([
+      { x: 100, y: 0 },
+      { x: 200, y: -100 },
+      { x: 300, y: 0 },
+    ]);
+  });
+
+  it('routePoints_elbowWithABend_passesThroughItOnAxisAlignedSegments', () => {
+    const route = routePoints(a, b, 'elbow', 'auto', 'auto', bend)!;
+    expect(route).not.toBeNull();
+    expect(route).toContainEqual({ x: 200, y: -100 });
+    for (let i = 1; i < route.length; i += 1) {
+      const square = route[i].x === route[i - 1].x || route[i].y === route[i - 1].y;
+      expect(square).toBe(true);
+    }
+  });
+
+  it('routePoints_aBendOnAPinnedEnd_stillLeavesThatSide', () => {
+    const route = routePoints(a, b, 'straight', 'bottom', 'auto', bend)!;
+    expect(route[0]).toEqual({ x: 50, y: 100 });
+    expect(route[1]).toEqual({ x: 200, y: -100 });
+  });
+
+  it('routePoints_noBend_drawsExactlyWhatItDrewBeforeBendsExisted', () => {
+    expect(routePoints(a, b, 'straight', 'auto', 'auto', null)).toEqual(
+      routePoints(a, b, 'straight'),
+    );
+    expect(routePoints(a, b, 'elbow', 'auto', 'auto', null)).toEqual(routePoints(a, b, 'elbow'));
+  });
+
+  it('routePoints_twoOverlappingCards_stillDrawsNothingWithABend', () => {
+    expect(routePoints(a, box(50, 50), 'straight', 'auto', 'auto', bend)).toBeNull();
   });
 });

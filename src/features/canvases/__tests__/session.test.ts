@@ -323,6 +323,7 @@ describe('the canvas lifecycle', () => {
       route: 'straight',
       from_anchor: 'auto',
       to_anchor: 'auto',
+      bend: '',
     });
     await canvasStore.loadCanvas(second);
     expect(canvasStore.cardCount).toBe(2);

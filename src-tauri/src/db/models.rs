@@ -91,6 +91,10 @@ pub struct Connection {
     pub from_anchor: String,
     /// Which side of the `to` card the line enters. Same keys as `from_anchor`.
     pub to_anchor: String,
+    /// A hand-placed bend, as JSON `{"a":…,"b":…}`, or empty for none. The pair is a
+    /// position in the frame of the two card centres, never a canvas coordinate, so the
+    /// bend moves with the cards. The front end owns that arithmetic.
+    pub bend: String,
 }
 
 /// Everything `delete_placements` actually removed, so one undo command can restore the
@@ -197,5 +201,6 @@ pub fn row_to_connection(row: &rusqlite::Row<'_>) -> rusqlite::Result<Connection
         route: row.get("route")?,
         from_anchor: row.get("from_anchor")?,
         to_anchor: row.get("to_anchor")?,
+        bend: row.get("bend")?,
     })
 }

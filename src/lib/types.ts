@@ -160,6 +160,12 @@ export interface Connection {
   from_anchor: string;
   /** Which side of the `to` card the line enters. The same keys as `from_anchor`. */
   to_anchor: string;
+  /**
+   * A hand-placed bend as JSON, or the empty string for none. It is a position in the frame
+   * of the two card centres, never a canvas coordinate, so the bend moves with the cards —
+   * see `parseBend` in `lib/connectionGeometry.ts`.
+   */
+  bend: string;
 }
 
 /**
@@ -175,6 +181,7 @@ export interface ConnectionEdit {
   route: string;
   fromAnchor: string;
   toAnchor: string;
+  bend: string;
 }
 
 /**
@@ -191,6 +198,7 @@ export function connectionEdit(connection: Connection): ConnectionEdit {
     route: connection.route,
     fromAnchor: connection.from_anchor,
     toAnchor: connection.to_anchor,
+    bend: connection.bend,
   };
 }
 

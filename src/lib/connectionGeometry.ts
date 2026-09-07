@@ -76,15 +76,16 @@ export function connectionEndpoints(from: Rect, to: Rect): { start: Point; end: 
  * arrow trim, the label chip and the cull all take a point LIST, so a future route can add
  * points without touching any of them. Design-system §9.13, "Route".
  *
- * `fromAnchor` and `toAnchor` are stored keys — `auto`, or a side. With both on `auto` this
- * is exactly the geometry that shipped before anchors existed, which is what keeps every
- * existing canvas the shape it was drawn in. An unknown key reads as `auto`, the same way an
- * unknown colour key falls back to the default ink, and an unknown route falls back to
+ * `fromAnchor` and `toAnchor` are stored keys — `auto`, or a side. With both on `auto` and no
+ * bend this is exactly the geometry that shipped before anchors existed, which is what keeps
+ * every existing canvas the shape it was drawn in. An unknown key reads as `auto`, the same
+ * way an unknown colour key falls back to the default ink, and an unknown route falls back to
  * `straight`.
  *
- * A pinned end leaves the MIDPOINT of its side. An `auto` end opposite a pinned one aims at
- * that pinned point rather than at the other card's centre — a line has to agree with itself
- * about where it is going. Design-system §9.13, "Anchor".
+ * A pinned end leaves the MIDPOINT of its side. An `auto` end aims at whatever the line is
+ * actually heading for — the bend when there is one, otherwise the pinned point opposite,
+ * otherwise the other card's centre. A line has to agree with itself about where it is going.
+ * Design-system §9.13, "Anchor" and "Bend".
  */
 export function routePoints(
   from: Rect,
@@ -92,11 +93,12 @@ export function routePoints(
   route: string,
   fromAnchor = 'auto',
   toAnchor = 'auto',
+  bend: Bend | null = null,
 ): Point[] | null {
   const pinnedFrom = anchorSide(fromAnchor);
   const pinnedTo = anchorSide(toAnchor);
 
-  if (!pinnedFrom && !pinnedTo) {
+  if (!pinnedFrom && !pinnedTo && !bend) {
     const straight = connectionEndpoints(from, to);
     if (!straight) return null;
     if (route !== 'elbow') return [straight.start, straight.end];
@@ -104,23 +106,135 @@ export function routePoints(
   }
 
   if (rectsIntersect(from, to)) return null;
-  // One of the two is pinned here, so at least one of these targets is a real point.
-  const fromTarget = pinnedTo ? sideMidpoint(to, pinnedTo) : rectCentre(to);
-  const toTarget = pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectCentre(from);
+
+  // What each end aims at. A bend outranks everything: it is the first thing the line is
+  // travelling towards, so both ends have to point at it.
+  const through = bend ? bendToWorld(from, to, bend) : null;
+  const fromTarget = through ?? (pinnedTo ? sideMidpoint(to, pinnedTo) : rectCentre(to));
+  const toTarget = through ?? (pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectCentre(from));
+  const start = pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectEdgePoint(from, fromTarget);
+  const end = pinnedTo ? sideMidpoint(to, pinnedTo) : rectEdgePoint(to, toTarget);
 
   if (route !== 'elbow') {
-    const start = pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectEdgePoint(from, fromTarget);
-    const end = pinnedTo ? sideMidpoint(to, pinnedTo) : rectEdgePoint(to, toTarget);
+    if (through) return simplify([start, through, end]);
     if (start.x === end.x && start.y === end.y) return null;
     return [start, end];
   }
 
-  return anchoredElbow(
-    from,
-    to,
-    pinnedFrom ?? nearestSide(from, fromTarget),
-    pinnedTo ?? nearestSide(to, toTarget),
-  );
+  const fromSide = pinnedFrom ?? nearestSide(from, fromTarget);
+  const toSide = pinnedTo ?? nearestSide(to, toTarget);
+  if (through) return bentElbow(from, to, fromSide, toSide, through);
+  return anchoredElbow(from, to, fromSide, toSide);
+}
+
+/**
+ * A bend the user placed by hand, held in the frame of the two card CENTRES rather than as a
+ * canvas coordinate. Design-system §9.13, "Bend".
+ *
+ * `a` runs along the line from the first centre to the second — 0 at one end, 1 at the other.
+ * `b` runs at a right angle to it, in the same units as that distance. So a bend slides,
+ * stretches and turns with its two cards, and the shape the user drew survives a card being
+ * moved, which is the whole point of storing it this way.
+ *
+ * The frame is the two CENTRES and not the two endpoints on purpose: an endpoint depends on
+ * where the line is going, and the bend is what decides that, so measuring against endpoints
+ * would be circular. Centres depend on nothing but the cards.
+ */
+export interface Bend {
+  a: number;
+  b: number;
+}
+
+/** The stored text as a bend, or null for "no bend" and for anything unreadable. */
+export function parseBend(raw: string): Bend | null {
+  if (raw === '') return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const { a, b } = parsed as { a?: unknown; b?: unknown };
+    if (typeof a !== 'number' || typeof b !== 'number') return null;
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    return { a, b };
+  } catch {
+    // A row written by a future version, or a corrupted one, draws as a plain line rather
+    // than failing the whole overlay.
+    return null;
+  }
+}
+
+/** A bend as the text stored on the row. Null becomes the empty string, never `"null"`. */
+export function serializeBend(bend: Bend | null): string {
+  return bend === null ? '' : JSON.stringify({ a: bend.a, b: bend.b });
+}
+
+/** The frame the two numbers are measured in: one centre, and the run to the other. */
+function bendFrame(from: Rect, to: Rect) {
+  const origin = rectCentre(from);
+  const other = rectCentre(to);
+  const dx = other.x - origin.x;
+  const dy = other.y - origin.y;
+  return { origin, dx, dy, length: Math.hypot(dx, dy) };
+}
+
+/** Where a stored bend sits on the canvas right now. */
+export function bendToWorld(from: Rect, to: Rect, bend: Bend): Point {
+  const { origin, dx, dy, length } = bendFrame(from, to);
+  if (length === 0) return origin;
+  const acrossX = -dy / length;
+  const acrossY = dx / length;
+  return {
+    x: origin.x + bend.a * dx + bend.b * length * acrossX,
+    y: origin.y + bend.a * dy + bend.b * length * acrossY,
+  };
+}
+
+/** A canvas point as a bend. Null when the two centres coincide and there is no frame. */
+export function worldToBend(from: Rect, to: Rect, point: Point): Bend | null {
+  const { origin, dx, dy, length } = bendFrame(from, to);
+  if (length === 0) return null;
+  const alongX = dx / length;
+  const alongY = dy / length;
+  const offsetX = point.x - origin.x;
+  const offsetY = point.y - origin.y;
+  return {
+    a: (offsetX * alongX + offsetY * alongY) / length,
+    b: (offsetX * -alongY + offsetY * alongX) / length,
+  };
+}
+
+/**
+ * An elbow that has to pass through a hand-placed bend: out of each card's side, one turn on
+ * each half, and through the bend in between.
+ *
+ * The stub off each card is what makes the turns free: the run along the side's own normal is
+ * already done by the time either half has to aim at the bend, which is what keeps an
+ * arrowhead entering square-on — the point of the elbow route. Redundant points are dropped,
+ * so a bend that happens to line up with both ends still draws as one straight run.
+ */
+function bentElbow(
+  from: Rect,
+  to: Rect,
+  fromSide: AnchorSide,
+  toSide: AnchorSide,
+  through: Point,
+): Point[] {
+  const start = sideMidpoint(from, fromSide);
+  const end = sideMidpoint(to, toSide);
+  const outStart = sideNormal(fromSide);
+  const outEnd = sideNormal(toSide);
+  const stubStart = {
+    x: start.x + outStart.x * ANCHOR_STUB,
+    y: start.y + outStart.y * ANCHOR_STUB,
+  };
+  const stubEnd = { x: end.x + outEnd.x * ANCHOR_STUB, y: end.y + outEnd.y * ANCHOR_STUB };
+  // Out of the stub, turn ACROSS the normal first and run into the bend along it. Turning
+  // the other way round draws a spike: with two cards side by side and the bend above them,
+  // it runs out to the bend's column, up to the bend, and straight back down the same line.
+  const intoBend =
+    outStart.x !== 0 ? { x: stubStart.x, y: through.y } : { x: through.x, y: stubStart.y };
+  const outOfBend =
+    outEnd.x !== 0 ? { x: through.x, y: stubEnd.y } : { x: stubEnd.x, y: through.y };
+  return simplify([start, stubStart, intoBend, through, outOfBend, stubEnd, end]);
 }
 
 /** The midpoint of one side of a rectangle — where a pinned end of a line sits. */

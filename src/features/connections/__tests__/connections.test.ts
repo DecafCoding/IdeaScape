@@ -49,6 +49,7 @@ function connection(overrides: Partial<Connection> = {}): Connection {
     route: 'straight',
     from_anchor: 'auto',
     to_anchor: 'auto',
+    bend: '',
     ...overrides,
   };
 }
@@ -198,7 +199,9 @@ describe('the connection overlay', () => {
   });
 
   function draw() {
-    return render(ConnectionLayer, { props: { onSelect: () => {}, onAnchorChange: () => {} } });
+    return render(ConnectionLayer, {
+      props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange: () => {} },
+    });
   }
 
   /**
@@ -371,9 +374,10 @@ describe('the connection overlay', () => {
     function drawSelected(onAnchorChange: (id: number, end: string, anchor: string) => void) {
       canvasStore.selectConnection(7);
       const { container } = render(ConnectionLayer, {
-        props: { onSelect: () => {}, onAnchorChange },
+        props: { onSelect: () => {}, onAnchorChange, onBendChange: () => {} },
       });
       const handles = [...container.querySelectorAll('rect.grab')];
+      // Three targets: the two endpoints and the middle one that bends the line.
       // jsdom has no PointerEvent and no pointer capture; a MouseEvent carries the button
       // and the client coordinates the handlers actually read.
       for (const handle of handles) {
@@ -382,9 +386,9 @@ describe('the connection overlay', () => {
       return handles as SVGElement[];
     }
 
-    it('handles_aSelectedLine_showsOneAtEachEnd', () => {
+    it('handles_aSelectedLine_showsOneAtEachEndAndOneInTheMiddle', () => {
       const handles = drawSelected(() => {});
-      expect(handles).toHaveLength(2);
+      expect(handles.map((h) => h.getAttribute('data-end'))).toEqual(['from', 'to', 'bend']);
       expect(handles[0].getAttribute('aria-label')).toContain('anchored Auto');
     });
 
@@ -403,7 +407,9 @@ describe('the connection overlay', () => {
     });
 
     it('handles_noLineSelected_drawNothing', () => {
-      render(ConnectionLayer, { props: { onSelect: () => {}, onAnchorChange: () => {} } });
+      render(ConnectionLayer, {
+        props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange: () => {} },
+      });
       expect(document.querySelector('[data-testid="connection-handles"]')).toBeNull();
     });
 
@@ -428,6 +434,40 @@ describe('the connection overlay', () => {
       expect(onAnchorChange).not.toHaveBeenCalled();
     });
 
+    it('bendHandleDragged_releasedAwayFromTheLine_storesABendInTheCardsFrame', () => {
+      const onBendChange = vi.fn();
+      canvasStore.selectConnection(7);
+      const { container } = render(ConnectionLayer, {
+        props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange },
+      });
+      const middle = container.querySelector('rect.grab[data-end="bend"]') as SVGElement;
+      middle.setPointerCapture = () => {};
+
+      pointer(middle, 'pointerdown', { clientX: 200, clientY: 50 });
+      pointer(middle, 'pointermove', { clientX: 200, clientY: -50 });
+      pointer(middle, 'pointerup');
+
+      expect(onBendChange).toHaveBeenCalledTimes(1);
+      const [id, stored] = onBendChange.mock.calls[0];
+      expect(id).toBe(7);
+      // A pair in the cards' own frame, never a canvas coordinate.
+      expect(JSON.parse(stored)).toEqual({ a: expect.any(Number), b: expect.any(Number) });
+    });
+
+    it('bendHandleEnterPressed_onABentLine_straightensIt', async () => {
+      const onBendChange = vi.fn();
+      canvasStore.upsertConnection(connection({ bend: '{"a":0.5,"b":-0.5}' }));
+      canvasStore.selectConnection(7);
+      const { container } = render(ConnectionLayer, {
+        props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange },
+      });
+
+      await fireEvent.keyDown(container.querySelector('rect.grab[data-end="bend"]')!, {
+        key: 'Enter',
+      });
+      expect(onBendChange).toHaveBeenCalledWith(7, '');
+    });
+
     it('handleEnterPressed_onAnAutomaticEnd_stepsItOnToTheFirstSide', async () => {
       const onAnchorChange = vi.fn();
       const [, end] = drawSelected(onAnchorChange);
@@ -444,6 +484,7 @@ describe('the connection overlay', () => {
       props: {
         onSelect: (id: number) => canvasStore.selectConnection(id),
         onAnchorChange: () => {},
+        onBendChange: () => {},
       },
     });
     await fireEvent.click(container.querySelector('path.hit')!);
@@ -456,6 +497,7 @@ describe('the connection overlay', () => {
       props: {
         onSelect: (id: number) => canvasStore.selectConnection(id),
         onAnchorChange: () => {},
+        onBendChange: () => {},
       },
     });
     await fireEvent.keyDown(container.querySelector('path.hit')!, { key: 'Enter' });
@@ -595,14 +637,14 @@ describe('lines follow, and leave with, their cards', () => {
   it('endpoints_afterMovingACard_followTheNewRectangle', async () => {
     // The hit path holds the untrimmed geometry, which is what this is about.
     const first = render(ConnectionLayer, {
-      props: { onSelect: () => {}, onAnchorChange: () => {} },
+      props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange: () => {} },
     });
     expect(first.container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L400,50');
     cleanup();
 
     canvasStore.patchPlacement(2, { x: 700 });
     const second = render(ConnectionLayer, {
-      props: { onSelect: () => {}, onAnchorChange: () => {} },
+      props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange: () => {} },
     });
     expect(second.container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L700,50');
   });
