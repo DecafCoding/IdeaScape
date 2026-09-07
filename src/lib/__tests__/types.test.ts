@@ -29,7 +29,10 @@ describe('payload parsers', () => {
       natural_width: 0,
       natural_height: 0,
       alt: '',
+      alt_visible: false,
       source_name: '',
+      title: '',
+      title_visible: false,
     });
   });
 
@@ -44,7 +47,10 @@ describe('payload parsers', () => {
       natural_width: 1920,
       natural_height: 1080,
       alt: 'A truss',
+      alt_visible: true,
       source_name: 'truss-reference.jpg',
+      title: 'North Elevation',
+      title_visible: true,
     };
     expect(parseImagePayload(JSON.stringify(payload))).toEqual(payload);
   });

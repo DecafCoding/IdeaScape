@@ -177,7 +177,12 @@ export interface ImagePayload {
   natural_width: number;
   natural_height: number;
   alt: string;
+  /** Shown under the picture when on. The alt attribute carries it either way. */
+  alt_visible: boolean;
   source_name: string;
+  /** A caption the user types. Shown centred above the picture when `title_visible`. */
+  title: string;
+  title_visible: boolean;
 }
 
 /** `fetched_at` is ISO-8601, or null when the address has not been read yet. */
@@ -243,7 +248,10 @@ export function parseImagePayload(payload: string): ImagePayload {
     natural_width: asNumber(value.natural_width),
     natural_height: asNumber(value.natural_height),
     alt: asString(value.alt),
+    alt_visible: value.alt_visible === true,
     source_name: asString(value.source_name),
+    title: asString(value.title),
+    title_visible: value.title_visible === true,
   };
 }
 

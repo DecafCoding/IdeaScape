@@ -985,6 +985,39 @@
     });
   }
 
+  /** The image card's caption. Blank text is kept as blank, not removed from the payload. */
+  async function commitImageTitle(title: string) {
+    const item = selectedItem();
+    if (!item || item.kind !== 'image') return;
+    const payload = parseImagePayload(item.payload);
+    if (payload.title === title) return;
+    await guard(async () => {
+      await writeItemPayload(item, JSON.stringify({ ...payload, title }));
+    });
+  }
+
+  /** The checkbox beside it: whether the card draws the caption above the picture. */
+  async function commitImageTitleVisible(visible: boolean) {
+    const item = selectedItem();
+    if (!item || item.kind !== 'image') return;
+    const payload = parseImagePayload(item.payload);
+    if (payload.title_visible === visible) return;
+    await guard(async () => {
+      await writeItemPayload(item, JSON.stringify({ ...payload, title_visible: visible }));
+    });
+  }
+
+  /** The checkbox beside the description: whether the card draws it below the picture. */
+  async function commitAltVisible(visible: boolean) {
+    const item = selectedItem();
+    if (!item || item.kind !== 'image') return;
+    const payload = parseImagePayload(item.payload);
+    if (payload.alt_visible === visible) return;
+    await guard(async () => {
+      await writeItemPayload(item, JSON.stringify({ ...payload, alt_visible: visible }));
+    });
+  }
+
   async function commitAltText(alt: string) {
     const item = selectedItem();
     if (!item || item.kind !== 'image') return;
@@ -1019,6 +1052,9 @@
           natural_width: 0,
           natural_height: 0,
           alt: before.alt,
+          alt_visible: before.alt_visible,
+          title: before.title,
+          title_visible: before.title_visible,
           source_name: chosen.split(/[\\/]/).pop() ?? chosen,
         }),
       );
@@ -1477,6 +1513,9 @@
             void changeConnection(label, directed, color, width, labelVisible)}
           onDeleteConnection={() => void deleteSelectedConnection()}
           onAltTextChange={(alt) => void commitAltText(alt)}
+          onAltVisibleChange={(visible) => void commitAltVisible(visible)}
+          onImageTitleChange={(title) => void commitImageTitle(title)}
+          onImageTitleVisibleChange={(visible) => void commitImageTitleVisible(visible)}
           onNoteTitleChange={(title) => void commitNoteTitle(title)}
           onReplaceImage={() => void replaceImage()}
           onShowInFolder={() => void showAssetsFolder()}

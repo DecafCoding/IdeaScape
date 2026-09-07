@@ -22,7 +22,10 @@ function payload(over: Partial<ImagePayload> = {}): ImagePayload {
     natural_width: 1920,
     natural_height: 1080,
     alt: 'A steel truss',
+    alt_visible: false,
     source_name: 'truss-reference.jpg',
+    title: '',
+    title_visible: false,
     ...over,
   };
 }
@@ -138,5 +141,96 @@ describe('ImageCard', () => {
     // The characters are escaped in the markup, so they are text and never an element.
     expect(card.innerHTML).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(card.innerHTML).not.toContain('<img');
+  });
+  it('imageCard_titleVisible_drawsTheTitleAboveThePicture', () => {
+    const { getByTestId } = render(ImageCard, {
+      props: {
+        payload: payload({ title: 'North Elevation', title_visible: true }),
+        missing: false,
+        zoom: 1,
+        width: 320,
+      },
+    });
+    const wrap = getByTestId('image-card-title').parentElement;
+    expect(getByTestId('image-card-title').textContent).toBe('North Elevation');
+    // Above the picture, not after it.
+    expect(wrap?.firstElementChild).toBe(getByTestId('image-card-title'));
+  });
+
+  it('imageCard_titleHidden_drawsNoTitle', () => {
+    const { queryByTestId } = render(ImageCard, {
+      props: {
+        payload: payload({ title: 'North Elevation', title_visible: false }),
+        missing: false,
+        zoom: 1,
+        width: 320,
+      },
+    });
+    expect(queryByTestId('image-card-title')).toBeNull();
+  });
+
+  it('imageCard_belowLowZoom_drawsNoTitle', () => {
+    const { queryByTestId } = render(ImageCard, {
+      props: {
+        payload: payload({ title: 'North Elevation', title_visible: true }),
+        missing: false,
+        zoom: LOW_ZOOM - 0.01,
+        width: 320,
+      },
+    });
+    expect(queryByTestId('image-card-title')).toBeNull();
+  });
+  it('imageCard_altVisible_drawsTheDescriptionBelowThePicture', () => {
+    const { getByTestId } = render(ImageCard, {
+      props: {
+        payload: payload({ alt_visible: true }),
+        missing: false,
+        zoom: 1,
+        width: 320,
+      },
+    });
+    const wrap = getByTestId('image-card-alt').parentElement;
+    expect(getByTestId('image-card-alt').textContent).toBe('A steel truss');
+    // Below the picture, not before it.
+    expect(wrap?.lastElementChild).toBe(getByTestId('image-card-alt'));
+  });
+
+  it('imageCard_altHidden_drawsNoDescription', () => {
+    const { queryByTestId } = render(ImageCard, {
+      props: { payload: payload({ alt_visible: false }), missing: false, zoom: 1, width: 320 },
+    });
+    expect(queryByTestId('image-card-alt')).toBeNull();
+  });
+
+  it('imageCard_belowLowZoom_drawsNoDescription', () => {
+    const { queryByTestId } = render(ImageCard, {
+      props: {
+        payload: payload({ alt_visible: true }),
+        missing: false,
+        zoom: LOW_ZOOM - 0.01,
+        width: 320,
+      },
+    });
+    expect(queryByTestId('image-card-alt')).toBeNull();
+  });
+  it('imageCard_aKnownPictureShape_sizesTheBoxToItSoTheDescriptionFollowsIt', () => {
+    const { getByTestId } = render(ImageCard, {
+      props: { payload: payload(), missing: false, zoom: 1, width: 320 },
+    });
+    const box = getByTestId('image-card');
+    expect(box.classList.contains('sized')).toBe(true);
+    expect(box.getAttribute('style')).toContain('aspect-ratio: 1920 / 1080');
+  });
+
+  it('imageCard_anUnknownPictureShape_leavesTheBoxFillingTheCard', () => {
+    const { getByTestId } = render(ImageCard, {
+      props: {
+        payload: payload({ natural_width: 0, natural_height: 0 }),
+        missing: false,
+        zoom: 1,
+        width: 320,
+      },
+    });
+    expect(getByTestId('image-card').classList.contains('sized')).toBe(false);
   });
 });
