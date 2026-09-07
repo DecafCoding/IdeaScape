@@ -95,36 +95,125 @@ export function routePoints(
   toAnchor = 'auto',
   bend: Bend | null = null,
 ): Point[] | null {
+  return buildRoute(from, to, route, fromAnchor, toAnchor, bend)?.points ?? null;
+}
+
+/** Two points that draw one run of a route. */
+export interface Segment {
+  a: Point;
+  b: Point;
+}
+
+/**
+ * A route, and the one run of it a hand is allowed to move.
+ *
+ * An elbow's middle run — the crossing — has a free position: nothing but taste decides
+ * where between the two cards it sits. That is the run the bend moves, and moving it keeps
+ * the elbow an elbow. Every other run is pinned by a card or by a corner, so `crossing` is
+ * null on a route with nothing to slide.
+ */
+interface BuiltRoute {
+  points: Point[];
+  crossing: Segment | null;
+}
+
+function buildRoute(
+  from: Rect,
+  to: Rect,
+  route: string,
+  fromAnchor: string,
+  toAnchor: string,
+  bend: Bend | null,
+): BuiltRoute | null {
   const pinnedFrom = anchorSide(fromAnchor);
   const pinnedTo = anchorSide(toAnchor);
+  const isElbow = route === 'elbow';
 
   if (!pinnedFrom && !pinnedTo && !bend) {
     const straight = connectionEndpoints(from, to);
     if (!straight) return null;
-    if (route !== 'elbow') return [straight.start, straight.end];
-    return elbowPoints(from, to);
+    if (!isElbow) return { points: [straight.start, straight.end], crossing: null };
+    return elbowPoints(from, to, null);
   }
 
   if (rectsIntersect(from, to)) return null;
-
-  // What each end aims at. A bend outranks everything: it is the first thing the line is
-  // travelling towards, so both ends have to point at it.
   const through = bend ? bendPoint(from, to, bend) : null;
+
+  if (isElbow) {
+    // A bend moves an elbow's crossing; it never chooses its sides. Those come from the gap
+    // between the cards, or from an anchor, exactly as they do on a line with no bend.
+    if (!pinnedFrom && !pinnedTo) return elbowPoints(from, to, through);
+    const fromTarget = pinnedTo ? sideMidpoint(to, pinnedTo) : rectCentre(to);
+    const toTarget = pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectCentre(from);
+    return anchoredElbow(
+      from,
+      to,
+      pinnedFrom ?? nearestSide(from, fromTarget),
+      pinnedTo ?? nearestSide(to, toTarget),
+      through,
+    );
+  }
+
+  // Straight. Here a bend really is a point the line runs through, and both ends aim at it.
   const fromTarget = through ?? (pinnedTo ? sideMidpoint(to, pinnedTo) : rectCentre(to));
   const toTarget = through ?? (pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectCentre(from));
   const start = pinnedFrom ? sideMidpoint(from, pinnedFrom) : rectEdgePoint(from, fromTarget);
   const end = pinnedTo ? sideMidpoint(to, pinnedTo) : rectEdgePoint(to, toTarget);
+  if (through) return { points: simplify([start, through, end]), crossing: null };
+  if (start.x === end.x && start.y === end.y) return null;
+  return { points: [start, end], crossing: null };
+}
 
-  if (route !== 'elbow') {
-    if (through) return simplify([start, through, end]);
-    if (start.x === end.x && start.y === end.y) return null;
-    return [start, end];
+/** Where the middle handle sits, and the only way it may be dragged. */
+export interface BendGrip {
+  at: Point;
+  /**
+   * `x` or `y` — an elbow's crossing, which slides on that one axis and follows the pointer
+   * along it. The run itself moves; no corner is added to it.
+   *
+   * `across` — the straight route's bend, which moves at a right angle to the line and no
+   * other way. Sliding that one along its own line changes no shape worth having, and it
+   * walks the handle off the drawn line.
+   */
+  slide: 'x' | 'y' | 'across';
+}
+
+/**
+ * Where the middle handle goes and which way it may move — or null when this route has
+ * nothing a hand can usefully move.
+ *
+ * Null happens on an elbow whose crossing has no length (two cards level with each other
+ * draw a straight run, and there is no middle section to slide) and on an elbow that meets
+ * at a single corner, where both runs are pinned by a card. Better no handle than a handle
+ * that does nothing.
+ */
+export function bendGrip(
+  from: Rect,
+  to: Rect,
+  route: string,
+  fromAnchor = 'auto',
+  toAnchor = 'auto',
+  bend: Bend | null = null,
+): BendGrip | null {
+  const built = buildRoute(from, to, route, fromAnchor, toAnchor, bend);
+  if (!built) return null;
+
+  const { crossing } = built;
+  if (crossing) {
+    if (segmentLength(crossing.a, crossing.b) === 0) return null;
+    return {
+      at: segmentMidpoint(crossing.a, crossing.b),
+      slide: crossing.a.x === crossing.b.x ? 'x' : 'y',
+    };
   }
+  if (route === 'elbow') return null;
 
-  const fromSide = pinnedFrom ?? nearestSide(from, fromTarget);
-  const toSide = pinnedTo ?? nearestSide(to, toTarget);
-  if (through) return bentElbow(from, to, fromSide, toSide, through);
-  return anchoredElbow(from, to, fromSide, toSide);
+  const longest = longestSegment(built.points);
+  if (!longest) return null;
+  return {
+    at: bend ? bendPoint(from, to, bend) : segmentMidpoint(longest.a, longest.b),
+    slide: 'across',
+  };
 }
 
 /**
@@ -240,41 +329,6 @@ export function worldToBend(from: Rect, to: Rect, point: Point): Bend | null {
   };
 }
 
-/**
- * An elbow that has to pass through a hand-placed bend: out of each card's side, one turn on
- * each half, and through the bend in between.
- *
- * The stub off each card is what makes the turns free: the run along the side's own normal is
- * already done by the time either half has to aim at the bend, which is what keeps an
- * arrowhead entering square-on — the point of the elbow route. Redundant points are dropped,
- * so a bend that happens to line up with both ends still draws as one straight run.
- */
-function bentElbow(
-  from: Rect,
-  to: Rect,
-  fromSide: AnchorSide,
-  toSide: AnchorSide,
-  through: Point,
-): Point[] {
-  const start = sideMidpoint(from, fromSide);
-  const end = sideMidpoint(to, toSide);
-  const outStart = sideNormal(fromSide);
-  const outEnd = sideNormal(toSide);
-  const stubStart = {
-    x: start.x + outStart.x * ANCHOR_STUB,
-    y: start.y + outStart.y * ANCHOR_STUB,
-  };
-  const stubEnd = { x: end.x + outEnd.x * ANCHOR_STUB, y: end.y + outEnd.y * ANCHOR_STUB };
-  // Out of the stub, turn ACROSS the normal first and run into the bend along it. Turning
-  // the other way round draws a spike: with two cards side by side and the bend above them,
-  // it runs out to the bend's column, up to the bend, and straight back down the same line.
-  const intoBend =
-    outStart.x !== 0 ? { x: stubStart.x, y: through.y } : { x: through.x, y: stubStart.y };
-  const outOfBend =
-    outEnd.x !== 0 ? { x: through.x, y: stubEnd.y } : { x: stubEnd.x, y: through.y };
-  return simplify([start, stubStart, intoBend, through, outOfBend, stubEnd, end]);
-}
-
 /** The midpoint of one side of a rectangle — where a pinned end of a line sits. */
 export function sideMidpoint(rect: Rect, side: AnchorSide): Point {
   const centre = rectCentre(rect);
@@ -328,10 +382,17 @@ export function nearestSide(rect: Rect, point: Point): AnchorSide {
  * Each end runs `ANCHOR_STUB` straight out of its side before it is allowed to turn, so a
  * corner never lands on a card's border and two ends pinned to the same side still leave
  * their cards square-on. The two stub ends are then joined with orthogonal segments; where
- * they meet is `joinAxis`'s decision. Redundant points are dropped, so an elbow that happens
- * to line up still draws as one straight run.
+ * they meet is `joinAxis`'s decision, or the bend's when the user has moved the crossing.
+ * Redundant points are dropped, so an elbow that happens to line up still draws as one
+ * straight run.
  */
-function anchoredElbow(from: Rect, to: Rect, fromSide: AnchorSide, toSide: AnchorSide): Point[] {
+function anchoredElbow(
+  from: Rect,
+  to: Rect,
+  fromSide: AnchorSide,
+  toSide: AnchorSide,
+  through: Point | null,
+): BuiltRoute {
   const start = sideMidpoint(from, fromSide);
   const end = sideMidpoint(to, toSide);
   const outStart = sideNormal(fromSide);
@@ -345,18 +406,27 @@ function anchoredElbow(from: Rect, to: Rect, fromSide: AnchorSide, toSide: Ancho
   const endIsHorizontal = outEnd.x !== 0;
 
   if (startIsHorizontal && endIsHorizontal) {
-    const x = joinAxis(stubStart.x, stubEnd.x, outStart.x, outEnd.x);
-    return simplify([start, stubStart, { x, y: stubStart.y }, { x, y: stubEnd.y }, stubEnd, end]);
+    const x = through ? through.x : joinAxis(stubStart.x, stubEnd.x, outStart.x, outEnd.x);
+    const crossing = { a: { x, y: stubStart.y }, b: { x, y: stubEnd.y } };
+    return {
+      points: simplify([start, stubStart, crossing.a, crossing.b, stubEnd, end]),
+      crossing,
+    };
   }
   if (!startIsHorizontal && !endIsHorizontal) {
-    const y = joinAxis(stubStart.y, stubEnd.y, outStart.y, outEnd.y);
-    return simplify([start, stubStart, { x: stubStart.x, y }, { x: stubEnd.x, y }, stubEnd, end]);
+    const y = through ? through.y : joinAxis(stubStart.y, stubEnd.y, outStart.y, outEnd.y);
+    const crossing = { a: { x: stubStart.x, y }, b: { x: stubEnd.x, y } };
+    return {
+      points: simplify([start, stubStart, crossing.a, crossing.b, stubEnd, end]),
+      crossing,
+    };
   }
-  // One stub runs across and the other up or down: they meet at a single corner.
+  // One stub runs across and the other up or down: they meet at a single corner, and both
+  // runs are pinned by a card. There is nothing free to slide, so no crossing is offered.
   const corner = startIsHorizontal
     ? { x: stubEnd.x, y: stubStart.y }
     : { x: stubStart.x, y: stubEnd.y };
-  return simplify([start, stubStart, corner, stubEnd, end]);
+  return { points: simplify([start, stubStart, corner, stubEnd, end]), crossing: null };
 }
 
 /**
@@ -385,8 +455,13 @@ function joinAxis(a: number, b: number, outA: number, outB: number): number {
  *
  * Callers get three segments, or one when the two side midpoints already line up: the middle
  * pair coincide there and are dropped rather than drawn as a zero-length bend.
+ *
+ * `through` is a hand-placed bend. It moves the crossing — the middle run — and nothing else:
+ * the two sides are still chosen from the gap, and the shape is still out, across, in. That
+ * is what makes dragging the middle of an elbow feel like moving the LINE rather than
+ * dropping a new corner into it.
  */
-function elbowPoints(from: Rect, to: Rect): Point[] {
+function elbowPoints(from: Rect, to: Rect, through: Point | null): BuiltRoute {
   const a = rectCentre(from);
   const b = rectCentre(to);
   const dx = b.x - a.x;
@@ -401,13 +476,15 @@ function elbowPoints(from: Rect, to: Rect): Point[] {
   if (horizontal) {
     start = { x: dx >= 0 ? from.x + from.width : from.x, y: a.y };
     end = { x: dx >= 0 ? to.x : to.x + to.width, y: b.y };
-    const midX = (start.x + end.x) / 2;
-    return simplify([start, { x: midX, y: start.y }, { x: midX, y: end.y }, end]);
+    const x = through ? through.x : (start.x + end.x) / 2;
+    const crossing = { a: { x, y: start.y }, b: { x, y: end.y } };
+    return { points: simplify([start, crossing.a, crossing.b, end]), crossing };
   }
   start = { x: a.x, y: dy >= 0 ? from.y + from.height : from.y };
   end = { x: b.x, y: dy >= 0 ? to.y : to.y + to.height };
-  const midY = (start.y + end.y) / 2;
-  return simplify([start, { x: start.x, y: midY }, { x: end.x, y: midY }, end]);
+  const y = through ? through.y : (start.y + end.y) / 2;
+  const crossing = { a: { x: start.x, y }, b: { x: end.x, y } };
+  return { points: simplify([start, crossing.a, crossing.b, end]), crossing };
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   longestSegment,
   polylinePath,
   routeInView,
+  bendGrip,
   bendPoint,
   bendToWorld,
   nearestSide,
@@ -485,14 +486,63 @@ describe('bends', () => {
     ]);
   });
 
-  it('routePoints_elbowWithABend_passesThroughItOnAxisAlignedSegments', () => {
-    const route = routePoints(a, b, 'elbow', 'auto', 'auto', bend)!;
-    expect(route).not.toBeNull();
-    expect(route).toContainEqual({ x: 200, y: -100 });
-    for (let i = 1; i < route.length; i += 1) {
-      const square = route[i].x === route[i - 1].x || route[i].y === route[i - 1].y;
-      expect(square).toBe(true);
-    }
+  /**
+   * An elbow's bend moves the CROSSING — the middle run — and nothing else. It never drops a
+   * new corner into the route: dragging the middle of an elbow has to feel like moving the
+   * line, not like grabbing a corner that was not there a moment ago.
+   */
+  describe('an elbow, where a bend moves the crossing', () => {
+    // Offset on both axes, so the elbow really has three runs to show.
+    const lower = box(300, 200);
+    const defaultCrossing = { a: box(0, 0), b: lower };
+
+    it('routePoints_noBend_putsTheCrossingHalfwayAsItAlwaysHas', () => {
+      expect(routePoints(defaultCrossing.a, defaultCrossing.b, 'elbow')).toEqual([
+        { x: 100, y: 50 },
+        { x: 200, y: 50 },
+        { x: 200, y: 250 },
+        { x: 300, y: 250 },
+      ]);
+    });
+
+    it('routePoints_aBend_movesTheCrossingAndKeepsTheThreeRuns', () => {
+      // The frame is diagonal here, so the round trip through it lands a hair off 150.
+      const moved = worldToBend(a, lower, { x: 150, y: 0 })!;
+      const route = routePoints(a, lower, 'elbow', 'auto', 'auto', moved)!;
+
+      expect(route).toHaveLength(4);
+      expect(route[0]).toEqual({ x: 100, y: 50 });
+      expect(route[3]).toEqual({ x: 300, y: 250 });
+      // Still one crossing, still vertical, and now at the x the bend names rather than at
+      // the halfway 200 the same pair draws without one.
+      expect(route[1].x).toBeCloseTo(150, 9);
+      expect(route[2].x).toBe(route[1].x);
+      expect(route[1].y).toBe(50);
+      expect(route[2].y).toBe(250);
+    });
+
+    it('bendGrip_anElbow_sitsInTheMiddleOfTheCrossingAndSlidesOnItsAxis', () => {
+      expect(bendGrip(a, lower, 'elbow')).toEqual({ at: { x: 200, y: 150 }, slide: 'x' });
+    });
+
+    it('bendGrip_twoCardsLevelWithEachOther_offersNoHandleAtAll', () => {
+      // The elbow draws as one straight run. There is no middle section to slide, and a
+      // handle that does nothing is worse than no handle.
+      expect(bendGrip(a, b, 'elbow')).toBeNull();
+    });
+
+    it('bendGrip_anElbowMeetingAtOneCorner_offersNoHandleAtAll', () => {
+      // Both runs are pinned by a card, so nothing is free.
+      expect(bendGrip(a, lower, 'elbow', 'right', 'top')).toBeNull();
+    });
+  });
+
+  it('bendGrip_aStraightLine_sitsOnItsMiddleAndMovesAcross', () => {
+    expect(bendGrip(a, b, 'straight')).toEqual({ at: { x: 200, y: 50 }, slide: 'across' });
+  });
+
+  it('bendGrip_aBentStraightLine_sitsOnTheBend', () => {
+    expect(bendGrip(a, b, 'straight', 'auto', 'auto', bend)?.at).toEqual({ x: 200, y: -100 });
   });
 
   it('routePoints_aBendOnAPinnedEnd_stillLeavesThatSide', () => {

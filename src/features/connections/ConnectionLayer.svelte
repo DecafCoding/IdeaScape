@@ -13,19 +13,18 @@
 <script lang="ts">
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import {
-    bendPoint,
-    longestSegment,
+    bendGrip,
     nearestSide,
     parseBend,
     polylinePath,
     rectEdgePoint,
     routeInView,
     routePoints,
-    segmentMidpoint,
     serializeBend,
     trimRoute,
     worldToBend,
     type Bend,
+    type BendGrip,
   } from '../../lib/connectionGeometry';
   import {
     anchorLabel,
@@ -107,10 +106,12 @@
     startY: number;
     origin: Point;
     /**
-     * How far along the line the bend sits, fixed for the whole gesture. Only the ACROSS
-     * half of the bend moves — see `moveBendDrag`.
+     * How far along the line the bend sits. Only used by an `across` slide, where it is
+     * fixed for the whole gesture — see `moveBendDrag`.
      */
     along: number;
+    /** Which way this handle may move. It is settled when the press lands. */
+    slide: BendGrip['slide'];
     bend: Bend | null;
   }
 
@@ -429,28 +430,31 @@
   }
 
   /**
-   * Where the middle handle sits: on the bend when there is one, and otherwise on the
-   * midpoint of the route's longest segment — the same segment the label chip uses, which is
-   * the one place on any route with room to be grabbed.
+   * Where this line's middle handle goes and which way it may move — null when the route has
+   * nothing a hand can usefully move, in which case no handle is drawn at all.
    *
-   * It reads `bendPoint`, the same function the route does, so the handle is always ON the
-   * drawn line — a bend that has ended up under a card is pushed clear for both of them
-   * together, and never for only one.
+   * The geometry decides both, from the same route it drew, so the handle is always ON the
+   * line: on an elbow it sits in the middle of the crossing run and slides that whole run,
+   * and on a straight line it sits on the bend and moves at a right angle to the line.
    */
-  function bendHandleAt(row: DrawnConnection): Point | null {
-    const bend = bendFor(row.connection);
-    if (bend) {
-      const rects = rectsOf(row.connection.id);
-      if (rects) return bendPoint(rects.from, rects.to, bend);
-    }
-    const longest = longestSegment(row.points);
-    return longest ? segmentMidpoint(longest.a, longest.b) : null;
+  function gripFor(row: DrawnConnection): BendGrip | null {
+    const rects = rectsOf(row.connection.id);
+    if (!rects) return null;
+    return bendGrip(
+      rects.from,
+      rects.to,
+      row.connection.route,
+      anchorFor(row.connection, 'from'),
+      anchorFor(row.connection, 'to'),
+      bendFor(row.connection),
+    );
   }
 
-  function beginBendDrag(event: PointerEvent, connection: Connection, origin: Point) {
+  function beginBendDrag(event: PointerEvent, connection: Connection, grip: BendGrip) {
     if (event.button !== 0) return;
     const rects = rectsOf(connection.id);
     if (!rects) return;
+    const origin = grip.at;
     event.stopPropagation();
     (event.currentTarget as Element).setPointerCapture(event.pointerId);
     onSelect(connection.id);
@@ -464,6 +468,7 @@
       startY: event.clientY,
       origin,
       along: start?.a ?? 0.5,
+      slide: grip.slide,
       bend: parseBend(connection.bend),
     };
   }
@@ -480,11 +485,11 @@
     };
     const at = worldToBend(rects.from, rects.to, pointer);
     if (!at) return;
-    // ACROSS the line only. Sliding a bend along its own line does not change the shape in
-    // any useful way, and it does let the handle wander off the drawn line — a bend dragged
-    // out past a card sends the route back across the card to reach it. So the along-the-line
-    // half is held at what it was and only the across half follows the pointer.
-    bendDrag = { ...drag, bend: { a: drag.along, b: at.b } };
+    // An elbow's crossing slides on one axis and the geometry reads only that axis off the
+    // bend, so the pointer can be stored as it is. A straight line's bend moves ACROSS the
+    // line and no other way: sliding it along its own line changes no shape worth having,
+    // and it walks the handle off the drawn line.
+    bendDrag = { ...drag, bend: drag.slide === 'across' ? { a: drag.along, b: at.b } : at };
   }
 
   /** Commit the bend under the pointer. A press that never travelled writes nothing. */
@@ -631,7 +636,7 @@
   layer's frame and viewBox, so both are written in the same world coordinates.
 -->
 {#if selectedRow}
-  {@const bendAt = bendHandleAt(selectedRow)}
+  {@const grip = gripFor(selectedRow)}
   <svg
     class="handle-layer"
     data-testid="connection-handles"
@@ -668,13 +673,13 @@
 
     <!-- The middle handle. It is drawn hollow, so it never reads as an endpoint, and dimmed
          while the line has no bend yet — at that point it is an invitation, not a state. -->
-    {#if bendAt}
+    {#if grip}
       {@const bent = bendFor(selectedRow.connection) !== null}
       <rect
         class="bend-handle"
         class:bent
-        x={bendAt.x - 3.5}
-        y={bendAt.y - 3.5}
+        x={grip.at.x - 3.5}
+        y={grip.at.y - 3.5}
         width="7"
         height="7"
         rx="1"
@@ -682,8 +687,8 @@
       <rect
         class="grab"
         data-end="bend"
-        x={bendAt.x - 7}
-        y={bendAt.y - 7}
+        x={grip.at.x - 7}
+        y={grip.at.y - 7}
         width="14"
         height="14"
         role="button"
@@ -691,7 +696,7 @@
         aria-label={bent
           ? `Bend of connection from ${selectedRow.fromLabel} to ${selectedRow.toLabel}`
           : `Bend the connection from ${selectedRow.fromLabel} to ${selectedRow.toLabel}`}
-        onpointerdown={(event) => beginBendDrag(event, selectedRow.connection, bendAt)}
+        onpointerdown={(event) => beginBendDrag(event, selectedRow.connection, grip)}
         onpointermove={moveBendDrag}
         onpointerup={endBendDrag}
         onpointercancel={cancelBendDrag}

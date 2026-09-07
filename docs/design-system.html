@@ -218,8 +218,9 @@ appearing here first.</p>
     look broken. Both ends then aim at the bend. Enter on the handle, or <b>Straighten Line</b> in
     the new Bend group in the properties panel, removes it. The full geometry, storage, handle and
     control spec is in §9.13 under <b>Bend</b>. A bend is kept 8px clear of both cards, so its
-    handle is always on the drawn line, and the handle moves across the line only, never along
-    it. Not drawn by the designer: authored here at the
+    handle is always on the drawn line. On a <b>straight</b> line the handle moves across the
+    line only, never along it; on an <b>elbow</b> it slides the crossing — the middle run — on
+    that run's own axis, and adds no corner. Not drawn by the designer: authored here at the
     owner's instruction, so a later drawn pass supersedes it and gets its own row.</td>
   <td><b>Amended: §9.13.</b> The property table gains a <code>Bend</code> row; rule 8 is rewritten
     a second time, from "a bend is computed" to "a line's shape is derived until the user says
@@ -1588,12 +1589,22 @@ where the line is actually going first.</p>
 <tr><td>Straight</td><td>One segment</td>
   <td>Two segments through the bend, with the same 2px rounding a bend on an elbow gets</td></tr>
 <tr><td>Elbow</td><td>Out, across, in</td>
-  <td>Out of each card's side by the 12px stub, then <b>across the normal first</b> and into the
-  bend along it. Turning the other way round draws a spike: two cards side by side with the bend
-  above them would run out to the bend's column, up, and straight back down the same line</td></tr>
+  <td>Still out, across, in — the bend moves <b>the crossing</b>, the middle run, and nothing
+  else. It never adds a corner: the two sides are still chosen from the gap or from an anchor,
+  and the route still has three runs. Dragging the middle of an elbow has to feel like moving
+  the line, not like grabbing a corner that was not there a moment ago</td></tr>
+<tr><td>What the handle does</td>
+  <td colspan="2"><b>Straight:</b> the handle is the bend, and it moves <b>across</b> the line
+  only — the along-the-line half is fixed when the press lands. <b>Elbow:</b> the handle sits in
+  the middle of the crossing and slides on the crossing's own one axis, carrying the whole run
+  with it</td></tr>
+<tr><td>When there is no handle</td>
+  <td colspan="2">An elbow whose crossing has <b>no length</b> — two cards level with each other
+  draw one straight run, and there is no middle section to slide — and an elbow that meets at a
+  <b>single corner</b>, where both runs are pinned by a card. Better no handle than a handle that
+  does nothing. A straight line always has one</td></tr>
 <tr><td>Where the bend may sit</td><td>—</td>
-  <td><b>Across</b> the line only — the along-the-line half is fixed at the press. Anywhere
-  <b>8px clear of both cards</b>. One that lands inside a card is pushed out past its
+  <td>Anywhere <b>8px clear of both cards</b>. One that lands inside a card is pushed out past its
   nearest border, so the handle never leaves the drawn line. See below</td></tr>
 <tr><td>Arrowheads, trim, chip, hit target, cull</td>
   <td colspan="2">All unchanged. Every one of them reads the route as a <b>list of points</b>,
@@ -1612,13 +1623,22 @@ that, so measuring against endpoints would be circular. An unreadable value draw
 rather than failing the overlay. This is an amendment to the data model in
 <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4.</p>
 
-<p><b>The handle moves across the line, never along it.</b> A drag takes only the half of the
-movement that is at a right angle to the line: drag the middle of a horizontal line and it moves up
-and down, and sideways travel is ignored. Where along the line the bend sits is fixed when the
-press lands — the stored bend's own place, or the midpoint the ghost handle sits on — so the handle
-never jumps as a gesture starts. Sliding a bend along its own line changes no shape worth having,
-and it walks the handle off the drawn line: a bend dragged out past a card sends the route back
-across that card to reach it.</p>
+<p><b>What a drag may do depends on the route, and the geometry decides it — not the handle.</b>
+The same stored bend is read differently by the two routes, and each one reports back where its
+handle goes and the one direction it may travel.</p>
+<ul>
+  <li><b>Straight.</b> The handle IS the bend, and it moves <b>at a right angle to the line</b>:
+    drag the middle of a horizontal line and it moves up and down, and sideways travel is ignored.
+    Where along the line the bend sits is fixed when the press lands — the stored bend's own place,
+    or the midpoint the ghost handle sits on — so the handle never jumps as a gesture starts.
+    Sliding it along its own line changes no shape worth having, and it walks the handle off the
+    drawn line: a bend dragged out past a card sends the route back across that card to reach it.</li>
+  <li><b>Elbow.</b> The handle sits in the middle of the <b>crossing</b> — the middle run, the only
+    one whose position nothing but taste decides — and slides on that run's own single axis,
+    carrying the whole run with it. The route keeps its three runs and gains no corner. The
+    geometry reads only that one axis off the bend, so the other half of the stored pair is simply
+    not consulted while the line is an elbow.</li>
+</ul>
 
 <p><b>The bend is kept off both cards.</b> It is held 8px clear of either card's border, and it is
 pushed out of one it has landed inside — by a drag, or by a card later being moved over it. A bend
