@@ -454,6 +454,31 @@ describe('the connection overlay', () => {
       expect(JSON.parse(stored)).toEqual({ a: expect.any(Number), b: expect.any(Number) });
     });
 
+    /**
+     * The handle moves ACROSS the line, never along it. Sliding a bend along its own line
+     * changes no shape worth having, and it walks the handle off the drawn line: a bend
+     * dragged out past a card sends the route back across that card to reach it.
+     */
+    it('bendHandleDragged_diagonally_takesOnlyTheAcrossHalfOfTheMovement', () => {
+      const onBendChange = vi.fn();
+      canvasStore.selectConnection(7);
+      const { container } = render(ConnectionLayer, {
+        props: { onSelect: () => {}, onAnchorChange: () => {}, onBendChange },
+      });
+      const middle = container.querySelector('rect.grab[data-end="bend"]') as SVGElement;
+      middle.setPointerCapture = () => {};
+
+      // The two cards' centres are 400 apart on the x axis, so across the line is the y axis.
+      pointer(middle, 'pointerdown', { clientX: 200, clientY: 50 });
+      pointer(middle, 'pointermove', { clientX: 300, clientY: -50 });
+      pointer(middle, 'pointerup');
+
+      const bend = JSON.parse(onBendChange.mock.calls[0][1]);
+      // The 100 units of sideways travel are ignored; the handle stays at the midpoint.
+      expect(bend.a).toBe(0.5);
+      expect(bend.b).toBeCloseTo(-100 / 400, 10);
+    });
+
     it('bendHandleEnterPressed_onABentLine_straightensIt', async () => {
       const onBendChange = vi.fn();
       canvasStore.upsertConnection(connection({ bend: '{"a":0.5,"b":-0.5}' }));

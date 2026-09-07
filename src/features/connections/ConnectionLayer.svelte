@@ -106,6 +106,11 @@
     startX: number;
     startY: number;
     origin: Point;
+    /**
+     * How far along the line the bend sits, fixed for the whole gesture. Only the ACROSS
+     * half of the bend moves — see `moveBendDrag`.
+     */
+    along: number;
     bend: Bend | null;
   }
 
@@ -444,14 +449,21 @@
 
   function beginBendDrag(event: PointerEvent, connection: Connection, origin: Point) {
     if (event.button !== 0) return;
+    const rects = rectsOf(connection.id);
+    if (!rects) return;
     event.stopPropagation();
     (event.currentTarget as Element).setPointerCapture(event.pointerId);
     onSelect(connection.id);
+    // Where along the line the handle already is — the stored bend's own place, or the
+    // midpoint the ghost handle sits on. It does not move again for the rest of the drag,
+    // so the handle cannot jump when the gesture starts.
+    const start = worldToBend(rects.from, rects.to, origin);
     bendDrag = {
       connectionId: connection.id,
       startX: event.clientX,
       startY: event.clientY,
       origin,
+      along: start?.a ?? 0.5,
       bend: parseBend(connection.bend),
     };
   }
@@ -466,7 +478,13 @@
       x: drag.origin.x + (event.clientX - drag.startX) / zoom,
       y: drag.origin.y + (event.clientY - drag.startY) / zoom,
     };
-    bendDrag = { ...drag, bend: worldToBend(rects.from, rects.to, pointer) };
+    const at = worldToBend(rects.from, rects.to, pointer);
+    if (!at) return;
+    // ACROSS the line only. Sliding a bend along its own line does not change the shape in
+    // any useful way, and it does let the handle wander off the drawn line — a bend dragged
+    // out past a card sends the route back across the card to reach it. So the along-the-line
+    // half is held at what it was and only the across half follows the pointer.
+    bendDrag = { ...drag, bend: { a: drag.along, b: at.b } };
   }
 
   /** Commit the bend under the pointer. A press that never travelled writes nothing. */
