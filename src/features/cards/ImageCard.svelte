@@ -16,7 +16,7 @@
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
-  import { assetUrl } from '../../lib/assets';
+  import { assetUrl } from '../../lib/assets.svelte';
   import { LOW_ZOOM } from '../../lib/geometry';
   import type { ImagePayload } from '../../lib/types';
 

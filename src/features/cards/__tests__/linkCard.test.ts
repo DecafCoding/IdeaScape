@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/svelte';
 import LinkCard from '../LinkCard.svelte';
-import { setAssetsFolder } from '../../../lib/assets';
+import { setAssetsFolder } from '../../../lib/assets.svelte';
 import { LOW_ZOOM } from '../../../lib/geometry';
 import type { LinkPayload } from '../../../lib/types';
 

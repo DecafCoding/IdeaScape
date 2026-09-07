@@ -50,7 +50,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
 const App = (await import('../../../app.svelte')).default;
 const { canvasStore } = await import('../../../stores/canvasStore.svelte');
 const { undoStack } = await import('../../undo/undoStack.svelte');
-const { getAssetsFolder } = await import('../../../lib/assets');
+const { getAssetsFolder } = await import('../../../lib/assets.svelte');
 const { projectsState } = await import('../projects.svelte');
 
 const ALPHA = 'C:\\Projects\\Alpha';

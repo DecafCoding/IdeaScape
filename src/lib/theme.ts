@@ -1,5 +1,7 @@
 /**
- * The theme applicator — the one place `data-theme` is set or removed.
+ * The root-attribute appliers — the one place `data-theme` and `data-font` are set or
+ * removed. Both are appearance settings that resolve to a token block in `tokens.css`, so
+ * they live together rather than in two one-function files.
  *
  * There is deliberately no `matchMedia` listener anywhere in the front end. `src/lib/theme.css`
  * was written in Phase 1 as two guarded blocks — `:root[data-theme='dark']` and
@@ -15,7 +17,7 @@
  * transition — so nothing here animates and no `background`/`color` transition exists to
  * smooth it.
  */
-import type { Theme } from './settings.svelte';
+import type { FontChoice, Theme } from './settings.svelte';
 
 export function applyTheme(theme: Theme, root: HTMLElement = document.documentElement): void {
   if (theme === 'system') {
@@ -23,4 +25,13 @@ export function applyTheme(theme: Theme, root: HTMLElement = document.documentEl
   } else {
     root.setAttribute('data-theme', theme);
   }
+}
+
+/**
+ * Set `data-font`. Unlike the theme there is no "follow Windows" choice, so the attribute is
+ * always written — including for `serif`, whose block is `:root` itself. Writing it anyway
+ * keeps the drawn state readable from the DOM and matches how Light writes `data-theme`.
+ */
+export function applyFont(font: FontChoice, root: HTMLElement = document.documentElement): void {
+  root.setAttribute('data-font', font);
 }

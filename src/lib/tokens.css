@@ -64,8 +64,9 @@
   --color-line-pink: #c93a86;
   --color-arrowhead: rgba(32, 30, 29, 0.75);
   --color-placeholder: rgba(32, 30, 29, 0.5);
-  /* The video card's play badge (§9.6): the page ground at .92 over the thumbnail. */
-  --color-play-badge: rgba(243, 242, 242, 0.92);
+  /* The YouTube mark on a video thumbnail (§9.6). A brand colour, not a palette colour: it
+     is the same in both themes because a logo does not re-tint. */
+  --color-provider-youtube: #ff0000;
 
   /* Neutral ramp */
   --color-neutral-100: #f8f4f4;
@@ -100,7 +101,9 @@
   --color-accent-2-800: #790e3d;
   --color-accent-2-900: #4b1528;
 
-  /* Type family. fonts.css supplies the faces; both roles are the one family. */
+  /* Type family. fonts.css supplies the faces; both roles are the one family. The Font
+     setting swaps the family by writing `data-font` on the root — see the blocks at the
+     foot of this file. Serif is the default and writes no attribute. */
   --font-heading: 'Source Serif 4', system-ui, sans-serif;
   --font-heading-weight: 600;
   --font-body: 'Source Serif 4', system-ui, sans-serif;
@@ -264,4 +267,24 @@
     --duration-140: 0ms;
     --duration-160: 0ms;
   }
+}
+
+/* The two non-default Font choices (design-system §9.11). Only the family tokens change;
+   every size, weight and spacing token is shared, so a font swap is a repaint and never a
+   re-layout of the design. `data-font='serif'` is written too rather than left absent, for
+   the same reason Light writes `data-theme`: one attribute, one drawn state, no ambiguity.
+
+   The whole type ramp is in px (§5.1), so no size token is touched here: a font choice must
+   not move a single card boundary. */
+:root[data-font='sans'] {
+  --font-heading: 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+:root[data-font='marker'] {
+  --font-heading: 'Patrick Hand', 'Comic Sans MS', cursive;
+  --font-body: 'Patrick Hand', 'Comic Sans MS', cursive;
+  /* One face only, so 600 would be a synthesised bold on every heading. 400 keeps the
+     hand honest and the headings still read as headings through size and colour. */
+  --font-heading-weight: 400;
 }

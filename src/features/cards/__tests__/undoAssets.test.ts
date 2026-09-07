@@ -22,7 +22,7 @@ vi.mock('../../../lib/logger', () => ({
 
 const { canvasStore } = await import('../../../stores/canvasStore.svelte');
 const { deleteCardsCommand } = await import('../../undo/commands');
-const { clearAssetStatuses } = await import('../../../lib/assets');
+const { clearAssetStatuses } = await import('../../../lib/assets.svelte');
 const type = await import('../../../lib/types');
 
 const ASSET = 'deadbeefdeadbeef.png';

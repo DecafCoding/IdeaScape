@@ -40,18 +40,25 @@ describe('the settings module', () => {
     expect(sanitizeSettings({ autoSaveMs: '3000' }).autoSaveMs).toBe(3000);
   });
 
-  it('sanitizeSettings_oneBadField_keepsTheOtherThree', () => {
+  it('sanitizeSettings_unknownFont_fallsBackToSerif', () => {
+    expect(sanitizeSettings({ font: 'wingdings' }).font).toBe('serif');
+    expect(sanitizeSettings({ font: 'marker' }).font).toBe('marker');
+  });
+
+  it('sanitizeSettings_oneBadField_keepsTheOtherFour', () => {
     const cleaned = sanitizeSettings({
       autoSaveMs: 10000,
       snapToGrid: true,
       zoomWith: 'pinch',
       theme: 'dark',
+      font: 'marker',
     });
     expect(cleaned).toEqual({
       autoSaveMs: 10000,
       snapToGrid: true,
       zoomWith: 'scroll',
       theme: 'dark',
+      font: 'marker',
     });
   });
 
@@ -93,7 +100,13 @@ describe('the settings module', () => {
   it('setSetting_anyKey_sendsAPlainObjectNotAProxy', async () => {
     await setSetting('autoSaveMs', 10000);
     expect(invoke).toHaveBeenCalledWith('write_settings', {
-      settings: { autoSaveMs: 10000, snapToGrid: false, zoomWith: 'scroll', theme: 'light' },
+      settings: {
+        autoSaveMs: 10000,
+        snapToGrid: false,
+        zoomWith: 'scroll',
+        theme: 'light',
+        font: 'serif',
+      },
     });
     const sent = invoke.mock.calls[0][1].settings;
     // Structured clone throws on a Proxy: the object handed to invoke must be a plain one.

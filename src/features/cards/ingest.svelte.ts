@@ -12,7 +12,7 @@
  * takes the returned list and records one command for the batch.
  */
 import { invokeSafe } from '../../lib/ipc';
-import { noteAssetPresent } from '../../lib/assets';
+import { noteAssetPresent } from '../../lib/assets.svelte';
 import { imageFitBox } from '../../lib/cardKinds';
 import { logInfo, logError } from '../../lib/logger';
 import { canvasStore } from '../../stores/canvasStore.svelte';

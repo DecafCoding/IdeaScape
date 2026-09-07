@@ -480,6 +480,13 @@ describe('label chips', () => {
     expect(getByTestId('connection-labels').getAttribute('data-drawn')).toBe('0');
   });
 
+  it('chip_aColouredConnection_bordersInThatColour', () => {
+    canvasStore.upsertConnection(connection({ label: 'causes', color: 'purple' }));
+    const { getByText } = render(ConnectionLabels, { props: {} });
+    const style = getByText('causes').getAttribute('style') ?? '';
+    expect(style).toContain('--chip-border: var(--color-line-purple)');
+  });
+
   it('chip_positioned_landsOnTheSegmentMidpoint', () => {
     canvasStore.upsertConnection(connection({ label: 'causes' }));
     const { getByText } = render(ConnectionLabels, { props: {} });

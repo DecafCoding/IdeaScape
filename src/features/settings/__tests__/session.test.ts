@@ -161,6 +161,7 @@ beforeEach(() => {
   projectsState.failure = null;
   resetSettings();
   document.documentElement.removeAttribute('data-theme');
+  document.documentElement.removeAttribute('data-font');
   makeCanvas('Canvas 1');
   backend();
 });
@@ -284,6 +285,7 @@ describe('the Settings screen in the shell', () => {
       snapToGrid: true,
       zoomWith: 'ctrl-scroll',
       theme: 'dark',
+      font: 'serif',
     });
     // The settings read is the very first thing the application does.
     expect(order[0]).toBe('read_settings');

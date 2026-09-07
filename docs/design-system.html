@@ -208,6 +208,33 @@ appearing here first.</p>
     now owns the Route control. <b>Recorded as a non-goal:</b> a line does not route around cards.
     <i>Owner, 2026-09-07.</i></td>
 </tr>
+<tr>
+  <td>2026-09-07</td>
+  <td><span class="frames">owner decision</span></td>
+  <td><b>Added: the Font setting.</b> <b>Settings · Appearance · Font</b> offers
+    <code>Serif</code> (Source Serif 4, the default), <code>Sans</code> (Inter) and
+    <code>Marker</code> (Patrick Hand). It swaps the family tokens only; no size, weight or
+    spacing token moves, so a font change is a repaint and never a re-layout. The root carries
+    <code>data-font</code>. Both new faces are vendored, latin subset only. Not drawn by the
+    designer: authored here at the owner's instruction, so a later drawn pass supersedes it and
+    gets its own row.</td>
+  <td><b>Amended: §6</b> — the type table gains a <b>User choice</b> row. <b>Amended: §9.11</b> —
+    the Settings page has a sixth row, and Appearance now holds two. <b>Amended: §14</b> — Inter
+    and Patrick Hand join the vendored assets. <b>Amended: §9.13</b> — a label chip's border is
+    now its own connection's colour, not <code>--color-divider</code>, and the chip is recorded
+    as drawn at <b>full strength</b>, which is what shipped; the stale opacity .62 is removed from
+    §6. <b>Amended: §9.6</b> — the video card's provider moves to a corner mark on the thumbnail,
+    the provider name is no longer drawn as text, the mark is drawn in YouTube's brand red on no
+    ground (a new <code>--color-provider-youtube</code> token, identical in both themes), and the
+    "Click to open in your browser" line is removed. <b>Superseded: the video card's open
+    gesture.</b> The card body no longer opens the browser — it selects, like every other card
+    kind — and the YouTube mark became the open control. <b>Removed: the play badge</b>, with its
+    <code>ph-play</code> glyph and its <code>--color-play-badge</code> token — the glyph set drops
+    from 34 to <b>33</b>, and the 50% radius row now names only the Settings toggle knob. <b>Shortened:</b> the image group's two
+    checkbox labels, "Show Title On Card" and "Show Description On Card", are now
+    <b>Show Title</b> and <b>Show Description</b>. This document never named either, so no
+    section changes. <i>Owner, 2026-09-07.</i></td>
+</tr>
 </tbody>
 </table>
 
@@ -470,7 +497,7 @@ large text and interface chrome — <b>not</b> for body copy. The rule:</p>
   <td>Page-level buttons — the picker's New project / Open folder, the empty state's New note / Add
   image, Settings' Back to canvas.</td></tr>
 <tr><td>10px</td><td>—</td><td>The Settings toggle track (34 × 19px).</td></tr>
-<tr><td>50%</td><td>—</td><td>The video play badge and the Settings toggle knob.</td></tr>
+<tr><td>50%</td><td>—</td><td>The Settings toggle knob.</td></tr>
 </tbody>
 </table>
 
@@ -512,6 +539,13 @@ large text and interface chrome — <b>not</b> for body copy. The rule:</p>
   <td>Google Fonts, imported at the top of Broadsheet's <code>styles.css</code>. <b>Vendor it</b> —
   see section 14.</td></tr>
 <tr><td>Fallback</td><td><code>system-ui, sans-serif</code> — Segoe UI Variable on Windows 11</td></tr>
+<tr><td>User choice</td>
+  <td><b>Settings · Appearance · Font</b> swaps the family for <code>Sans</code> (Inter) or
+  <code>Marker</code> (Patrick Hand). Only <code>--font-heading</code>, <code>--font-body</code>
+  and <code>--font-heading-weight</code> move; every size, weight and spacing token is shared, so
+  a font change is a repaint and never a re-layout. The root carries
+  <code>data-font="serif|sans|marker"</code>; Serif is the default and writes the attribute
+  rather than leaving it absent.</td></tr>
 </tbody>
 </table>
 
@@ -536,8 +570,8 @@ second family</b>. See open question 2.
   <td>Uppercase, letter-spacing .06em, opacity .5. The link-card domain row, the video provider
   row</td></tr>
 <tr><td>Chips</td><td>10px / 400</td>
-  <td>Connection labels (opacity .62); the video duration chip; search group counts (opacity
-  .4)</td></tr>
+  <td>Connection labels (full strength — see §9.13); the video duration chip; search group
+  counts (opacity .4)</td></tr>
 <tr><td>Ids, hints, snippets</td><td>10.5px / 400</td>
   <td>Panel item id (opacity .45); undo depth (opacity .6); search sub-lines (opacity .5) and
   snippets (opacity .6, line-height 1.4); search keyboard hints (opacity .42)</td></tr>
@@ -591,7 +625,6 @@ opacity. The full ladder, brightest first:</p>
 <tr><td>.75</td><td>Panel field letters (X, Y, W, H); the image file path; the zoom percentage</td></tr>
 <tr><td>.72</td><td>Inactive canvas rows; the link-card description</td></tr>
 <tr><td>.7</td><td>Zoom-bar buttons; inactive text-format buttons; context-menu icons</td></tr>
-<tr><td>.62</td><td>Connection label chips</td></tr>
 <tr><td>.6</td><td>Inactive segmented options; undo depth; the picker sub-line and card meta; search snippets</td></tr>
 <tr><td>.55</td><td>Window controls; search row icons; "Fetching preview…"</td></tr>
 <tr><td>.5</td><td>The breadcrumb; section-label icons; the search box at rest; card kickers; the picker folder icon and path; Settings helper text; the collapsed-panel caret; placeholder ink on image cards</td></tr>
@@ -621,7 +654,7 @@ Use .35 — it is the drawn value. The one exception is the disabled Refetch but
 </tbody>
 </table>
 
-<h3>7.1 Every glyph used — 34 in total</h3>
+<h3>7.1 Every glyph used — 33 in total</h3>
 <table>
 <thead><tr><th>Group</th><th>Glyphs</th></tr></thead>
 <tbody>
@@ -641,7 +674,7 @@ Use .35 — it is the drawn value. The one exception is the disabled Refetch but
   <code>ph-folder-open</code> <code>ph-arrow-clockwise</code></td></tr>
 <tr><td>Cards</td>
   <td><code>ph-image</code> <code>ph-image-broken</code> <code>ph-link-simple</code>
-  <code>ph-circle-dashed</code> <code>ph-play</code> <code>ph-youtube-logo</code></td></tr>
+  <code>ph-circle-dashed</code> <code>ph-youtube-logo</code></td></tr>
 <tr><td>Menus and pages</td>
   <td><code>ph-cursor</code> <code>ph-flow-arrow</code> <code>ph-arrow-line-up</code>
   <code>ph-arrow-line-down</code> <code>ph-folder-plus</code> <code>ph-folder</code>
@@ -662,7 +695,7 @@ Use .35 — it is the drawn value. The one exception is the disabled Refetch but
   <td>The title-bar save state; the text-format buttons; search result rows; the collapsed-panel
   caret</td></tr>
 <tr><td>15px</td><td>Context-menu rows</td></tr>
-<tr><td>16px</td><td>Picker card folder icons; the <code>ph-play</code> inside the video badge</td></tr>
+<tr><td>16px</td><td>Picker card folder icons</td></tr>
 <tr><td>20px</td><td>The <code>ph-image</code> placeholder on a small image card</td></tr>
 <tr><td>22px</td><td>The <code>ph-image</code> in a link card's preview band</td></tr>
 <tr><td>26px</td><td>The <code>ph-image</code> placeholder on a large image card</td></tr>
@@ -1073,21 +1106,42 @@ line-height 1.45; then <code>Refetch</code> with <code>ph-arrow-clockwise</code>
 <code>--color-accent-700</code> text.</p>
 
 <h3>9.6 Video card <span class="frames">frame <code>19b</code></span></h3>
-<p><code>overflow: hidden</code>.</p>
+<p><code>overflow: hidden</code>, and <code>border-radius: var(--radius-card)</code> repeated on
+the card's own content box: the thumbnail band starts at the top edge, so without it the band's
+square corners paint over the shell's rounded ones.</p>
 <ul>
   <li><b>Thumbnail</b> — <code>aspect-ratio: 16 / 9</code>, so it is 153px tall at the authored
     272px width and follows the card as it is resized, <code>--color-neutral-300</code>,
-    <code>position: relative</code>. A centred play badge: 38 × 38px,
-    <code>border-radius: 50%</code>, background <code>rgba(243,242,242,.92)</code>,
-    <code>ph-play</code> at 16px in #201e1d. A duration chip: absolute
-    <code>right: 7px; bottom: 7px</code>, background <code>rgba(32,30,29,.82)</code>, colour
-    #f3f2f2, 10px, padding <code>1px 5px</code>, radius 2px.</li>
-  <li><b>Body</b> — padding <code>10px 13px 12px</code>. The provider row is the link card's domain
-    row but with <code>ph-youtube-logo</code> at 13px. Title 13px weight 600, line-height 1.35.
-    Then <code>Click to open in your browser</code> at 11px opacity .45, 6px down.</li>
+    <code>position: relative</code>. <b>No play badge.</b> The mockups drew a centred 38 × 38px
+    badge and Phase 3 shipped it; <i>removed by the owner, 2026-09-07</i>, because the card does
+    not play a video and a badge that looks like a play control must not promise that it does. A
+    YouTube thumbnail carries its own. A <b>provider mark</b> in the bottom-right corner:
+    absolute <code>right: 7px; bottom: 7px</code>, <code>ph-youtube-logo</code> at 13px in
+    <code>--color-provider-youtube</code> (#ff0000), <b>no ground</b> — it sits straight on the
+    thumbnail, because it is a mark, not a chip. That red is a <b>brand</b> colour and is the same
+    in both themes: a logo does not re-tint. <b>The mark is also the card's open control</b> — a
+    real <code>&lt;button&gt;</code> labelled <code>Open In Your Browser</code>, cursor
+    <code>pointer</code>, carrying <code>data-owns-press</code>. It is the only control on the
+    card. <i>Revised by the owner, 2026-09-07: the provider moved out of the body and its
+    name is no longer drawn as text — the logo says YouTube on its own.</i> A duration chip would
+    take this same corner, and is not built (see below).</li>
+  <li><b>Body</b> — padding <code>10px 13px 12px</code>. Title only, 13px weight 600, line-height
+    1.35. There is <b>no</b> provider row, <b>no</b> "Click to open in your browser" line and
+    <b>no</b> separate open button — the YouTube mark on the thumbnail is the open control.
+    <i>Revised by the owner, 2026-09-07.</i></li>
 </ul>
-<p><b>Video never plays in place.</b> Clicking opens the address in the system browser. This is a
-deliberate, documented gap against competitors — see <code>docs/mvp-plan.html</code> §11.</p>
+<p><b>Video never plays in place.</b> Clicking the YouTube mark opens the address in the system
+browser.
+This is a deliberate, documented gap against competitors — see <code>docs/mvp-plan.html</code>
+§11.</p>
+
+<div class="callout">
+<b>The card body is not the open target.</b> <i>Decided by the owner, 2026-09-07.</i> Clicking a
+video card selects it, exactly as every other card kind does; only the YouTube mark leaves the
+application. Reason: a click that means "select this" must never be mistaken for one that means
+"open a browser window", and a card the user cannot click without leaving the app cannot be
+selected, dragged or connected comfortably.
+</div>
 <div class="callout">
 <b>YouTube only in the MVP.</b> <i>Decided by the owner, 2026-09-06: Vimeo is out.</i> That is why
 <code>ph-youtube-logo</code> is the only provider glyph and the card needs no provider switch. A
@@ -1229,6 +1283,9 @@ cover the same ground.</p>
   <td>Ctrl+scroll leaves the plain wheel free to pan.</td></tr>
 <tr><td>Appearance</td><td>Theme</td>
   <td>Segmented <b><code>Light</code></b> / <code>Dark</code> / <code>System</code></td><td>—</td></tr>
+<tr><td>Appearance</td><td>Font</td>
+  <td>Segmented <b><code>Serif</code></b> / <code>Sans</code> / <code>Marker</code></td>
+  <td>Marker is a single-weight hand; sizes never change.</td></tr>
 </tbody>
 </table>
 
@@ -1281,8 +1338,13 @@ order</b>, so cards always paint over the lines.</p>
   <code>orient="auto-start-reverse"</code></td></tr>
 <tr><td>Label chip</td>
   <td colspan="2">Background <code>--color-surface</code>, radius 2px, padding
-  <code>1px 5px</code>, 10px, opacity .62, <code>white-space: nowrap</code>, on the line's
-  midpoint — on an elbow route, the midpoint of its longest segment</td></tr>
+  <code>1px 5px</code>, 10px, <code>white-space: nowrap</code>, on the line's
+  midpoint — on an elbow route, the midpoint of its longest segment. Drawn at <b>full
+  strength</b>, not .62: the chip has to hide the line it sits on, and a see-through ground
+  let the stroke read straight through the text. <b>Border</b> 1px in <b>its own connection's
+  colour</b> — the same <code>--color-line-*</code> token the stroke uses — so a chip reads as
+  part of the line it names; a selected connection's chip borders
+  <code>--color-accent</code> instead</td></tr>
 <tr><td>Route</td>
   <td colspan="2"><code>straight</code> (default) or <code>elbow</code>. Per connection, chosen in
   the properties panel. Bend radius 2px. See <b>Route</b> below</td></tr>
@@ -1737,9 +1799,18 @@ saveState      { status: 'saved' | 'saving', lastSavedAt }</code></pre>
   the <code>@import</code> with a local <code>@font-face</code>. <b>Removing that
   <code>@import</code> is not optional.</b> Licence: SIL Open Font Licence 1.1 — free to
   embed.</td></tr>
-<tr><td>Phosphor Icons, regular</td><td>34 glyphs (section 7.1).</td>
+<tr><td>Inter</td><td>The <code>Sans</code> font choice. Weights 400 and 600, plus the true 400
+  italic — the same three roles as the serif.</td>
+  <td><b>Must be vendored</b>, for the same reason. Latin subset only, from
+  <code>@fontsource/inter</code>. Licence: SIL Open Font Licence 1.1.</td></tr>
+<tr><td>Patrick Hand</td><td>The <code>Marker</code> font choice. One face only — 400 upright.</td>
+  <td><b>Must be vendored</b>, for the same reason. Latin subset only, from
+  <code>@fontsource/patrick-hand</code>. Bold and italic are synthesised by WebView2, which is
+  why <code>--font-heading-weight</code> drops to 400 for this choice. Licence: SIL Open Font
+  Licence 1.1.</td></tr>
+<tr><td>Phosphor Icons, regular</td><td>33 glyphs (section 7.1).</td>
   <td><b>Must be vendored</b>, for the same reason. Take the regular-weight font file and its CSS
-  from <code>@phosphor-icons/web@2.1.1</code>. Licence: MIT. Consider subsetting to the 34 glyphs —
+  from <code>@phosphor-icons/web@2.1.1</code>. Licence: MIT. Consider subsetting to the 33 glyphs —
   the installer has a 20 MB budget.</td></tr>
 <tr><td>Broadsheet <code>styles.css</code></td><td>The token sheet.</td>
   <td>Copy the <code>:root</code> token block into the app's own theme file, and add the new tokens

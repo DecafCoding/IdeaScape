@@ -7,3 +7,16 @@
 @import '@fontsource/source-serif-4/latin-400.css';
 @import '@fontsource/source-serif-4/latin-600.css';
 @import '@fontsource/source-serif-4/latin-400-italic.css';
+
+/* Inter, vendored, for the Sans font choice. Same three roles as the serif — 400, 600 and
+   the true 400 italic — and the latin subset only, for the same installer-budget reason. */
+
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-400-italic.css';
+
+/* Patrick Hand, vendored, for the Marker font choice. It has one face only — 400 upright.
+   Bold headings and italic emphasis are synthesised by WebView2, which is the whole point
+   of a single-weight handwriting face: a fake bold still reads as the same hand. */
+
+@import '@fontsource/patrick-hand/latin-400.css';

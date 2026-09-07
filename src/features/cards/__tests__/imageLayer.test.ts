@@ -17,7 +17,7 @@ vi.mock('../../../lib/ipc', () => ({
 
 const CardLayer = (await import('../CardLayer.svelte')).default;
 const { canvasStore } = await import('../../../stores/canvasStore.svelte');
-const { setAssetsFolder } = await import('../../../lib/assets');
+const { setAssetsFolder } = await import('../../../lib/assets.svelte');
 
 const CANVAS_ID = 1;
 const AUTHORED_WIDTH = 320;

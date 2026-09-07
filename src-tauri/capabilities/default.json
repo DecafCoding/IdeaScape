@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/windows-schema.json",
   "identifier": "default",
-  "description": "Exactly what IdeaScape's window needs: the core commands the title bar and the webview use — the native title bar is off, so dragging, minimise, maximise and close are all ours — the file selector for adding a picture, and opening a video address or revealing the assets folder in the system shell. Nothing wider — no shell execute, no arbitrary filesystem access.",
+  "description": "Exactly what IdeaScape's window needs: the core commands the title bar and the webview use — the native title bar is off, so dragging, minimise, maximise and close are all ours — the file selector for adding a picture, and opening a video address or revealing the assets folder in the system shell. Nothing wider — no shell execute, no arbitrary filesystem access. The opener permission carries its own URL scope: the plugin denies every address unless one is listed, so http and https are allowed and every other scheme stays denied.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -11,7 +11,10 @@
     "core:window:allow-close",
     "core:window:allow-destroy",
     "dialog:allow-open",
-    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }, { "url": "http://*" }]
+    },
     "opener:allow-reveal-item-in-dir"
   ]
 }

@@ -53,7 +53,6 @@
   --color-line-pink: #f58ab8;
   --color-arrowhead: rgba(236, 233, 230, 0.75);
   --color-placeholder: rgba(236, 233, 230, 0.42);
-  --color-play-badge: rgba(38, 35, 34, 0.92);
 
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.42);
   --shadow-card-selected: 0 4px 14px rgba(0, 0, 0, 0.5);
@@ -129,7 +128,6 @@
     --color-line-pink: #f58ab8;
     --color-arrowhead: rgba(236, 233, 230, 0.75);
     --color-placeholder: rgba(236, 233, 230, 0.42);
-    --color-play-badge: rgba(38, 35, 34, 0.92);
 
     --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.42);
     --shadow-card-selected: 0 4px 14px rgba(0, 0, 0, 0.5);

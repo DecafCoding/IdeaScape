@@ -12,8 +12,12 @@ import { logError } from './logger';
 import { SvelteMap } from 'svelte/reactivity';
 import type { AssetStatus } from './types';
 
-/** The open project's `assets/` folder, as an absolute path. Set once when it opens. */
-let assetsFolder: string | null = null;
+/**
+ * The open project's `assets/` folder, as an absolute path. Set when a project opens and
+ * cleared when it closes. Reactive: the cards derive their `src` from it, and the folder is
+ * read from Rust after the first canvas has already been drawn.
+ */
+let assetsFolder = $state<string | null>(null);
 
 /**
  * Whether each named file is actually there. A name absent from the map is treated as

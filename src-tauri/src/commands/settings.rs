@@ -1,9 +1,9 @@
 //! The one configuration file the product has: `%APPDATA%\IdeaScape\settings.json`.
 //!
-//! It holds exactly the four values the Settings screen edits (PRD §8.2), it is written by
+//! It holds exactly the five values the Settings screen edits (PRD §8.2), it is written by
 //! the application, it has working defaults, and it is never required to exist. A missing,
 //! empty, unparseable or partially invalid file reads as the drawn defaults and is never an
-//! error — the file holds no user data, so losing it costs the user four preferences.
+//! error — the file holds no user data, so losing it costs the user five preferences.
 //!
 //! Both `read_settings_at` and `write_settings_at` take the directory as a parameter,
 //! exactly as `project::read_recent` does, so no test ever writes to this machine's real
@@ -18,7 +18,7 @@ use std::path::Path;
 const SETTINGS_FILE_NAME: &str = "settings.json";
 const SETTINGS_TEMP_FILE_NAME: &str = "settings.json.tmp";
 
-/// The four values, camelCase on the wire because the TypeScript `Settings` interface
+/// The five values, camelCase on the wire because the TypeScript `Settings` interface
 /// shipped in Phase 1 already is. `RecentProject` is snake_case on both sides; this struct
 /// deliberately is not.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -28,9 +28,10 @@ pub struct StoredSettings {
     pub snap_to_grid: bool,
     pub zoom_with: String,
     pub theme: String,
+    pub font: String,
 }
 
-/// Design-system §9.11's drawn defaults — the same four `DEFAULT_SETTINGS` carries in
+/// Design-system §9.11's drawn defaults — the same five `DEFAULT_SETTINGS` carries in
 /// `src/lib/settings.svelte.ts`.
 impl Default for StoredSettings {
     fn default() -> Self {
@@ -39,6 +40,7 @@ impl Default for StoredSettings {
             snap_to_grid: false,
             zoom_with: "scroll".into(),
             theme: "light".into(),
+            font: "serif".into(),
         }
     }
 }
@@ -46,10 +48,11 @@ impl Default for StoredSettings {
 const AUTO_SAVE_OPTIONS: [i64; 3] = [1000, 3000, 10000];
 const ZOOM_OPTIONS: [&str; 2] = ["scroll", "ctrl-scroll"];
 const THEME_OPTIONS: [&str; 3] = ["light", "dark", "system"];
+const FONT_OPTIONS: [&str; 3] = ["serif", "sans", "marker"];
 
 /// Replace any field outside its allowed set with that field's default, and only that
-/// field. A user who hand-edits one line does not lose the other three (PRD §8.2:
-/// "deleting it resets those four values and nothing else").
+/// field. A user who hand-edits one line does not lose the other four (PRD §8.2:
+/// "deleting it resets those five values and nothing else").
 fn sanitize(mut s: StoredSettings) -> StoredSettings {
     let d = StoredSettings::default();
     if !AUTO_SAVE_OPTIONS.contains(&s.auto_save_ms) {
@@ -61,11 +64,14 @@ fn sanitize(mut s: StoredSettings) -> StoredSettings {
     if !THEME_OPTIONS.contains(&s.theme.as_str()) {
         s.theme = d.theme;
     }
+    if !FONT_OPTIONS.contains(&s.font.as_str()) {
+        s.font = d.font;
+    }
     // snap_to_grid is a bool and cannot be out of range.
     s
 }
 
-/// The four values, sanitized. Never an error.
+/// The five values, sanitized. Never an error.
 pub fn read_settings_at(dir: &Path) -> StoredSettings {
     let Ok(text) = std::fs::read_to_string(dir.join(SETTINGS_FILE_NAME)) else {
         return StoredSettings::default();
@@ -122,6 +128,7 @@ mod tests {
             snap_to_grid: true,
             zoom_with: "ctrl-scroll".into(),
             theme: "dark".into(),
+            font: "marker".into(),
         }
     }
 
@@ -174,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_one_bad_field_keeps_the_other_three() {
+    fn sanitize_one_bad_field_keeps_the_other_four() {
         let mut bad = non_default();
         bad.zoom_with = "pinch".into();
         let s = sanitize(bad);
@@ -182,6 +189,16 @@ mod tests {
         assert_eq!(s.auto_save_ms, 10000);
         assert!(s.snap_to_grid);
         assert_eq!(s.theme, "dark");
+        assert_eq!(s.font, "marker");
+    }
+
+    #[test]
+    fn sanitize_unknown_font_falls_back_to_serif() {
+        let s = sanitize(StoredSettings {
+            font: "wingdings".into(),
+            ..Default::default()
+        });
+        assert_eq!(s.font, "serif");
     }
 
     #[test]
@@ -191,14 +208,15 @@ mod tests {
         assert_eq!(read_settings_at(dir.path()), non_default());
 
         let text = std::fs::read_to_string(dir.path().join("settings.json")).unwrap();
-        // Pretty-printed camelCase, exactly four keys.
+        // Pretty-printed camelCase, exactly five keys.
         assert!(text.contains("\n"));
         assert!(text.contains("\"autoSaveMs\""));
         assert!(text.contains("\"snapToGrid\""));
         assert!(text.contains("\"zoomWith\""));
         assert!(text.contains("\"theme\""));
+        assert!(text.contains("\"font\""));
         let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(parsed.as_object().unwrap().len(), 4);
+        assert_eq!(parsed.as_object().unwrap().len(), 5);
     }
 
     #[test]
@@ -240,7 +258,7 @@ mod tests {
 
     /// Milestone 1's checkpoint: one whole lifecycle against a real temp directory —
     /// defaults from an empty folder with no file created, a non-default value for each of
-    /// the four written and read back, and one corrupted field falling back alone.
+    /// the five written and read back, and one corrupted field falling back alone.
     #[test]
     fn milestone1_settings_lifecycle_defaults_write_read_and_partial_corruption() {
         let dir = tempfile::tempdir().unwrap();

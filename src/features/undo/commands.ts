@@ -12,7 +12,7 @@
  * delete is genuinely back on disk and not only back in memory.
  */
 import { invokeSafe } from '../../lib/ipc';
-import { assetStatus, refreshAssetStatuses } from '../../lib/assets';
+import { assetStatus, refreshAssetStatuses } from '../../lib/assets.svelte';
 import { logWarn } from '../../lib/logger';
 import { payloadAssetNames } from '../../lib/types';
 import { canvasStore } from '../../stores/canvasStore.svelte';

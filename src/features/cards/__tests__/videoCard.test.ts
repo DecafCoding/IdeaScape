@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render } from '@testing-library/svelte';
 import VideoCard from '../VideoCard.svelte';
-import { setAssetsFolder } from '../../../lib/assets';
+import { setAssetsFolder } from '../../../lib/assets.svelte';
+import { ownsPress } from '../../../lib/pressTarget';
 import type { VideoPayload } from '../../../lib/types';
 
 vi.mock('../../../lib/ipc', () => ({
@@ -26,12 +27,6 @@ const NOT_FETCHED: VideoPayload = {
   fetched_at: null,
 };
 
-/** A press then a click, `moved` pixels apart. */
-async function pressAndClick(element: Element, moved: number) {
-  await fireEvent.mouseDown(element, { clientX: 100, clientY: 100 });
-  await fireEvent.click(element, { clientX: 100 + moved, clientY: 100 });
-}
-
 describe('VideoCard', () => {
   beforeEach(() => setAssetsFolder('C:/Project/assets'));
   afterEach(() => {
@@ -39,21 +34,25 @@ describe('VideoCard', () => {
     setAssetsFolder(null);
   });
 
-  it('videoCard_fetched_drawsThePlayBadgeTheTitleAndTheInvitation', () => {
-    const { getByTestId } = render(VideoCard, { props: { payload: FETCHED, zoom: 1 } });
+  it('videoCard_fetched_drawsTheProviderMarkAndTheTitleAndNoPlayBadge', () => {
+    const { getByTestId, queryByTestId } = render(VideoCard, {
+      props: { payload: FETCHED, zoom: 1 },
+    });
     const card = getByTestId('video-card');
-    expect(getByTestId('video-card-play')).toBeTruthy();
+    // The badge was removed on 2026-09-07: the card does not play, so it must not promise to.
+    expect(queryByTestId('video-card-play')).toBeNull();
     expect(card.textContent).toContain('A Video Everyone Knows');
-    expect(card.textContent).toContain('Click to open in your browser');
     expect(card.querySelectorAll('img')).toHaveLength(1);
+    // The provider is a corner mark on the thumbnail, and its name is never drawn as text.
+    const mark = getByTestId('video-card-provider');
+    expect(mark.parentElement?.classList.contains('band')).toBe(true);
+    expect(card.textContent).not.toContain('youtube');
   });
 
-  it('videoCard_notFetched_fallsBackToTheAddressAndKeepsThePlayBadge', () => {
+  it('videoCard_notFetched_fallsBackToTheAddress', () => {
     const { getByTestId } = render(VideoCard, { props: { payload: NOT_FETCHED, zoom: 1 } });
     const card = getByTestId('video-card');
-    expect(getByTestId('video-card-play')).toBeTruthy();
     expect(card.textContent).toContain('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-    expect(card.textContent).toContain('Click to open in your browser');
     expect(card.querySelectorAll('img')).toHaveLength(0);
   });
 
@@ -66,17 +65,26 @@ describe('VideoCard', () => {
     expect(card.textContent).not.toMatch(/\d+:\d\d/);
   });
 
-  it('videoCard_aStationaryClick_firesOnOpenOnce', async () => {
+  it('videoCard_theYouTubeMark_firesOnOpenOnceAndOwnsItsOwnPress', async () => {
     const onOpen = vi.fn();
     const { getByTestId } = render(VideoCard, { props: { payload: FETCHED, zoom: 1, onOpen } });
-    await pressAndClick(getByTestId('video-card'), 0);
+    const button = getByTestId('video-card-provider');
+    expect(button.getAttribute('aria-label')).toBe('Open In Your Browser');
+
+    // The card layer takes pointer capture on press and would otherwise swallow this click;
+    // `ownsPress` is the check that makes it stand back.
+    expect(ownsPress({ target: button })).toBe(true);
+
+    await fireEvent.click(button);
     expect(onOpen).toHaveBeenCalledTimes(1);
+    // The card body is not a target: pressing it must never reach `ownsPress`.
+    expect(ownsPress({ target: getByTestId('video-card') })).toBe(false);
   });
 
-  it('videoCard_aClickAfterATwentyPixelPointerMove_neverOpensTheBrowser', async () => {
+  it('videoCard_aClickOnTheCardItself_neverOpensTheBrowser', async () => {
     const onOpen = vi.fn();
     const { getByTestId } = render(VideoCard, { props: { payload: FETCHED, zoom: 1, onOpen } });
-    await pressAndClick(getByTestId('video-card'), 20);
+    await fireEvent.click(getByTestId('video-card'));
     expect(onOpen).not.toHaveBeenCalled();
   });
 

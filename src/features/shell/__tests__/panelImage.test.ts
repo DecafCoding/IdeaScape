@@ -11,7 +11,7 @@ vi.mock('../../../lib/ipc', () => ({
 
 const PropertiesPanel = (await import('../PropertiesPanel.svelte')).default;
 const { canvasStore } = await import('../../../stores/canvasStore.svelte');
-const { clearAssetStatuses, refreshAssetStatuses } = await import('../../../lib/assets');
+const { clearAssetStatuses, refreshAssetStatuses } = await import('../../../lib/assets.svelte');
 
 const PLACEMENT_ID = 1;
 const ITEM_ID = 1;
@@ -174,7 +174,7 @@ describe('the properties panel for an image card', () => {
     const { getByLabelText } = render(PropertiesPanel, {
       props: { ...props, onImageTitleVisibleChange },
     });
-    const box = getByLabelText('Show Title On Card') as HTMLInputElement;
+    const box = getByLabelText('Show Title') as HTMLInputElement;
     expect(box.checked).toBe(false);
     await fireEvent.click(box);
     expect(onImageTitleVisibleChange).toHaveBeenCalledExactlyOnceWith(true);
@@ -185,7 +185,7 @@ describe('the properties panel for an image card', () => {
     const { getByLabelText } = render(PropertiesPanel, {
       props: { ...props, onAltVisibleChange },
     });
-    const box = getByLabelText('Show Description On Card') as HTMLInputElement;
+    const box = getByLabelText('Show Description') as HTMLInputElement;
     expect(box.checked).toBe(false);
     await fireEvent.click(box);
     expect(onAltVisibleChange).toHaveBeenCalledExactlyOnceWith(true);
