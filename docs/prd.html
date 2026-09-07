@@ -573,7 +573,8 @@ video  { url, provider, title, thumbnail_asset, fetched_at }</code></pre>
 <ul>
   <li>One configuration file: <code>%APPDATA%\IdeaScape\settings.json</code>, holding auto-save cadence, snap to grid, zoom modifier and theme.</li>
   <li>It is written by the application, has working defaults, and is never required to exist. Deleting it resets those four values and nothing else. It holds no user data.</li>
-  <li><strong>No environment variables. No API keys. No secrets.</strong> Nothing the user must fill in to start.</li>
+  <li><strong>No environment variables, and no key the application ships with.</strong> Nothing the user must fill in to start.</li>
+  <li><strong>A user-supplied API key is allowed</strong> &mdash; for example a YouTube data key, or an AI key as noted in section 13. It would be held in this same file and used only for a call the user started. None is used in the MVP. The absolute rule is the privacy rule: no user information goes out over the network.</li>
   <li>The project folder path shown in Settings is read-only and comes from the open project, not from this file.</li>
 </ul>
 

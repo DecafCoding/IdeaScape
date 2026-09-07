@@ -127,8 +127,11 @@ project folder so a copied project does not carry another machine's theme. It ho
 auto-save cadence, snap to grid, zoom modifier, theme. The app writes it, it has working defaults,
 and it is never required to exist. The Settings screen shows the path.
 
-**There are no secrets and no API keys in this project.** Nothing must be filled in to start. If a
-task seems to need a key, stop and ask — it is out of scope.
+**The MVP ships with no keys configured, and nothing must be filled in to start.** API keys are
+not banned, though. A user-supplied key for a service the user chooses (a YouTube data key, an AI
+key) is allowed, held in `settings.json`, and used only for a call the user started. The rule that
+is absolute is the privacy rule: **no user information goes out over the network.** If a task
+proposes sending the user's notes, canvases or identity to a service, stop and ask.
 
 ## Conventions
 
