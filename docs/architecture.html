@@ -515,7 +515,7 @@ open transaction, which fights the automatic save above.</p>
 
 <h3 class="decision"
     data-decision="deployment-target"
-    data-status="settled"
+    data-status="amended"
     data-reversible="cheap">Windows NSIS installer, built locally, not signed</h3>
 <p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
 
@@ -526,9 +526,17 @@ open transaction, which fights the automatic save above.</p>
   <li>Not code signed. Windows SmartScreen shows a warning on a machine that is not the
       developer's. This does not matter while the user is the only user.</li>
   <li>One environment. There is no staging and no production split.</li>
-  <li>No secrets. No API keys. Nothing the user must fill in to start. The one configuration file,
+  <li>Nothing the user must fill in to start. The one configuration file,
     <code>settings.json</code> (section 3), is written by the application, has working defaults, and
-    is never required to exist.</li>
+    is never required to exist. The MVP ships with no key configured and calls no service that needs
+    one.</li>
+  <li><b>A user-supplied API key is permitted.</b> An example is a YouTube data key, or the AI key
+    named in <a href="prd.html">docs/prd.html</a> section 13. Such a key would be held in
+    <code>settings.json</code>, entered by the user, and used only for a call the user started. The
+    application never ships a key of its own. The rule that is absolute is the privacy rule in
+    section 8: <b>no user information goes out over the network.</b> A key buys richer data about
+    something the user pasted. It never buys the right to send the user's notes or canvases
+    anywhere.</li>
   <li>No update service. This is required by the privacy rule.</li>
 </ul>
 
@@ -670,6 +678,22 @@ path in the same module. The boundary table row was renamed to match. The decisi
 its undo cost are unchanged &mdash; adding Vimeo back is one more oEmbed address in
 <code>src-tauri/src/fetch/</code>.<br>
 Nothing else here moved. Twenty decisions stand: four expensive, eight moderate, eight cheap.
+</p>
+
+<p class="meta">
+2026-09-06 &mdash; wording corrected on the owner's instruction. Direct request, with no feature
+interview paused.<br>
+<b><code>deployment-target</code> amended:</b> "No secrets. No API keys." was wrong. It contradicted
+<a href="prd.html">docs/prd.html</a> section 13, which already allows AI help as a call the user
+starts with their own key. The owner confirmed the real rule. A user-supplied API key is permitted
+and would live in <code>settings.json</code>. The absolute rule is the privacy rule: no user
+information goes out over the network. The rest of the decision is unchanged. The MVP still ships
+with no key configured and nothing to fill in to start.<br>
+<b>No capability was added.</b> The video card stays on the public YouTube oEmbed path, so
+<code>network-boundary</code>, <code>boundary-table</code> and <code>settings-storage</code> are
+untouched. <code>settings.json</code> still holds four values.<br>
+<a href="prd.html">docs/prd.html</a> section 8.2 and <code>CLAUDE.md</code> were corrected to match
+before this entry was written. Twenty decisions stand: four expensive, eight moderate, eight cheap.
 </p>
 
 </div>
