@@ -116,8 +116,8 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
         }
         conn.execute(
             "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id, label,
-                                     directed, color, width, label_visible)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                                     directed, color, width, label_visible, route)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             rusqlite::params![
                 connection.id,
                 connection.canvas_id,
@@ -127,7 +127,8 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
                 connection.directed,
                 connection.color,
                 connection.width,
-                connection.label_visible
+                connection.label_visible,
+                connection.route
             ],
         )?;
         Ok(conn.query_row(
@@ -140,8 +141,9 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
 
 /// Change a connection's label, arrow direction and appearance. Every field is always sent
 /// together, because the properties panel holds them all and a partial update would need a
-/// second command. The width step is clamped to 1-3; an unknown colour key is stored as
-/// given and resolved to the default ink by the front end.
+/// second command. The width step is clamped to 1-3; an unknown colour or route key is
+/// stored as given and resolved to the default by the front end.
+#[allow(clippy::too_many_arguments)]
 pub fn update_connection_for(
     state: &AppState,
     connection_id: i64,
@@ -150,15 +152,24 @@ pub fn update_connection_for(
     color: String,
     width: i64,
     label_visible: bool,
+    route: String,
 ) -> AppResult<Connection> {
     let label = normalise_label(label);
     let width = width.clamp(1, 3);
     state.with_db(|conn| {
         let changed = conn.execute(
             "UPDATE connection SET label = ?2, directed = ?3, color = ?4, width = ?5,
-                                   label_visible = ?6
+                                   label_visible = ?6, route = ?7
              WHERE id = ?1",
-            rusqlite::params![connection_id, label, directed, color, width, label_visible],
+            rusqlite::params![
+                connection_id,
+                label,
+                directed,
+                color,
+                width,
+                label_visible,
+                route
+            ],
         )?;
         if changed == 0 {
             return Err(AppError::NotFound(format!("connection {connection_id}")));
@@ -230,6 +241,7 @@ pub fn restore_connection(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn update_connection(
     state: tauri::State<'_, AppState>,
     connection_id: i64,
@@ -238,6 +250,7 @@ pub fn update_connection(
     color: String,
     width: i64,
     label_visible: bool,
+    route: String,
 ) -> AppResult<Connection> {
     update_connection_for(
         &state,
@@ -247,6 +260,7 @@ pub fn update_connection(
         color,
         width,
         label_visible,
+        route,
     )
 }
 
@@ -307,6 +321,8 @@ mod tests {
         assert_eq!(rows[0].color, "default");
         assert_eq!(rows[0].width, 1);
         assert!(rows[0].label_visible);
+        // And on the straight route — an existing canvas never changes shape by itself.
+        assert_eq!(rows[0].route, "straight");
         assert_eq!(rows[0].from_placement_id, a);
         assert_eq!(rows[0].to_placement_id, b);
     }
@@ -348,6 +364,7 @@ mod tests {
             "red".into(),
             2,
             false,
+            "elbow".into(),
         )
         .unwrap();
         assert_eq!(updated.label, None);
@@ -355,6 +372,7 @@ mod tests {
         assert_eq!(updated.color, "red");
         assert_eq!(updated.width, 2);
         assert!(!updated.label_visible);
+        assert_eq!(updated.route, "elbow");
         assert_eq!(
             list_connections_for(&state, canvas_id).unwrap()[0].label,
             None
@@ -403,6 +421,7 @@ mod tests {
                 "default".into(),
                 1,
                 true,
+                "straight".into(),
             )
             .unwrap();
         }
@@ -414,12 +433,14 @@ mod tests {
             "blue".into(),
             3,
             true,
+            "elbow".into(),
         )
         .unwrap();
         let rows = list_connections_for(&state, canvas_id).unwrap();
         assert_eq!(rows[0].directed, 2);
         assert_eq!(rows[0].color, "blue");
         assert_eq!(rows[0].width, 3);
+        assert_eq!(rows[0].route, "elbow");
         assert_eq!(rows[2].label.as_deref(), Some("edge 3"));
 
         // Step 7: delete a connected card; both its lines are reported and gone.
@@ -453,9 +474,10 @@ mod tests {
         }
         let rows = list_connections_for(&state, canvas_id).unwrap();
         assert_eq!(rows.len(), 3);
-        assert!(rows
-            .iter()
-            .any(|r| r.label.as_deref() == Some("edge 1") && r.directed == 2 && r.color == "blue"));
+        assert!(rows.iter().any(|r| r.label.as_deref() == Some("edge 1")
+            && r.directed == 2
+            && r.color == "blue"
+            && r.route == "elbow"));
 
         // Step 10: close and reopen — every line, label and direction survives.
         drop(state);
@@ -463,9 +485,9 @@ mod tests {
         open_project_at(&state, dir.path()).unwrap();
         let rows = list_connections_for(&state, canvas_id).unwrap();
         assert_eq!(rows.len(), 3);
-        assert!(rows
-            .iter()
-            .any(|r| r.label.as_deref() == Some("edge 1") && r.directed == 2));
+        assert!(rows.iter().any(|r| r.label.as_deref() == Some("edge 1")
+            && r.directed == 2
+            && r.route == "elbow"));
         assert!(rows
             .iter()
             .any(|r| r.from_placement_id == new_id || r.to_placement_id == new_id));

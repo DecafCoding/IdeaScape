@@ -251,7 +251,14 @@ async fn video_meta_inner(folder: &Path, url: &str, video_id: &str) -> VideoPrev
     preview.title = meta.title;
     preview.author_name = meta.author_name;
     if let Some(thumbnail_url) = meta.thumbnail_url.as_deref() {
-        preview.thumbnail_asset = capture_image(folder, thumbnail_url).await;
+        // oEmbed reports the letterboxed 4:3 thumbnail, which drew a black bar above and
+        // below the frame on the card. Take the 16:9 twin when the host has one.
+        for candidate in oembed::thumbnail_candidates(thumbnail_url) {
+            preview.thumbnail_asset = capture_image(folder, &candidate).await;
+            if preview.thumbnail_asset.is_some() {
+                break;
+            }
+        }
     }
     preview
 }

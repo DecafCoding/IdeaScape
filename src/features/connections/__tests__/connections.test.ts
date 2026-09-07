@@ -46,6 +46,7 @@ function connection(overrides: Partial<Connection> = {}): Connection {
     color: 'default',
     width: 1,
     label_visible: true,
+    route: 'straight',
     ...overrides,
   };
 }
@@ -261,6 +262,24 @@ describe('the connection overlay', () => {
     expect(container.querySelector('path.stroke')?.getAttribute('d')).toBe('M100,50 L392.5,50');
     // The un-arrowed end keeps the full geometry.
     expect(container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L400,50');
+  });
+
+  it('overlay_anElbowRoute_drawsThreeAxisAlignedSegmentsWithRoundedBends', () => {
+    // Card B moved down, so the two side midpoints no longer line up and a real elbow
+    // forms: out of A's right side, across the middle of the gap, into B's left side.
+    canvasStore.upsertPlacement(placement(2, 400, 300));
+    canvasStore.upsertConnection(connection({ route: 'elbow' }));
+    const { container } = draw();
+
+    // The hit path carries the true geometry. Each bend is a 2-unit quadratic, §5.2's
+    // smallest radius, and every straight run is horizontal or vertical.
+    expect(container.querySelector('path.hit')?.getAttribute('d')).toBe(
+      'M100,50 L248,50 Q250,50 250,52 L250,348 Q250,350 252,350 L400,350',
+    );
+    // Only the arrowed END is pulled back — a bend is never trimmed past.
+    expect(container.querySelector('path.stroke')?.getAttribute('d')).toBe(
+      'M100,50 L248,50 Q250,50 250,52 L250,348 Q250,350 252,350 L392.5,350',
+    );
   });
 
   it('overlay_theMarker_matchesTheDesignSystemDefinitionVerbatim', () => {

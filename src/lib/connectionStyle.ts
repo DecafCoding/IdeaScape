@@ -9,6 +9,27 @@
  * migration. Widths are world units — the canvas transform scales them like everything else.
  */
 
+/**
+ * The two shapes a line can take. Like a colour, the row stores the KEY and this file owns
+ * what it means, so the bend radius and the side-choice rules can be retuned without a
+ * migration. Design-system §9.13, "Route".
+ */
+export const CONNECTION_ROUTES = [
+  { key: 'straight', label: 'Straight' },
+  { key: 'elbow', label: 'Elbow' },
+] as const;
+
+export type ConnectionRouteKey = (typeof CONNECTION_ROUTES)[number]['key'];
+
+/** A new connection is straight, so adding the feature changes no existing canvas. */
+export const DEFAULT_CONNECTION_ROUTE: ConnectionRouteKey = 'straight';
+
+/**
+ * The bend radius on an elbow, in world units — §5.2's smallest radius, so a corner matches
+ * the input and chip corners. `polylinePath` clamps it per corner.
+ */
+export const ELBOW_RADIUS = 2;
+
 export const CONNECTION_COLORS = [
   { key: 'default', label: 'Default', token: 'var(--color-connection)' },
   { key: 'red', label: 'Red', token: 'var(--color-line-red)' },

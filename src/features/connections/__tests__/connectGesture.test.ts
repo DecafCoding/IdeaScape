@@ -120,6 +120,7 @@ beforeEach(() => {
           color: 'default',
           width: 1,
           label_visible: true,
+          route: 'straight',
         };
         connections.push(row);
         return Promise.resolve(row);

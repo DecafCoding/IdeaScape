@@ -113,7 +113,7 @@
     align-items: center;
     gap: var(--space-14);
     padding: 0 4px 0 var(--space-14);
-    background: var(--color-surface);
+    background: var(--color-title-bar);
     border-bottom: 1px solid var(--color-divider);
     white-space: nowrap;
     box-sizing: border-box;
@@ -130,7 +130,7 @@
     align-items: center;
     gap: var(--space-6);
     font-size: var(--text-12);
-    opacity: 0.5;
+    opacity: 0.7;
     overflow: hidden;
     text-overflow: ellipsis;
   }
@@ -152,12 +152,12 @@
     align-items: center;
     gap: var(--space-6);
     font-size: var(--text-11-5);
-    opacity: 0.45;
+    opacity: 0.65;
   }
 
   .counts {
     font-size: var(--text-11-5);
-    opacity: 0.45;
+    opacity: 0.65;
   }
 
   .window-controls {
@@ -173,7 +173,7 @@
     border: none;
     background: transparent;
     color: inherit;
-    opacity: 0.55;
+    opacity: 0.72;
     cursor: pointer;
     transition:
       background-color var(--duration-90) var(--ease),

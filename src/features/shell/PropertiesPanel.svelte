@@ -11,6 +11,7 @@
   import { assetStatus } from '../../lib/assets';
   import {
     CONNECTION_COLORS,
+    CONNECTION_ROUTES,
     CONNECTION_WIDTHS,
     connectionStroke,
     connectionWidthPx,
@@ -46,6 +47,7 @@
       color: string,
       width: number,
       labelVisible: boolean,
+      route: string,
     ) => void;
     onDeleteConnection?: () => void;
     /** The image card's Title text, committed on blur. */
@@ -105,6 +107,7 @@
       connection.color,
       connection.width,
       connection.label_visible,
+      connection.route,
     );
   }
 
@@ -116,6 +119,7 @@
       connection.color,
       connection.width,
       connection.label_visible,
+      connection.route,
     );
   }
 
@@ -127,6 +131,19 @@
       color,
       connection.width,
       connection.label_visible,
+      connection.route,
+    );
+  }
+
+  function commitRoute(route: string) {
+    if (!connection || connection.route === route) return;
+    onConnectionChange?.(
+      connection.label,
+      connection.directed,
+      connection.color,
+      connection.width,
+      connection.label_visible,
+      route,
     );
   }
 
@@ -138,6 +155,7 @@
       connection.color,
       width,
       connection.label_visible,
+      connection.route,
     );
   }
 
@@ -149,6 +167,7 @@
       connection.color,
       connection.width,
       visible,
+      connection.route,
     );
   }
 
@@ -283,6 +302,25 @@
               onclick={() => commitDirection(direction.value)}
             >
               {direction.label}
+            </button>
+          {/each}
+        </div>
+      </section>
+
+      <section class="group">
+        <p class="group-label">Route</p>
+        <!-- Shape before colour. The Width group's grammar, with words for labels: two of
+             them fit the 177px panel, and §7.1's glyph set is closed. -->
+        <div class="order">
+          {#each CONNECTION_ROUTES as option (option.key)}
+            <button
+              type="button"
+              class="order-button"
+              class:active={connection.route === option.key}
+              aria-pressed={connection.route === option.key}
+              onclick={() => commitRoute(option.key)}
+            >
+              {option.label}
             </button>
           {/each}
         </div>
@@ -578,7 +616,7 @@
     font-size: var(--text-10);
     letter-spacing: var(--tracking-10);
     text-transform: uppercase;
-    opacity: 0.45;
+    opacity: 0.65;
   }
 
   .pairs {
@@ -836,6 +874,6 @@
     text-transform: uppercase;
     font-size: var(--text-9-5);
     letter-spacing: var(--tracking-12);
-    opacity: 0.38;
+    opacity: 0.58;
   }
 </style>

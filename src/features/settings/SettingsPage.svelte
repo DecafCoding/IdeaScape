@@ -232,7 +232,7 @@
     font-size: var(--text-10);
     letter-spacing: var(--tracking-10);
     text-transform: uppercase;
-    opacity: 0.45;
+    opacity: 0.65;
   }
 
   .row {

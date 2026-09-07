@@ -192,6 +192,22 @@ appearing here first.</p>
     borders and boxes, the 3px radius, the tightened spacing scale, dark surfaces, both accents in
     the panel footer, and six ad-hoc elevations. The list in section 3 is closed.</td>
 </tr>
+<tr>
+  <td>2026-09-07</td>
+  <td><span class="frames">owner decision</span></td>
+  <td><b>Added: the elbow route.</b> A connection now carries a <code>route</code> of
+    <code>straight</code> or <code>elbow</code>, chosen per connection in a new <b>Route</b> group in
+    the properties panel. An elbow is horizontal and vertical segments only — three of them, with 2px
+    bends. The full geometry, endpoint, trim, chip, cull and control spec is in §9.13 under
+    <b>Route</b>. Not drawn by the designer: authored here at the owner's instruction, so a later
+    drawn pass supersedes it and gets its own row.</td>
+  <td><b>Amended: §9.13.</b> The property table gains a <code>Route</code> row; rule 4's 50px
+    measurement now names the longest segment on an elbow; rules 7, 8 and 9 are new. <b>Amended: the
+    data model.</b> <code>connection</code> gains a <code>route</code> column — a change to
+    <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4. <b>Amended: §16</b> — P2
+    now owns the Route control. <b>Recorded as a non-goal:</b> a line does not route around cards.
+    <i>Owner, 2026-09-07.</i></td>
+</tr>
 </tbody>
 </table>
 
@@ -265,11 +281,17 @@ added to the project's own token layer.</p>
 <table>
 <thead><tr><th>Token</th><th>Value</th><th>Used for</th></tr></thead>
 <tbody>
-<tr><td><code>--color-bg</code></td><td><span class="sw" style="background:#f3f2f2"></span>#f3f2f2</td>
-  <td>The canvas ground. Also the text colour on any accent fill.</td></tr>
+<tr><td><code>--color-bg</code></td><td><span class="sw" style="background:#e6e5e5"></span>#e6e5e5</td>
+  <td>The canvas ground, a light grey.</td></tr>
+<tr><td><code>--color-on-accent</code></td><td><span class="sw" style="background:#f3f2f2"></span>#f3f2f2</td>
+  <td>The text colour on any accent fill. Pinned, so the grey ground does not follow it.</td></tr>
 <tr><td><code>--color-surface</code></td><td><span class="sw" style="background:#eae9e9"></span>#eae9e9</td>
-  <td>All chrome (title bar, left column, properties panel) and every card, menu, popover and zoom
+  <td>All chrome (title bar, left column, properties panel) and every menu, popover and zoom
   bar.</td></tr>
+<tr><td><code>--color-card</code></td><td><span class="sw" style="background:#ffffff"></span>#ffffff</td>
+  <td>Every card on the canvas — the shell and its contents alike.</td></tr>
+<tr><td><code>--color-title-bar</code></td><td><span class="sw" style="background:#f2f1f1"></span>#f2f1f1</td>
+  <td>The title bar only, one step lighter than the rest of the chrome.</td></tr>
 <tr><td><code>--color-text</code></td><td><span class="sw" style="background:#201e1d"></span>#201e1d</td>
   <td>All ink.</td></tr>
 <tr><td><code>--color-accent</code></td><td><span class="sw" style="background:#0088b0"></span>#0088b0</td>
@@ -358,11 +380,11 @@ control and position is identical to its light twin. Only the ground inverts.</p
 <table>
 <thead><tr><th>Role</th><th>Light</th><th>Dark</th></tr></thead>
 <tbody>
-<tr><td>Canvas ground</td><td><code>--color-bg</code> #f3f2f2</td>
+<tr><td>Canvas ground</td><td><code>--color-bg</code> #e6e5e5</td>
   <td><span class="sw" style="background:#1a1817"></span>#1a1817 <span class="tag gap">new</span></td></tr>
-<tr><td>Chrome and cards</td><td><code>--color-surface</code> #eae9e9</td>
+<tr><td>Chrome</td><td><code>--color-surface</code> #eae9e9</td>
   <td><span class="sw" style="background:#262322"></span>#262322 <span class="tag gap">new</span></td></tr>
-<tr><td>Raised fills (image placeholders, inputs)</td><td><code>--color-neutral-200</code> #eae7e7</td>
+<tr><td>Cards and raised fills (image placeholders, inputs)</td><td><code>--color-card</code> / <code>--color-raised</code> #ffffff</td>
   <td><span class="sw" style="background:#302d2b"></span>#302d2b <span class="tag gap">new</span></td></tr>
 <tr><td>Divider</td><td><code>--color-divider</code> (#201e1d at 16%)</td>
   <td><span class="sw" style="background:#3b3735"></span>#3b3735 <span class="tag gap">new</span></td></tr>
@@ -370,7 +392,7 @@ control and position is identical to its light twin. Only the ground inverts.</p
   <td><span class="sw" style="background:#ece9e6"></span>#ece9e6 <span class="tag gap">new</span></td></tr>
 <tr><td>Accent</td><td><code>--color-accent</code> #0088b0</td>
   <td><code>--color-accent-400</code> #62c5ee</td></tr>
-<tr><td>Text on the accent</td><td><code>--color-bg</code> #f3f2f2</td>
+<tr><td>Text on the accent</td><td><code>--color-on-accent</code> #f3f2f2</td>
   <td><span class="sw" style="background:#151312"></span>#151312 <span class="tag gap">new</span></td></tr>
 <tr><td>Accent tint (active pill, toolbar toggle)</td>
   <td><code>--color-accent-100</code> fill / <code>--color-accent-800</code> text</td>
@@ -508,7 +530,7 @@ second family</b>. See open question 2.
 <tr><td>Collapsed panel label</td><td>9.5px / 400</td>
   <td><code>writing-mode: vertical-rl</code>, uppercase, letter-spacing .12em, opacity .38</td></tr>
 <tr><td>Section labels</td><td>10px / 400</td>
-  <td>Uppercase, letter-spacing .1em, opacity .45. Left-column groups, panel groups, search group
+  <td>Uppercase, letter-spacing .1em, opacity .65. Left-column groups, panel groups, search group
   headings</td></tr>
 <tr><td>Card kicker</td><td>10px / 400</td>
   <td>Uppercase, letter-spacing .06em, opacity .5. The link-card domain row, the video provider
@@ -573,7 +595,9 @@ opacity. The full ladder, brightest first:</p>
 <tr><td>.6</td><td>Inactive segmented options; undo depth; the picker sub-line and card meta; search snippets</td></tr>
 <tr><td>.55</td><td>Window controls; search row icons; "Fetching preview…"</td></tr>
 <tr><td>.5</td><td>The breadcrumb; section-label icons; the search box at rest; card kickers; the picker folder icon and path; Settings helper text; the collapsed-panel caret; placeholder ink on image cards</td></tr>
-<tr><td>.45</td><td>Save state and counts; section labels; the panel item id; file meta; menu shortcuts; the "no preview picture" line; the empty-state instruction; the disabled Refetch button</td></tr>
+<tr><td>.65</td><td>Every uppercase section and group label, and the title bar's save state and
+  counts. Raised from .45 so the labels read at a glance.</td></tr>
+<tr><td>.45</td><td>The panel item id; file meta; menu shortcuts; the "no preview picture" line; the empty-state instruction; the disabled Refetch button</td></tr>
 <tr><td>.42</td><td>The panel footer note; the picker footer; the picker's last-opened time; Settings' footer and read-only marker; search keyboard hints</td></tr>
 <tr><td>.4</td><td>The empty-state hint; search group counts; the "Pasted here" caption; the link preview band icon</td></tr>
 <tr><td>.38</td><td>The vertical collapsed-panel label</td></tr>
@@ -671,7 +695,7 @@ content, about 300px.</p>
 <thead><tr><th>Property</th><th>Value</th></tr></thead>
 <tbody>
 <tr><td>Height</td><td>34px, <code>flex: none</code></td></tr>
-<tr><td>Background</td><td><code>--color-surface</code> #eae9e9</td></tr>
+<tr><td>Background</td><td><code>--color-title-bar</code> #f2f1f1</td></tr>
 <tr><td>Bottom border</td><td>1px <code>--color-divider</code></td></tr>
 <tr><td>Padding</td><td><code>0 4px 0 14px</code></td></tr>
 <tr><td>Item gap</td><td>14px, <code>white-space: nowrap</code></td></tr>
@@ -720,7 +744,7 @@ opacity .45 pushed right.</p>
 
 <h4>Section labels</h4>
 <p>Four labels — <code>Canvases</code>, <code>Tools</code>, <code>Add</code>, <code>History</code> —
-at 10px, letter-spacing .1em, uppercase, opacity .45.</p>
+at 10px, letter-spacing .1em, uppercase, opacity .65.</p>
 <ul>
   <li><code>Canvases</code> — padding <code>0 12px 5px</code>, with a right-aligned
     <code>ph-plus</code> at 13px opacity .5.</li>
@@ -801,7 +825,7 @@ fit).</p>
 <ul>
   <li><b>Header</b> — the kind name at 13px weight 600, and the item id below at 10.5px opacity .45
     (<code>note-004</code>, <code>image-003</code>, <code>link-006</code>).</li>
-  <li><b>Group label</b> — 10px, .1em, uppercase, opacity .45, 6px above its content.</li>
+  <li><b>Group label</b> — 10px, .1em, uppercase, opacity .65, 6px above its content.</li>
   <li><b>Number pairs</b> (Position X/Y, Size W/H) — a 2-column grid, gap 5px. Each cell is a
     <code>&lt;label&gt;</code> at 11px opacity .75 holding the letter plus an <code>.input</code> at
     11px, padding <code>2px 4px</code>, radius 2px, <code>flex: 1; min-width: 0</code>.</li>
@@ -1051,7 +1075,8 @@ line-height 1.45; then <code>Refetch</code> with <code>ph-arrow-clockwise</code>
 <h3>9.6 Video card <span class="frames">frame <code>19b</code></span></h3>
 <p><code>overflow: hidden</code>.</p>
 <ul>
-  <li><b>Thumbnail</b> — 153px tall (16:9 at 272px wide), <code>--color-neutral-300</code>,
+  <li><b>Thumbnail</b> — <code>aspect-ratio: 16 / 9</code>, so it is 153px tall at the authored
+    272px width and follows the card as it is resized, <code>--color-neutral-300</code>,
     <code>position: relative</code>. A centred play badge: 38 × 38px,
     <code>border-radius: 50%</code>, background <code>rgba(243,242,242,.92)</code>,
     <code>ph-play</code> at 16px in #201e1d. A duration chip: absolute
@@ -1088,7 +1113,7 @@ so the wait never blocks the work. This is a hard rule — contract 2 in section
 absolute <code>left: 156px; top: 34px</code>, width 318px, <code>--color-surface</code>, radius 3px,
 shadow <code>0 12px 30px rgba(45,43,43,.3)</code>, padding <code>6px 0 4px</code>.</p>
 <p>The properties panel is collapsed, because searching selects nothing.</p>
-<p>Two groups, each headed by a baseline row (a 10px .1em uppercase opacity .45 label plus a count
+<p>Two groups, each headed by a baseline row (a 10px .1em uppercase opacity .65 label plus a count
 at 10px opacity .4), separated by a 1px <code>--color-divider</code> rule with 6px margins.</p>
 <ul>
   <li><b>Canvases first.</b> <i>This ranking is a requirement, not a preference.</i> Row:
@@ -1257,7 +1282,10 @@ order</b>, so cards always paint over the lines.</p>
 <tr><td>Label chip</td>
   <td colspan="2">Background <code>--color-surface</code>, radius 2px, padding
   <code>1px 5px</code>, 10px, opacity .62, <code>white-space: nowrap</code>, on the line's
-  midpoint</td></tr>
+  midpoint — on an elbow route, the midpoint of its longest segment</td></tr>
+<tr><td>Route</td>
+  <td colspan="2"><code>straight</code> (default) or <code>elbow</code>. Per connection, chosen in
+  the properties panel. Bend radius 2px. See <b>Route</b> below</td></tr>
 </tbody>
 </table>
 
@@ -1272,7 +1300,8 @@ order</b>, so cards always paint over the lines.</p>
     clear both cards and anything drawn above it. An open menu will occlude one — that is correct
     behaviour, but allow for it.</li>
   <li><b>Below 50px of line length, the chip is not drawn.</b> <i>Set by the owner,
-    2026-09-06.</i> Measure the straight distance between the two endpoints. Under 50px there is no
+    2026-09-06.</i> Measure the straight distance between the two endpoints — on an elbow route,
+    the length of the longest segment, which is the only one the chip can sit on. Under 50px there is no
     room for a 10px chip with <code>1px 5px</code> padding without covering both cards. The label is
     <b>not lost</b> — it stays on the connection, it shows in the properties panel when the
     connection is selected, and it reappears the moment the cards move apart or the canvas zooms in.
@@ -1281,7 +1310,84 @@ order</b>, so cards always paint over the lines.</p>
   <li><b>Lines are neutral ink, never the accent.</b> The accent means "selected".</li>
   <li><b>A connection joins two <i>placements</i> on one canvas.</b> Placing the same item on
     another canvas brings no lines with it.</li>
+  <li><b>A connection carries a route</b> — <code>straight</code> or <code>elbow</code> — the same
+    way it carries a colour, a width and a direction. It is a property of the one connection, never
+    an application-wide setting. <i>Set by the owner, 2026-09-07.</i> Reason: a diagram normally
+    mixes the two, and an app-wide switch would restyle every line on every canvas at once. New
+    connections start on <code>straight</code>, so no existing canvas changes shape.</li>
+  <li><b>The route is computed, never authored.</b> There are no waypoint handles and no way to drag
+    a bend. This is contract 1 in section 10 applied to lines: the application derives the geometry,
+    the user places the cards. Move a card and the elbow re-forms.</li>
+  <li><b>An elbow does not go around cards.</b> It may cross one. Obstacle avoidance is a
+    <b>deliberate non-goal</b> — it is per-line path finding that has to re-run on every drag, and
+    it is the wrong thing to put in front of the 60 fps / 250 card gate. The seam is left open: the
+    geometry returns a <i>list</i> of points, so a future route can add points without touching the
+    stroke, the hit path, the chip or the cull.</li>
 </ol>
+
+<h4>Route — straight or elbow <span class="tag warn">new</span></h4>
+<p><i>Added by the owner, 2026-09-07.</i> An <b>elbow</b> route draws the connection with horizontal
+and vertical segments only, the way a right-angle connector reads in a boxes-and-lines diagram. The
+geometry is a pure function of the two placement rectangles, exactly as the straight route already
+is.</p>
+
+<table>
+<thead><tr><th>Step</th><th><code>straight</code></th><th><code>elbow</code></th></tr></thead>
+<tbody>
+<tr><td>Endpoints</td>
+  <td>The centre-ray clip: the ray from each centre toward the other centre, cut at that card's
+  border. Unchanged</td>
+  <td>The <b>midpoint of one side</b>. Compare the two centres: when the horizontal gap is the
+  larger, leave the right side of the left card and enter the left side of the right card;
+  otherwise leave the bottom and enter the top. A tie goes to horizontal</td></tr>
+<tr><td>Shape</td><td>One segment</td>
+  <td>Three segments — <b>out, across, in</b>. The across segment sits <b>halfway down the gap</b>
+  between the two facing sides. When the two endpoints already line up the middle pair coincide and
+  the path collapses to one segment: drop the duplicate points, do not draw a zero-length
+  bend</td></tr>
+<tr><td>Corners</td><td>—</td>
+  <td><b>2px radius</b> in world units — §5.2's smallest radius, so a bend matches the input and
+  chip corners. Clamp every corner to half the shorter of the two segments meeting at it, so a
+  tight elbow rounds off instead of overshooting into the next segment</td></tr>
+<tr><td>Arrowhead</td><td>Along the line</td>
+  <td>Nothing to change. <code>orient="auto-start-reverse"</code> already follows the <b>last</b>
+  segment, so a head always enters its card square-on. That squareness is the point of the route,
+  not a side effect</td></tr>
+<tr><td>Arrow inset</td><td>Both ends trimmed</td>
+  <td>Trim the <b>first and last segment only</b>, along that segment's own direction. A segment
+  shorter than its inset collapses to a point — a trim must never run backwards past a bend</td></tr>
+<tr><td>Label chip</td><td>The line's midpoint</td>
+  <td>The midpoint of the <b>longest</b> segment. It is the only one with room, and rule 4's 50px
+  threshold is measured on that same segment</td></tr>
+<tr><td>Selection handles</td>
+  <td colspan="2">The two 7 × 7 accent squares stay on the two <b>endpoints</b>. A bend carries no
+  handle — there is nothing to drag</td></tr>
+<tr><td>Hit target</td>
+  <td colspan="2">The same 12px transparent <code>pointer-events: stroke</code> path, following the
+  whole route. Untrimmed, as it already is: the arrowhead is part of the line for pointing at</td></tr>
+<tr><td>Cull</td>
+  <td colspan="2">The bounding box of <b>every</b> point on the route, not of the two endpoints. An
+  elbow reaches outside the straight line's box</td></tr>
+<tr><td>Overlapping cards</td>
+  <td colspan="2">Unchanged. Two rectangles that intersect draw no line at all, on either
+  route</td></tr>
+</tbody>
+</table>
+
+<p><b>Storage.</b> One new column on <code>connection</code>: <code>route</code>, text, default
+<code>straight</code>, holding <code>straight</code> or <code>elbow</code>. It follows the colour
+rule — the row stores a <b>key</b> and the front end resolves the key to geometry, so the bend
+radius and the side rules can be retuned without a migration. This is an amendment to the data
+model in <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4.</p>
+
+<p><b>The control.</b> A new <code>Route</code> group in the properties panel when a connection is
+selected, sitting <b>between Arrows and Color</b> — shape before colour. It takes the Width group's
+grammar exactly: two buttons on one row, <code>flex: 1</code>, 11px, padding <code>3px 4px</code>,
+radius 3px, transparent, 1px <code>--color-divider</code> border, the chosen one carrying the active
+fill. The labels are the words <code>Straight</code> and <code>Elbow</code>, in Title Case like every
+other control label. Two words fit the 177px panel, so no icon is needed and none is added —
+§7.1's glyph set is closed.</p>
+
 <p>Entry points: the <b>Connect</b> tool in the left column, or <b>Connect from here</b>
 (<code>ph-flow-arrow</code>, shortcut <code>C</code>) in a card's context menu.</p>
 
@@ -1764,7 +1870,8 @@ directions: a phase that moves here moves there too.</p>
   <td><code>15a</code> <code>14b</code> <code>17a</code> <code>17b</code></td></tr>
 <tr><td><b>P2 — Connections</b></td>
   <td>The SVG overlay, the arrowhead marker, the label chip, and both themes' line colours. The
-  Connect tool's active and unavailable states.</td>
+  Connect tool's active and unavailable states. The <b>Route</b> group in the properties panel and
+  the elbow route (§9.13).</td>
   <td>(shown on <code>14b</code>, <code>18a</code>)</td></tr>
 <tr><td><b>P3 — Rich cards</b></td>
   <td>The image card and its File / Alt text panel groups. The link card in all three states, and

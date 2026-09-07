@@ -92,9 +92,13 @@
     cursor: pointer;
   }
 
-  /* §9.6: 153 px tall, which is 16:9 against the card's authored 272 px width. */
+  /* §9.6 draws the band 153 px tall, which is 16:9 against the card's authored 272 px
+     width. It is written as the ratio rather than the pixel height so the band follows the
+     card as it is resized and the whole 16:9 thumbnail keeps showing. At the authored width
+     it is the same 153 px. */
   .band {
-    height: 153px;
+    aspect-ratio: 16 / 9;
+    height: auto;
     flex: none;
     position: relative;
     background: var(--color-inset);
@@ -103,7 +107,10 @@
     overflow: hidden;
   }
 
+  /* The simplified card at low zoom is thumbnail only, so the band takes the whole card
+     and the ratio gives way. */
   .band.fill {
+    aspect-ratio: auto;
     height: 100%;
   }
 

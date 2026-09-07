@@ -320,6 +320,7 @@ describe('the canvas lifecycle', () => {
       color: 'default',
       width: 1,
       label_visible: true,
+      route: 'straight',
     });
     await canvasStore.loadCanvas(second);
     expect(canvasStore.cardCount).toBe(2);

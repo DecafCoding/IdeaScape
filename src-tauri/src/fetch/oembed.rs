@@ -53,6 +53,35 @@ pub fn oembed_url(video_url: &str) -> String {
     )
 }
 
+/// The 4:3 thumbnail names YouTube serves. Each of these is a 4:3 picture with the video
+/// letterboxed inside it, so it carries a black bar above and below the frame. oEmbed
+/// always reports `hqdefault.jpg`, which is why a video card drew that bar.
+const LETTERBOXED: [&str; 3] = ["hqdefault.jpg", "sddefault.jpg", "default.jpg"];
+
+/// The 16:9 names, best first. `maxresdefault.jpg` is 1280x720 but is only present for
+/// videos uploaded at that size; `mqdefault.jpg` is 320x180 and always present.
+const WIDESCREEN: [&str; 2] = ["maxresdefault.jpg", "mqdefault.jpg"];
+
+/// The thumbnail addresses to try, best first, ending with the address oEmbed reported.
+///
+/// A letterboxed name is swapped for its 16:9 twins; anything else is returned unchanged,
+/// so a non-YouTube host is never rewritten. The caller downloads them in order and keeps
+/// the first that arrives.
+pub fn thumbnail_candidates(thumbnail_url: &str) -> Vec<String> {
+    let Some((base, name)) = thumbnail_url.rsplit_once('/') else {
+        return vec![thumbnail_url.to_string()];
+    };
+    if !LETTERBOXED.contains(&name) {
+        return vec![thumbnail_url.to_string()];
+    }
+    let mut out: Vec<String> = WIDESCREEN
+        .iter()
+        .map(|wide| format!("{base}/{wide}"))
+        .collect();
+    out.push(thumbnail_url.to_string());
+    out
+}
+
 /// Read the three fields, each through `clean_text`. A body that is not the expected JSON
 /// is a programming-level failure, which is the only thing `AppError::Fetch` is for.
 pub fn decode(json: &str) -> AppResult<VideoMeta> {
@@ -133,5 +162,24 @@ mod tests {
     fn decode_a_hostile_title_survives_verbatim_as_text() {
         let meta = decode(r#"{"title":"<script>alert(1)</script>"}"#).unwrap();
         assert_eq!(meta.title, "<script>alert(1)</script>");
+    }
+
+    #[test]
+    fn thumbnail_candidates_a_letterboxed_name_puts_the_widescreen_twins_first() {
+        let got = thumbnail_candidates("https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+        assert_eq!(
+            got,
+            vec![
+                "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+                "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg",
+                "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+            ]
+        );
+    }
+
+    #[test]
+    fn thumbnail_candidates_an_address_that_is_not_letterboxed_is_returned_unchanged() {
+        let got = thumbnail_candidates("https://example.com/preview.png");
+        assert_eq!(got, vec!["https://example.com/preview.png"]);
     }
 }

@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { Rect } from '../geometry';
 import {
   connectionEndpoints,
-  connectionInView,
   labelVisible,
   rectCentre,
   rectEdgePoint,
   segmentLength,
+  longestSegment,
+  polylinePath,
+  routeInView,
+  routePoints,
   segmentMidpoint,
+  trimRoute,
   trimSegment,
 } from '../connectionGeometry';
 
@@ -91,27 +95,6 @@ describe('labelVisible', () => {
   });
 });
 
-describe('connectionInView', () => {
-  const view = { x: 0, y: 0, zoom: 1 };
-  const viewport = { width: 800, height: 600 };
-
-  it('connectionInView_aLineInsideTheViewport_isTrue', () => {
-    expect(connectionInView({ x: 10, y: 10 }, { x: 200, y: 200 }, view, viewport)).toBe(true);
-  });
-
-  it('connectionInView_aLineEntirelyOffScreen_isFalse', () => {
-    expect(connectionInView({ x: 5000, y: 5000 }, { x: 5200, y: 5200 }, view, viewport)).toBe(
-      false,
-    );
-  });
-
-  it('connectionInView_bothCardsOffScreenButTheLineCrossing_isTrue', () => {
-    // Both endpoints sit outside the 800 × 600 window, yet the line runs straight
-    // through its middle. Culling on the visible card set would have dropped it.
-    expect(connectionInView({ x: -900, y: 300 }, { x: 1700, y: 300 }, view, viewport)).toBe(true);
-  });
-});
-
 describe('rectCentre', () => {
   it('rectCentre_aRect_isItsMiddle', () => {
     expect(rectCentre(box(10, 20, 100, 60))).toEqual({ x: 60, y: 50 });
@@ -140,5 +123,216 @@ describe('trimSegment', () => {
 
   it('trimSegment_azeroLengthSegment_isReturnedUnchanged', () => {
     expect(trimSegment(a, a, 5, 5)).toEqual({ start: a, end: a });
+  });
+});
+
+// --- the elbow route (design-system §9.13, "Route") ------------------------
+
+describe('routePoints', () => {
+  it('routePoints_straight_isTheTwoCentreRayEndpoints', () => {
+    const points = routePoints(box(0, 0), box(300, 0), 'straight');
+    expect(points).toEqual([
+      { x: 100, y: 50 },
+      { x: 300, y: 50 },
+    ]);
+  });
+
+  it('routePoints_anUnknownKey_fallsBackToStraight', () => {
+    expect(routePoints(box(0, 0), box(300, 0), 'zigzag')).toEqual(
+      routePoints(box(0, 0), box(300, 0), 'straight'),
+    );
+  });
+
+  it('routePoints_elbowWithAHorizontalGap_leavesAndEntersTheFacingSides', () => {
+    // Right side of the left card, across the middle of the 200-unit gap, left side of
+    // the right card.
+    expect(routePoints(box(0, 0), box(300, 200), 'elbow')).toEqual([
+      { x: 100, y: 50 },
+      { x: 200, y: 50 },
+      { x: 200, y: 250 },
+      { x: 300, y: 250 },
+    ]);
+  });
+
+  it('routePoints_elbowWithTheBiggerVerticalGap_leavesTheBottomAndEntersTheTop', () => {
+    expect(routePoints(box(0, 0), box(50, 400), 'elbow')).toEqual([
+      { x: 50, y: 100 },
+      { x: 50, y: 250 },
+      { x: 100, y: 250 },
+      { x: 100, y: 400 },
+    ]);
+  });
+
+  it('routePoints_elbowOnCardsThatOverlapHorizontally_usesTheAxisWithARealGap', () => {
+    // The x centres are 250 apart and the y centres only 210, so the centre distance
+    // alone would pick horizontal — and the across segment would double back through
+    // both cards. Only the vertical axis has a gap, so that is the one used.
+    const points = routePoints(box(0, 0, 300, 50), box(250, 260, 300, 50), 'elbow');
+    expect(points).toEqual([
+      { x: 150, y: 50 },
+      { x: 150, y: 155 },
+      { x: 400, y: 155 },
+      { x: 400, y: 260 },
+    ]);
+  });
+
+  it('routePoints_elbowOnAlignedCards_collapsesToOneStraightSegment', () => {
+    // Same centre line: the two middle points coincide and are dropped, so no
+    // zero-length bend is drawn.
+    expect(routePoints(box(0, 0), box(300, 0), 'elbow')).toEqual([
+      { x: 100, y: 50 },
+      { x: 300, y: 50 },
+    ]);
+  });
+
+  it('routePoints_overlappingCards_isNullOnEitherRoute', () => {
+    expect(routePoints(box(0, 0), box(50, 50), 'elbow')).toBeNull();
+    expect(routePoints(box(0, 0), box(50, 50), 'straight')).toBeNull();
+  });
+});
+
+describe('polylinePath', () => {
+  const corner = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 100 },
+  ];
+
+  it('polylinePath_twoPoints_isAPlainLine', () => {
+    expect(
+      polylinePath(
+        [
+          { x: 0, y: 0 },
+          { x: 10, y: 20 },
+        ],
+        2,
+      ),
+    ).toBe('M0,0 L10,20');
+  });
+
+  it('polylinePath_aCornerWithNoRadius_staysSquare', () => {
+    expect(polylinePath(corner, 0)).toBe('M0,0 L100,0 L100,100');
+  });
+
+  it('polylinePath_aCornerWithARadius_roundsItWithAQuadratic', () => {
+    // In 2 units before the corner, out 2 units after it, with the corner itself as the
+    // control point.
+    expect(polylinePath(corner, 2)).toBe('M0,0 L98,0 Q100,0 100,2 L100,100');
+  });
+
+  it('polylinePath_aRadiusBiggerThanTheSegments_isClampedToHalfTheShorterOne', () => {
+    const tight = [
+      { x: 0, y: 0 },
+      { x: 6, y: 0 },
+      { x: 6, y: 40 },
+    ];
+    // Half of the 6-unit segment, not the asked-for 10.
+    expect(polylinePath(tight, 10)).toBe('M0,0 L3,0 Q6,0 6,3 L6,40');
+  });
+
+  it('polylinePath_fewerThanTwoPoints_isEmpty', () => {
+    expect(polylinePath([{ x: 0, y: 0 }], 2)).toBe('');
+  });
+});
+
+describe('trimRoute', () => {
+  const elbow = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 100 },
+    { x: 200, y: 100 },
+  ];
+
+  it('trimRoute_anElbow_movesOnlyTheFirstAndLastPoint', () => {
+    expect(trimRoute(elbow, 10, 20)).toEqual([
+      { x: 10, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+      { x: 180, y: 100 },
+    ]);
+  });
+
+  it('trimRoute_aTwoPointRoute_trimsBothEndsOfTheOneSegment', () => {
+    expect(
+      trimRoute(
+        [
+          { x: 0, y: 0 },
+          { x: 100, y: 0 },
+        ],
+        10,
+        20,
+      ),
+    ).toEqual([
+      { x: 10, y: 0 },
+      { x: 80, y: 0 },
+    ]);
+  });
+
+  it('trimRoute_anInsetLongerThanItsOwnSegment_stopsAtTheBendRatherThanPastIt', () => {
+    const short = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 100 },
+    ];
+    // 40 of trim on a 10-unit first segment: it collapses onto the bend, never beyond it.
+    expect(trimRoute(short, 40, 0)[0]).toEqual({ x: 10, y: 0 });
+  });
+});
+
+describe('longestSegment', () => {
+  it('longestSegment_anElbow_isTheAcrossRun', () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 20, y: 0 },
+      { x: 20, y: 300 },
+      { x: 40, y: 300 },
+    ];
+    expect(longestSegment(points)).toEqual({ a: { x: 20, y: 0 }, b: { x: 20, y: 300 } });
+  });
+
+  it('longestSegment_oneSegment_isThatSegment', () => {
+    expect(
+      longestSegment([
+        { x: 0, y: 0 },
+        { x: 5, y: 0 },
+      ]),
+    ).toEqual({
+      a: { x: 0, y: 0 },
+      b: { x: 5, y: 0 },
+    });
+  });
+
+  it('longestSegment_fewerThanTwoPoints_isNull', () => {
+    expect(longestSegment([{ x: 0, y: 0 }])).toBeNull();
+  });
+});
+
+describe('routeInView', () => {
+  const view = { x: 0, y: 0, zoom: 1 };
+  const viewport = { width: 800, height: 600 };
+
+  it('routeInView_aBendInsideTheWindowWithBothEndsOutside_isTrue', () => {
+    // Culling on the two endpoints alone would wrongly drop this: their own box misses
+    // the window entirely, but the bend runs through the middle of it.
+    const points = [
+      { x: -900, y: 300 },
+      { x: 400, y: 300 },
+      { x: 400, y: 900 },
+      { x: 1700, y: 900 },
+    ];
+    expect(routeInView(points, view, viewport)).toBe(true);
+  });
+
+  it('routeInView_aRouteWhollyOffScreen_isFalse', () => {
+    expect(
+      routeInView(
+        [
+          { x: 2000, y: 2000 },
+          { x: 2100, y: 2000 },
+        ],
+        view,
+        viewport,
+      ),
+    ).toBe(false);
   });
 });

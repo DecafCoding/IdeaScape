@@ -1097,11 +1097,21 @@
     color: string,
     width: number,
     labelVisible: boolean,
+    route: string,
   ) {
     const before = canvasStore.selectedConnection;
     if (!before) return;
     await guard(async () => {
-      await updateConnection(before.id, label, directed, color, width, labelVisible, saveHooks);
+      await updateConnection(
+        before.id,
+        label,
+        directed,
+        color,
+        width,
+        labelVisible,
+        route,
+        saveHooks,
+      );
       undoStack.push(
         editConnectionCommand(
           before.id,
@@ -1111,8 +1121,9 @@
             color: before.color,
             width: before.width,
             labelVisible: before.label_visible,
+            route: before.route,
           },
-          { label, directed, color, width, labelVisible },
+          { label, directed, color, width, labelVisible, route },
         ),
       );
     });
@@ -1509,8 +1520,8 @@
           onSendBack={() => void reorder('back')}
           onDuplicate={() => void duplicateSelection()}
           onDelete={() => void deleteSelection()}
-          onConnectionChange={(label, directed, color, width, labelVisible) =>
-            void changeConnection(label, directed, color, width, labelVisible)}
+          onConnectionChange={(label, directed, color, width, labelVisible, route) =>
+            void changeConnection(label, directed, color, width, labelVisible, route)}
           onDeleteConnection={() => void deleteSelectedConnection()}
           onAltTextChange={(alt) => void commitAltText(alt)}
           onAltVisibleChange={(visible) => void commitAltVisible(visible)}
