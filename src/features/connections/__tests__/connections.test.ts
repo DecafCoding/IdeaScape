@@ -43,6 +43,9 @@ function connection(overrides: Partial<Connection> = {}): Connection {
     to_placement_id: 2,
     label: null,
     directed: 1,
+    color: 'default',
+    width: 1,
+    label_visible: true,
     ...overrides,
   };
 }
@@ -243,22 +246,39 @@ describe('the connection overlay', () => {
       { x: 0, y: 0, width: 100, height: 100 },
       { x: 400, y: 0, width: 100, height: 100 },
     )!;
-    const d = container.querySelector('path.stroke')?.getAttribute('d');
+    // The hit path carries the true geometry; the drawn stroke stops at the arrowhead.
+    const d = container.querySelector('path.hit')?.getAttribute('d');
     expect(d).toBe(`M${points.start.x},${points.start.y} L${points.end.x},${points.end.y}`);
     // Not the centres: 100 is the right border of card A, 400 the left border of card B.
     expect(points.start).toEqual({ x: 100, y: 50 });
     expect(points.end).toEqual({ x: 400, y: 50 });
   });
 
+  it('overlay_theDrawnStroke_stopsAtTheBackOfTheArrowhead', () => {
+    const { container } = draw();
+    // The head's back edge is 7.5 of the marker's 9 units behind the endpoint, so a thin
+    // line ending at x 400 is drawn to 392.5 and never shows its width through the point.
+    expect(container.querySelector('path.stroke')?.getAttribute('d')).toBe('M100,50 L392.5,50');
+    // The un-arrowed end keeps the full geometry.
+    expect(container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L400,50');
+  });
+
   it('overlay_theMarker_matchesTheDesignSystemDefinitionVerbatim', () => {
     const { container } = draw();
-    const marker = container.querySelector('#ideascape-arrow');
+    // One marker per palette colour; the default one carries the §9.13 geometry.
+    const marker = container.querySelector('#ideascape-arrow-default-1');
     expect(marker?.getAttribute('orient')).toBe('auto-start-reverse');
-    expect(marker?.getAttribute('refX')).toBe('8');
+    // refX is §9.13's 8 minus the head's own 7.5-unit length: the stroke is trimmed to the
+    // head's back edge, so the reference point moves there too and the tip does not shift.
+    expect(marker?.getAttribute('refX')).toBe('0.5');
     expect(marker?.getAttribute('refY')).toBe('4.5');
     expect(marker?.getAttribute('viewBox')).toBe('0 0 9 9');
-    expect(marker?.getAttribute('markerWidth')).toBe('6');
-    expect(marker?.getAttribute('markerHeight')).toBe('6');
+    // 9 in user space is the same head §9.13's 6 x a 1.5 px stroke draws. Stating it in user
+    // space is what stops the stroke width from scaling the head — the width steps grow it
+    // by a deliberate 25% each instead.
+    expect(marker?.getAttribute('markerWidth')).toBe('9');
+    expect(marker?.getAttribute('markerHeight')).toBe('9');
+    expect(marker?.getAttribute('markerUnits')).toBe('userSpaceOnUse');
   });
 
   it('overlay_theRootSvg_isPointerEventsNone', () => {
@@ -278,8 +298,19 @@ describe('the connection overlay', () => {
     canvasStore.upsertConnection(connection({ directed: 3 }));
     const { container } = draw();
     const stroke = container.querySelector('path.stroke');
-    expect(stroke?.getAttribute('marker-start')).toBe('url(#ideascape-arrow)');
-    expect(stroke?.getAttribute('marker-end')).toBe('url(#ideascape-arrow)');
+    expect(stroke?.getAttribute('marker-start')).toBe('url(#ideascape-arrow-default-1)');
+    expect(stroke?.getAttribute('marker-end')).toBe('url(#ideascape-arrow-default-1)');
+  });
+
+  it('overlay_aThickerLine_growsItsArrowheadByOneQuarterPerStep', () => {
+    canvasStore.upsertConnection(connection({ directed: 1, width: 3 }));
+    const { container } = draw();
+    const stroke = container.querySelector('path.stroke');
+    expect(stroke?.getAttribute('stroke-width')).toBe('5');
+    expect(stroke?.getAttribute('marker-end')).toBe('url(#ideascape-arrow-default-3)');
+    // Two steps of 25%: 9 -> 11.25 -> 14.0625. The line itself has more than trebled.
+    const marker = container.querySelector('#ideascape-arrow-default-3');
+    expect(Number(marker?.getAttribute('markerWidth'))).toBeCloseTo(14.0625, 4);
   });
 
   it('overlay_directedNone_drawsNoArrowheadAtAll', () => {
@@ -353,11 +384,10 @@ describe('the connection overlay', () => {
     const group = container.querySelector('g.connection') as SVGGElement;
     const stroke = container.querySelector('path.stroke') as SVGPathElement;
     expect(group.classList.contains('selected')).toBe(true);
-    // Neutral ink, heavier — never the accent. The accent lives in the square handles.
-    expect(layerSource).toMatch(
-      /\.connection\.selected \.stroke\s*\{\s*stroke:\s*var\(--color-text\)/,
-    );
+    // Its own ink, heavier — never the accent. The accent lives in the square handles.
+    expect(stroke.getAttribute('stroke')).toBe('var(--color-connection)');
     expect(layerSource).not.toMatch(/\.stroke\s*\{\s*stroke:\s*var\(--color-accent\)/);
+    // Thin (1.5) plus the one-unit selection bonus.
     expect(stroke.getAttribute('stroke-width')).toBe('2.5');
     expect(container.querySelectorAll('rect.handle').length).toBe(2);
     expect(container.querySelector('rect.handle')?.getAttribute('width')).toBe('7');
@@ -380,8 +410,9 @@ describe('the connection overlay', () => {
     beginLink(1, { x: 450, y: 50 });
     const { getByTestId } = draw();
     const pending = getByTestId('pending-link');
-    expect(pending.getAttribute('marker-end')).toBe('url(#ideascape-arrow)');
-    expect(pending.getAttribute('d')).toBe('M100,50 L400,50');
+    expect(pending.getAttribute('marker-end')).toBe('url(#ideascape-arrow-default-1)');
+    // Trimmed at the head, exactly as a written connection is.
+    expect(pending.getAttribute('d')).toBe('M100,50 L392.5,50');
     expect(pending.classList.contains('snapped')).toBe(true);
     expect(layerSource).toMatch(/\.pending\.snapped\s*\{\s*stroke-dasharray:\s*none/);
   });
@@ -447,15 +478,14 @@ describe('lines follow, and leave with, their cards', () => {
   });
 
   it('endpoints_afterMovingACard_followTheNewRectangle', async () => {
+    // The hit path holds the untrimmed geometry, which is what this is about.
     const first = render(ConnectionLayer, { props: { onSelect: () => {} } });
-    expect(first.container.querySelector('path.stroke')?.getAttribute('d')).toBe('M100,50 L400,50');
+    expect(first.container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L400,50');
     cleanup();
 
     canvasStore.patchPlacement(2, { x: 700 });
     const second = render(ConnectionLayer, { props: { onSelect: () => {} } });
-    expect(second.container.querySelector('path.stroke')?.getAttribute('d')).toBe(
-      'M100,50 L700,50',
-    );
+    expect(second.container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L700,50');
   });
 
   it('drag_aConnectedCard_writesNoConnectionRow', () => {

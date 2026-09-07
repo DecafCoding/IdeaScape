@@ -9,6 +9,12 @@
   import Icon from '../../lib/Icon.svelte';
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import { assetStatus } from '../../lib/assets';
+  import {
+    CONNECTION_COLORS,
+    CONNECTION_WIDTHS,
+    connectionStroke,
+    connectionWidthPx,
+  } from '../../lib/connectionStyle';
   import { autoSaveFooterText } from '../../lib/settings.svelte';
   import { MIN_CARD_SIZE } from '../../lib/geometry';
   import { relativeTime } from '../../lib/relativeTime';
@@ -33,8 +39,14 @@
     onSendBack?: () => void;
     onDuplicate?: () => void;
     onDelete?: () => void;
-    /** Commit a connection's label and direction together. */
-    onConnectionChange?: (label: string | null, directed: number) => void;
+    /** Commit a connection's label, direction and appearance together. */
+    onConnectionChange?: (
+      label: string | null,
+      directed: number,
+      color: string,
+      width: number,
+      labelVisible: boolean,
+    ) => void;
     onDeleteConnection?: () => void;
     /** The image card's Alt text group, committed on blur. */
     onAltTextChange?: (alt: string) => void;
@@ -78,12 +90,57 @@
     if (!connection) return;
     const next = raw.trim() === '' ? null : raw;
     if (next === connection.label) return;
-    onConnectionChange?.(next, connection.directed);
+    onConnectionChange?.(
+      next,
+      connection.directed,
+      connection.color,
+      connection.width,
+      connection.label_visible,
+    );
   }
 
   function commitDirection(directed: number) {
     if (!connection || connection.directed === directed) return;
-    onConnectionChange?.(connection.label, directed);
+    onConnectionChange?.(
+      connection.label,
+      directed,
+      connection.color,
+      connection.width,
+      connection.label_visible,
+    );
+  }
+
+  function commitColor(color: string) {
+    if (!connection || connection.color === color) return;
+    onConnectionChange?.(
+      connection.label,
+      connection.directed,
+      color,
+      connection.width,
+      connection.label_visible,
+    );
+  }
+
+  function commitWidth(width: number) {
+    if (!connection || connection.width === width) return;
+    onConnectionChange?.(
+      connection.label,
+      connection.directed,
+      connection.color,
+      width,
+      connection.label_visible,
+    );
+  }
+
+  function commitLabelVisible(visible: boolean) {
+    if (!connection || connection.label_visible === visible) return;
+    onConnectionChange?.(
+      connection.label,
+      connection.directed,
+      connection.color,
+      connection.width,
+      visible,
+    );
   }
 
   const selected = $derived(canvasStore.selectedPlacements);
@@ -120,6 +177,9 @@
       const notes = selected.filter((p) => canvasStore.itemFor(p)?.kind === 'note').length;
       return `with ${notes} ${notes === 1 ? 'note' : 'notes'}`;
     }
+    // An image's name is its ORIGINAL file name, and that now lives in the File group at
+    // the bottom rather than being said twice.
+    if (soleItem?.kind === 'image') return '';
     return soleItem ? cardTitle(soleItem) : '';
   });
 
@@ -177,7 +237,6 @@
     {#if connection}
       <header class="header">
         <span class="kind">Connection</span>
-        <span class="item-id">connection-{String(connection.id).padStart(3, '0')}</span>
       </header>
 
       <section class="group">
@@ -192,10 +251,19 @@
           onchange={(e) => commitLabel(e.currentTarget.value)}
           onblur={(e) => commitLabel(e.currentTarget.value)}
         />
+        <!-- Hiding the chip is a display choice: the words above are kept either way. -->
+        <label class="check">
+          <input
+            type="checkbox"
+            checked={connection.label_visible}
+            onchange={(e) => commitLabelVisible(e.currentTarget.checked)}
+          />
+          Show Label On Canvas
+        </label>
       </section>
 
       <section class="group">
-        <p class="group-label">Direction</p>
+        <p class="group-label">Arrows</p>
         <div class="pairs">
           {#each DIRECTIONS as direction (direction.value)}
             <button
@@ -206,6 +274,52 @@
               onclick={() => commitDirection(direction.value)}
             >
               {direction.label}
+            </button>
+          {/each}
+        </div>
+      </section>
+
+      <section class="group">
+        <p class="group-label">Color</p>
+        <!-- Eight swatches on one row of four. The chosen one carries a ring AND a check,
+             so colour is never the only signal (§12). -->
+        <div class="swatches">
+          {#each CONNECTION_COLORS as swatch (swatch.key)}
+            <button
+              type="button"
+              class="swatch"
+              class:active={connection.color === swatch.key}
+              style="--swatch: {connectionStroke(swatch.key)}"
+              title={swatch.label}
+              aria-label={swatch.label}
+              aria-pressed={connection.color === swatch.key}
+              onclick={() => commitColor(swatch.key)}
+            >
+              {#if connection.color === swatch.key}
+                <!-- check-circle, not a bare tick: §7.1's glyph set is closed. -->
+                <Icon glyph="check-circle" size={12} />
+              {/if}
+            </button>
+          {/each}
+        </div>
+      </section>
+
+      <section class="group">
+        <p class="group-label">Width</p>
+        <div class="order">
+          {#each CONNECTION_WIDTHS as step (step.step)}
+            <button
+              type="button"
+              class="order-button width-button"
+              class:active={connection.width === step.step}
+              title={step.label}
+              aria-label={step.label}
+              aria-pressed={connection.width === step.step}
+              onclick={() => commitWidth(step.step)}
+            >
+              <!-- The bar IS the label: its thickness says which step this is. The name
+                   stays on the title and the aria-label so the control is still nameable. -->
+              <span class="width-sample" style="height: {connectionWidthPx(step.step)}px"></span>
             </button>
           {/each}
         </div>
@@ -267,31 +381,11 @@
       {/each}
 
       {#if image}
-        <!-- §9.4. Replace and Show in folder stay enabled when the file is gone: they are
-             the fix, and nothing here says where the original used to live. -->
-        <section class="group" data-testid="panel-file-group">
-          <p class="group-label">File</p>
-          <p class="file-path" title={`assets/${image.asset ?? ''}`}>assets/{image.asset ?? ''}</p>
-          <p class="file-meta" data-testid="panel-file-meta">{imageFileLine}</p>
-          <div class="order">
-            <button type="button" class="order-button" onclick={onReplaceImage}>Replace</button>
-            <button
-              type="button"
-              class="icon-button folder"
-              title="Show in folder"
-              aria-label="Show in folder"
-              onclick={onShowInFolder}
-            >
-              <Icon glyph="folder-open" size={13} />
-            </button>
-          </div>
-        </section>
-
         <section class="group">
-          <p class="group-label">Alt Text</p>
+          <p class="group-label">Description</p>
           <textarea
             class="input alt-text"
-            aria-label="Alt Text"
+            aria-label="Description"
             placeholder="describe this picture"
             value={image.alt}
             onblur={(e) => onAltTextChange?.(e.currentTarget.value)}
@@ -343,6 +437,31 @@
           </button>
         </div>
       </section>
+
+      {#if image}
+        <!-- Last group in the column: it is reference, not something the user reaches for
+             while placing a card. The name shown is the ORIGINAL file's — the stored name is
+             a content hash and names nothing a reader recognises, so Show in folder is the
+             way to the file itself. Replace and Show in folder stay enabled when the file is
+             gone: they are the fix, and nothing here says where the original used to live. -->
+        <section class="group" data-testid="panel-file-group">
+          <p class="group-label">File</p>
+          <p class="file-name" title={image.source_name}>{image.source_name}</p>
+          <p class="file-meta" data-testid="panel-file-meta">{imageFileLine}</p>
+          <div class="order">
+            <button type="button" class="order-button" onclick={onReplaceImage}>Replace</button>
+            <button
+              type="button"
+              class="icon-button folder"
+              title="Show in folder"
+              aria-label="Show in folder"
+              onclick={onShowInFolder}
+            >
+              <Icon glyph="folder-open" size={13} />
+            </button>
+          </div>
+        </section>
+      {/if}
 
       <footer class="footer">
         <div class="footer-row">
@@ -462,7 +581,7 @@
     opacity: 0.6;
   }
 
-  .file-path {
+  .file-name {
     margin: 0;
     font-size: var(--text-11);
     line-height: 1.5;
@@ -541,6 +660,61 @@
     border-color: var(--color-accent);
     color: var(--color-surface);
     font-weight: 600;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    margin-top: var(--space-6);
+    font-size: var(--text-11);
+    opacity: 0.75;
+    cursor: pointer;
+  }
+
+  .check input {
+    margin: 0;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+  }
+
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-5);
+  }
+
+  .swatch {
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-md);
+    background: var(--swatch);
+    color: var(--color-surface);
+    cursor: pointer;
+    transition: box-shadow var(--duration-90) var(--ease);
+  }
+
+  .swatch:hover {
+    border-color: color-mix(in srgb, var(--color-text) 40%, transparent);
+  }
+
+  .swatch.active {
+    box-shadow: 0 0 0 2px var(--color-surface) inset;
+    border-color: var(--color-text);
+  }
+
+  .width-button {
+    padding: 8px 4px;
+  }
+
+  /* Plain ink, never the chosen colour: this control picks a WIDTH, and colouring it would
+     make two groups look like one. */
+  .width-sample {
+    width: 26px;
+    border-radius: 2px;
+    background: var(--color-text);
   }
 
   .footer {

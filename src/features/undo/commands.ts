@@ -273,17 +273,33 @@ export function deleteConnectionsCommand(removed: Connection[]): UndoableCommand
   };
 }
 
-/** Changing a connection's label or its arrow direction. Pushed on commit, not per keystroke. */
+/** The four fields the properties panel commits together. */
+export interface ConnectionEdit {
+  label: string | null;
+  directed: number;
+  color: string;
+  width: number;
+  labelVisible: boolean;
+}
+
+/**
+ * Changing a connection's label, arrow direction, colour, width or chip visibility. Pushed on
+ * commit, not per keystroke — and every field travels together, because one command writes
+ * them all.
+ */
 export function editConnectionCommand(
   connectionId: number,
-  before: { label: string | null; directed: number },
-  after: { label: string | null; directed: number },
+  before: ConnectionEdit,
+  after: ConnectionEdit,
 ): UndoableCommand {
-  async function write(state: { label: string | null; directed: number }) {
+  async function write(state: ConnectionEdit) {
     const row = await invokeSafe<Connection>('update_connection', {
       connectionId,
       label: state.label,
       directed: state.directed,
+      color: state.color,
+      width: state.width,
+      labelVisible: state.labelVisible,
     });
     canvasStore.upsertConnection(row);
   }

@@ -116,15 +116,30 @@ export async function completeLink(
   return created;
 }
 
-/** Write a connection's label and direction, and mirror the row back into the store. */
+/**
+ * Write a connection's label, direction, colour, width and chip visibility, and mirror the
+ * row back into the store. They all travel together — the panel holds them all and one
+ * command writes them.
+ */
 export async function updateConnection(
   connectionId: number,
   label: string | null,
   directed: number,
+  color: string,
+  width: number,
+  labelVisible: boolean,
   hooks?: SaveHooks,
 ): Promise<Connection> {
   const updated = await writeNow(
-    () => invokeSafe<Connection>('update_connection', { connectionId, label, directed }),
+    () =>
+      invokeSafe<Connection>('update_connection', {
+        connectionId,
+        label,
+        directed,
+        color,
+        width,
+        labelVisible,
+      }),
     hooks,
   );
   canvasStore.upsertConnection(updated);

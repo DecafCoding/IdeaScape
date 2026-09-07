@@ -1055,16 +1055,28 @@
     });
   }
 
-  async function changeConnection(label: string | null, directed: number) {
+  async function changeConnection(
+    label: string | null,
+    directed: number,
+    color: string,
+    width: number,
+    labelVisible: boolean,
+  ) {
     const before = canvasStore.selectedConnection;
     if (!before) return;
     await guard(async () => {
-      await updateConnection(before.id, label, directed, saveHooks);
+      await updateConnection(before.id, label, directed, color, width, labelVisible, saveHooks);
       undoStack.push(
         editConnectionCommand(
           before.id,
-          { label: before.label, directed: before.directed },
-          { label, directed },
+          {
+            label: before.label,
+            directed: before.directed,
+            color: before.color,
+            width: before.width,
+            labelVisible: before.label_visible,
+          },
+          { label, directed, color, width, labelVisible },
         ),
       );
     });
@@ -1461,7 +1473,8 @@
           onSendBack={() => void reorder('back')}
           onDuplicate={() => void duplicateSelection()}
           onDelete={() => void deleteSelection()}
-          onConnectionChange={(label, directed) => void changeConnection(label, directed)}
+          onConnectionChange={(label, directed, color, width, labelVisible) =>
+            void changeConnection(label, directed, color, width, labelVisible)}
           onDeleteConnection={() => void deleteSelectedConnection()}
           onAltTextChange={(alt) => void commitAltText(alt)}
           onNoteTitleChange={(title) => void commitNoteTitle(title)}

@@ -304,6 +304,9 @@ describe('the properties panel Connection state', () => {
       to_placement_id: 2,
       label: 'causes',
       directed: 1,
+      color: 'default',
+      width: 1,
+      label_visible: true,
     });
     canvasStore.selectConnection(7);
   });
@@ -311,13 +314,14 @@ describe('the properties panel Connection state', () => {
   afterEach(cleanup);
 
   it('panel_aSelectedConnection_showsTheLabelAndDirectionGroups', () => {
-    const { getByText, getByLabelText } = render(PropertiesPanel, {
+    const { getByText, getByLabelText, queryByText } = render(PropertiesPanel, {
       props: { expanded: true, onToggle: () => {} },
     });
     expect(getByText('Connection')).toBeInTheDocument();
-    expect(getByText('connection-007')).toBeInTheDocument();
+    // The row id is not shown: it names nothing the user can act on.
+    expect(queryByText('connection-007')).toBeNull();
     expect(getByText('Label')).toBeInTheDocument();
-    expect(getByText('Direction')).toBeInTheDocument();
+    expect(getByText('Arrows')).toBeInTheDocument();
     for (const name of ['None', 'Forward', 'Back', 'Both']) {
       expect(getByText(name)).toBeInTheDocument();
     }
@@ -333,7 +337,7 @@ describe('the properties panel Connection state', () => {
     input.value = 'blocks';
     await fireEvent.change(input);
     expect(onConnectionChange).toHaveBeenCalledTimes(1);
-    expect(onConnectionChange).toHaveBeenCalledWith('blocks', 1);
+    expect(onConnectionChange).toHaveBeenCalledWith('blocks', 1, 'default', 1, true);
   });
 
   it('panel_aDirectionButtonClicked_invokesUpdateConnectionWithTheNewValue', async () => {
@@ -342,7 +346,38 @@ describe('the properties panel Connection state', () => {
       props: { expanded: true, onToggle: () => {}, onConnectionChange },
     });
     await fireEvent.click(getByText('Both'));
-    expect(onConnectionChange).toHaveBeenCalledWith('causes', 3);
+    expect(onConnectionChange).toHaveBeenCalledWith('causes', 3, 'default', 1, true);
+  });
+
+  it('panel_aColourSwatchClicked_invokesUpdateConnectionWithTheNewKey', async () => {
+    const onConnectionChange = vi.fn();
+    const { getByLabelText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {}, onConnectionChange },
+    });
+    await fireEvent.click(getByLabelText('Blue'));
+    expect(onConnectionChange).toHaveBeenCalledWith('causes', 1, 'blue', 1, true);
+  });
+
+  it('panel_aWidthButtonClicked_invokesUpdateConnectionWithTheNewStep', async () => {
+    const onConnectionChange = vi.fn();
+    const { getByLabelText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {}, onConnectionChange },
+    });
+    // The buttons show a bar, not a word — the name lives on the aria-label.
+    await fireEvent.click(getByLabelText('Thick'));
+    expect(onConnectionChange).toHaveBeenCalledWith('causes', 1, 'default', 3, true);
+  });
+
+  it('panel_theShowLabelBox_unticked_invokesUpdateConnectionKeepingTheText', async () => {
+    const onConnectionChange = vi.fn();
+    const { getByLabelText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {}, onConnectionChange },
+    });
+    const box = getByLabelText('Show Label On Canvas') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    await fireEvent.click(box);
+    // The label text travels unchanged; only the visibility flag flips.
+    expect(onConnectionChange).toHaveBeenCalledWith('causes', 1, 'default', 1, false);
   });
 
   it('panel_theCurrentDirection_carriesWeightAsWellAsFill', () => {

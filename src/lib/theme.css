@@ -39,8 +39,17 @@
   --color-accent-2-tint-text: #ffc0d0;
 
   --color-dot: rgba(255, 255, 255, 0.16);
-  --color-connection: rgba(236, 233, 230, 0.38);
-  --color-arrowhead: rgba(236, 233, 230, 0.5);
+  --color-connection: rgba(236, 233, 230, 0.62);
+  /* The line palette moves UP its ramp on dark, the same rule §4.5 rule 1 sets for the
+     accent, so every hue stays readable on the dark ground. */
+  --color-line-red: #ff8a7a;
+  --color-line-orange: #f5a742;
+  --color-line-yellow: #e6c34d;
+  --color-line-green: #6cd08a;
+  --color-line-blue: #77aef5;
+  --color-line-purple: #b79bf5;
+  --color-line-pink: #f58ab8;
+  --color-arrowhead: rgba(236, 233, 230, 0.75);
   --color-placeholder: rgba(236, 233, 230, 0.42);
   --color-play-badge: rgba(38, 35, 34, 0.92);
 
@@ -104,8 +113,17 @@
     --color-accent-2-tint-text: #ffc0d0;
 
     --color-dot: rgba(255, 255, 255, 0.16);
-    --color-connection: rgba(236, 233, 230, 0.38);
-    --color-arrowhead: rgba(236, 233, 230, 0.5);
+    --color-connection: rgba(236, 233, 230, 0.62);
+    /* The line palette moves UP its ramp on dark, the same rule §4.5 rule 1 sets for the
+     accent, so every hue stays readable on the dark ground. */
+    --color-line-red: #ff8a7a;
+    --color-line-orange: #f5a742;
+    --color-line-yellow: #e6c34d;
+    --color-line-green: #6cd08a;
+    --color-line-blue: #77aef5;
+    --color-line-purple: #b79bf5;
+    --color-line-pink: #f58ab8;
+    --color-arrowhead: rgba(236, 233, 230, 0.75);
     --color-placeholder: rgba(236, 233, 230, 0.42);
     --color-play-badge: rgba(38, 35, 34, 0.92);
 

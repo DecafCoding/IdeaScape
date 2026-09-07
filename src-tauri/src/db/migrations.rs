@@ -11,7 +11,11 @@ use rusqlite::Connection;
 use rusqlite_migration::{Migrations, M};
 use std::sync::OnceLock;
 
-const MIGRATION_SQL: [&str; 1] = [include_str!("../../migrations/0001_initial_schema.sql")];
+const MIGRATION_SQL: [&str; 3] = [
+    include_str!("../../migrations/0001_initial_schema.sql"),
+    include_str!("../../migrations/0002_connection_style.sql"),
+    include_str!("../../migrations/0003_connection_label_visible.sql"),
+];
 
 fn migrations() -> &'static Migrations<'static> {
     static CELL: OnceLock<Migrations<'static>> = OnceLock::new();

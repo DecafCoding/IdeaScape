@@ -16,7 +16,17 @@
     connectionEndpoints,
     connectionInView,
     rectEdgePoint,
+    trimSegment,
   } from '../../lib/connectionGeometry';
+  import {
+    arrowHeadSize,
+    arrowInset,
+    arrowMarkerId,
+    connectionStroke,
+    connectionWidthPx,
+    CONNECTION_COLORS,
+    CONNECTION_WIDTHS,
+  } from '../../lib/connectionStyle';
   import { CULL_MARGIN_PX, recordConnectionCullCounts } from '../../lib/culling';
   import { viewportWorldRect, type Point, type Rect } from '../../lib/geometry';
   import {
@@ -142,20 +152,57 @@
     return best;
   }
 
+  /**
+   * The mid-drag line has no row of its own, so it borrows the defaults every new connection
+   * starts on: default ink, thin, one head at the far end.
+   */
+  const PENDING_STYLE: Connection = {
+    id: -1,
+    canvas_id: -1,
+    from_placement_id: -1,
+    to_placement_id: -1,
+    label: null,
+    directed: DIRECTED_FORWARD,
+    color: 'default',
+    width: 1,
+    label_visible: true,
+  };
+
   function pathFor(start: Point, end: Point): string {
     return `M${start.x},${start.y} L${end.x},${end.y}`;
   }
 
-  function markerEndFor(connection: Connection, selected: boolean): string | undefined {
-    const wants = connection.directed === DIRECTED_FORWARD || connection.directed === DIRECTED_BOTH;
-    if (!wants) return undefined;
-    return selected ? 'url(#ideascape-arrow-selected)' : 'url(#ideascape-arrow)';
+  /**
+   * The path for the DRAWN stroke: the segment with each arrowed end pulled back to the
+   * arrowhead's back edge. The hit path is never trimmed — the head is part of the line as
+   * far as pointing at it goes.
+   */
+  function strokePathFor(connection: Connection, start: Point, end: Point): string {
+    const inset = arrowInset(connection.width);
+    const trimmed = trimSegment(
+      start,
+      end,
+      markerStartFor(connection) ? inset : 0,
+      markerEndFor(connection) ? inset : 0,
+    );
+    return pathFor(trimmed.start, trimmed.end);
   }
 
-  function markerStartFor(connection: Connection, selected: boolean): string | undefined {
+  /**
+   * Arrowheads follow the line's own colour, so there is one marker per palette entry rather
+   * than one shared pair. A selected line keeps its colour — the selection signal is the
+   * square handles and the extra width, exactly as §10 contract 7 requires.
+   */
+  function markerEndFor(connection: Connection): string | undefined {
+    const wants = connection.directed === DIRECTED_FORWARD || connection.directed === DIRECTED_BOTH;
+    if (!wants) return undefined;
+    return `url(#${arrowMarkerId(connection.color, connection.width)})`;
+  }
+
+  function markerStartFor(connection: Connection): string | undefined {
     const wants = connection.directed === DIRECTED_BACK || connection.directed === DIRECTED_BOTH;
     if (!wants) return undefined;
-    return selected ? 'url(#ideascape-arrow-selected)' : 'url(#ideascape-arrow)';
+    return `url(#${arrowMarkerId(connection.color, connection.width)})`;
   }
 
   /**
@@ -194,30 +241,38 @@
          pointer-events: none;"
 >
   <defs>
-    <!-- Copied verbatim from design-system §9.13. auto-start-reverse is what lets this one
-         marker serve both marker-start and marker-end. -->
-    <marker
-      id="ideascape-arrow"
-      viewBox="0 0 9 9"
-      refX="8"
-      refY="4.5"
-      markerWidth="6"
-      markerHeight="6"
-      orient="auto-start-reverse"
-    >
-      <path d="M0.5,0.5 L8.5,4.5 L0.5,8.5 z" fill="var(--color-arrowhead)" />
-    </marker>
-    <marker
-      id="ideascape-arrow-selected"
-      viewBox="0 0 9 9"
-      refX="8"
-      refY="4.5"
-      markerWidth="6"
-      markerHeight="6"
-      orient="auto-start-reverse"
-    >
-      <path d="M0.5,0.5 L8.5,4.5 L0.5,8.5 z" fill="var(--color-accent)" />
-    </marker>
+    <!-- The marker geometry is copied verbatim from design-system §9.13.
+         auto-start-reverse is what lets one marker serve both marker-start and marker-end.
+         A marker carries both its fill and its size, so one is emitted per colour x width
+         pair: the arrowhead matches its line's colour and grows 25% per width step.
+
+         markerUnits is userSpaceOnUse rather than the default strokeWidth, which is what
+         puts the head's size under this file's control instead of the stroke's. It is still
+         world space, so the head zooms with the canvas like everything else.
+
+         refX is the head's BACK edge (0.5) rather than §9.13's 8, because the drawn stroke
+         is trimmed to end there — see `strokePathFor`. The two changes cancel: the tip lands
+         in exactly the place the untrimmed line and an refX of 8 put it. -->
+    {#each CONNECTION_COLORS as swatch (swatch.key)}
+      {#each CONNECTION_WIDTHS as step (step.step)}
+        {@const size = arrowHeadSize(step.step)}
+        <marker
+          id={`ideascape-arrow-${swatch.key}-${step.step}`}
+          viewBox="0 0 9 9"
+          refX="0.5"
+          refY="4.5"
+          markerWidth={size}
+          markerHeight={size}
+          markerUnits="userSpaceOnUse"
+          orient="auto-start-reverse"
+        >
+          <path
+            d="M0.5,0.5 L8.5,4.5 L0.5,8.5 z"
+            fill={swatch.key === 'default' ? 'var(--color-arrowhead)' : swatch.token}
+          />
+        </marker>
+      {/each}
+    {/each}
   </defs>
 
   {#each drawn as row (row.connection.id)}
@@ -226,11 +281,12 @@
     <g class="connection" class:selected data-connection-id={row.connection.id}>
       <path
         class="stroke"
-        {d}
+        d={strokePathFor(row.connection, row.start, row.end)}
         fill="none"
-        stroke-width={selected ? 2.5 : 1.5}
-        marker-end={markerEndFor(row.connection, selected)}
-        marker-start={markerStartFor(row.connection, selected)}
+        stroke={connectionStroke(row.connection.color)}
+        stroke-width={connectionWidthPx(row.connection.width, selected)}
+        marker-end={markerEndFor(row.connection)}
+        marker-start={markerStartFor(row.connection)}
       />
       <path
         class="hit"
@@ -247,9 +303,9 @@
         onkeydown={(event) => onKeyDown(event, row.connection.id)}
       />
       {#if selected}
-        <!-- The selection signal is the square handles, exactly as it is on a card. The
-             stroke itself stays neutral ink: §10 contract 7 says a line never takes the
-             accent. -->
+        <!-- The selection signal is the square handles plus the extra width, exactly as it
+             is on a card. The stroke keeps its own colour: §10 contract 7 says a line never
+             takes the accent. -->
         <rect class="handle" x={row.start.x - 3.5} y={row.start.y - 3.5} width="7" height="7" />
         <rect class="handle" x={row.end.x - 3.5} y={row.end.y - 3.5} width="7" height="7" />
       {/if}
@@ -261,10 +317,12 @@
       class="pending"
       class:snapped={pending.snapped}
       data-testid="pending-link"
-      d={pathFor(pending.start, pending.end)}
+      d={pending.snapped
+        ? strokePathFor(PENDING_STYLE, pending.start, pending.end)
+        : pathFor(pending.start, pending.end)}
       fill="none"
       stroke-width="1.5"
-      marker-end={pending.snapped ? 'url(#ideascape-arrow)' : undefined}
+      marker-end={pending.snapped ? 'url(#ideascape-arrow-default-1)' : undefined}
     />
   {/if}
 </svg>
@@ -284,13 +342,8 @@
     z-index: var(--z-connections);
   }
 
-  .stroke {
-    stroke: var(--color-connection);
-  }
-
-  .connection.selected .stroke {
-    stroke: var(--color-text);
-  }
+  /* The stroke's colour and width are set inline from the row — see `connectionStyle.ts`.
+     A selected line keeps its colour and grows instead. */
 
   .hit {
     pointer-events: stroke;

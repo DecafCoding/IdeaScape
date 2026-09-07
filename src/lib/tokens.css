@@ -44,8 +44,17 @@
 
   /* Canvas ink */
   --color-dot: rgba(32, 30, 29, 0.16);
-  --color-connection: rgba(32, 30, 29, 0.4);
-  --color-arrowhead: rgba(32, 30, 29, 0.5);
+  --color-connection: rgba(32, 30, 29, 0.65);
+  /* The connection line palette. Seven hues beside the default ink, chosen to hold their
+     contrast against --color-bg; each has a lighter twin on the dark palette. */
+  --color-line-red: #d33a2c;
+  --color-line-orange: #c2670c;
+  --color-line-yellow: #a8850a;
+  --color-line-green: #2f8f4e;
+  --color-line-blue: #2f6fd0;
+  --color-line-purple: #7b4fd0;
+  --color-line-pink: #c93a86;
+  --color-arrowhead: rgba(32, 30, 29, 0.75);
   --color-placeholder: rgba(32, 30, 29, 0.5);
   /* The video card's play badge (§9.6): the page ground at .92 over the thumbnail. */
   --color-play-badge: rgba(243, 242, 242, 0.92);

@@ -143,6 +143,12 @@ export interface Connection {
   to_placement_id: number;
   label: string | null;
   directed: number;
+  /** A key from the line palette in `lib/connectionStyle.ts`, never a hex value. */
+  color: string;
+  /** The width step: 1 thin, 2 medium, 3 thick. */
+  width: number;
+  /** Whether the label chip is drawn. The label text is kept when this is false. */
+  label_visible: boolean;
 }
 
 /** Arrow direction: none, an arrow at the `to` end, at the `from` end, or both. */

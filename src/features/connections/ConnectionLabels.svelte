@@ -1,6 +1,8 @@
 <!--
-  Label chips (design-system §9.13). HTML spans rather than SVG text, so a label sits on an
-  opaque ground and stays readable over a card or the grid.
+  Label chips (design-system §9.13). HTML spans rather than SVG text, so a label sits on a
+  solid ground and stays readable over a card, a line or the grid. The chip is drawn at full
+  strength with a hairline divider border; selecting its connection turns that border to the
+  accent.
 
   Below 50 px of *on-screen* line length the chip is not drawn — not truncated, not shrunk,
   not offset. The label itself is kept: it still shows in the properties panel and returns
@@ -31,6 +33,8 @@
     for (const connection of canvasStore.connections.values()) {
       const label = connection.label;
       if (label === null || label.trim() === '') continue;
+      // Turned off in the properties panel. The text itself is kept on the row.
+      if (!connection.label_visible) continue;
       const from = canvasStore.placements.get(connection.from_placement_id);
       const to = canvasStore.placements.get(connection.to_placement_id);
       if (!from || !to) continue;
@@ -75,15 +79,15 @@
     border-radius: var(--radius-md);
     padding: 1px 5px;
     font-size: var(--text-10);
-    opacity: 0.62;
+    /* Solid, not faded: the chip has to hide the line it sits on, and a see-through ground
+       let the stroke read straight through the text. */
     white-space: nowrap;
     color: var(--color-text);
-    border: 1px solid transparent;
+    border: 1px solid var(--color-divider);
     box-sizing: border-box;
   }
 
   .chip.selected {
     border-color: var(--color-accent);
-    opacity: 1;
   }
 </style>

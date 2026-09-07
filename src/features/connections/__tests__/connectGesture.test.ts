@@ -117,6 +117,9 @@ beforeEach(() => {
           to_placement_id: args!.toPlacementId as number,
           label: null,
           directed: 1,
+          color: 'default',
+          width: 1,
+          label_visible: true,
         };
         connections.push(row);
         return Promise.resolve(row);
