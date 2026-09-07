@@ -373,7 +373,7 @@ describe('the connection overlay', () => {
       const { container } = render(ConnectionLayer, {
         props: { onSelect: () => {}, onAnchorChange },
       });
-      const handles = [...container.querySelectorAll('rect.handle')];
+      const handles = [...container.querySelectorAll('rect.grab')];
       // jsdom has no PointerEvent and no pointer capture; a MouseEvent carries the button
       // and the client coordinates the handlers actually read.
       for (const handle of handles) {
@@ -386,6 +386,25 @@ describe('the connection overlay', () => {
       const handles = drawSelected(() => {});
       expect(handles).toHaveLength(2);
       expect(handles[0].getAttribute('aria-label')).toContain('anchored Auto');
+    });
+
+    /**
+     * The handles have to live above the cards. An endpoint sits on a card's border, so on
+     * the connection rung the card painted over half of every handle and left a 3px sliver
+     * that could be neither seen nor grabbed.
+     */
+    it('handles_drawn_areOnTheirOwnLayerNotInsideTheLineLayer', () => {
+      drawSelected(() => {});
+      const layer = document.querySelector('[data-testid="connection-layer"]')!;
+      const handles = document.querySelector('[data-testid="connection-handles"]')!;
+      expect(handles).not.toBeNull();
+      expect(layer.contains(handles)).toBe(false);
+      expect(layer.querySelector('rect.grab')).toBeNull();
+    });
+
+    it('handles_noLineSelected_drawNothing', () => {
+      render(ConnectionLayer, { props: { onSelect: () => {}, onAnchorChange: () => {} } });
+      expect(document.querySelector('[data-testid="connection-handles"]')).toBeNull();
     });
 
     it('handleDragged_releasedBelowTheCard_pinsThatEndToTheBottom', () => {

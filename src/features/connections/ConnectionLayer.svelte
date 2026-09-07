@@ -137,6 +137,14 @@
 
   const total = $derived(canvasStore.connections.size);
 
+  /**
+   * The selected line, if it is on screen. Null culls the handle layer with the line it
+   * belongs to — a handle for a line scrolled out of view would float on empty canvas.
+   */
+  const selectedRow = $derived(
+    drawn.find((row) => row.connection.id === canvasStore.selectedConnectionId) ?? null,
+  );
+
   /** The anchor a line is drawn with: the side under a live drag, or the stored key. */
   function anchorFor(connection: Connection, end: ConnectionEnd): string {
     const drag = anchorDrag;
@@ -425,8 +433,6 @@
   {#each drawn as row (row.connection.id)}
     {@const selected = canvasStore.selectedConnectionId === row.connection.id}
     {@const d = pathFor(row.points)}
-    {@const first = row.points[0]}
-    {@const last = row.points[row.points.length - 1]}
     <g class="connection" class:selected data-connection-id={row.connection.id}>
       <path
         class="stroke"
@@ -451,35 +457,13 @@
         onclick={(event) => choose(event, row.connection.id)}
         onkeydown={(event) => onKeyDown(event, row.connection.id)}
       />
-      {#if selected}
-        <!-- The selection signal is the square handles plus the extra width, exactly as it
-             is on a card. The stroke keeps its own colour: §10 contract 7 says a line never
-             takes the accent. -->
-        <!-- The two endpoint handles are draggable: a drop pins that end to the card side
-             under the pointer (§9.13, "Anchor"). A BEND still carries no handle — the middle
-             of a line is computed, never authored (§9.13 rule 8). -->
-        {#each ENDS as end (end.key)}
-          {@const at = end.key === 'from' ? first : last}
-          <rect
-            class="handle"
-            x={at.x - 3.5}
-            y={at.y - 3.5}
-            width="7"
-            height="7"
-            role="button"
-            tabindex="0"
-            aria-label={`${end.label} of connection from ${row.fromLabel} to ${row.toLabel}, anchored ${anchorLabel(anchorFor(row.connection, end.key))}`}
-            onpointerdown={(event) => beginAnchorDrag(event, row.connection, end.key, at)}
-            onpointermove={moveAnchorDrag}
-            onpointerup={endAnchorDrag}
-            onpointercancel={cancelAnchorDrag}
-            onkeydown={(event) => onHandleKeyDown(event, row.connection, end.key)}
-          />
-        {/each}
-      {/if}
     </g>
   {/each}
 
+  <!-- The selection signal is the extra stroke width. The square handles are drawn on their
+       own layer below, because they have to sit ABOVE the cards to be seen or pointed at.
+       The stroke keeps its own colour either way: §10 contract 7 says a line never takes
+       the accent. -->
   {#if pending}
     <path
       class="pending"
@@ -492,6 +476,50 @@
     />
   {/if}
 </svg>
+
+<!--
+  The endpoint handles (design-system §9.13, "Anchor"). A separate svg on its own rung above
+  the cards: an endpoint sits on a card's BORDER, so on the connection rung half of every
+  handle was painted over by the card and only a 3px sliver could be seen or grabbed.
+
+  Only the selected line has handles, so this layer holds at most two. It shares the line
+  layer's frame and viewBox, so both are written in the same world coordinates.
+-->
+{#if selectedRow}
+  <svg
+    class="handle-layer"
+    data-testid="connection-handles"
+    overflow="visible"
+    viewBox="{frame.x} {frame.y} {frame.width} {frame.height}"
+    style="left: {frame.x}px; top: {frame.y}px; width: {frame.width}px; height: {frame.height}px;
+           pointer-events: none;"
+  >
+    {#each ENDS as end (end.key)}
+      {@const at =
+        end.key === 'from'
+          ? selectedRow.points[0]
+          : selectedRow.points[selectedRow.points.length - 1]}
+      <!-- Drawn at §9.13's 7 x 7. The grab target around it is twice that: a 7px square is
+           an unfair thing to ask anyone to hit, and it shares its edge with a card. -->
+      <rect class="handle" x={at.x - 3.5} y={at.y - 3.5} width="7" height="7" />
+      <rect
+        class="grab"
+        x={at.x - 7}
+        y={at.y - 7}
+        width="14"
+        height="14"
+        role="button"
+        tabindex="0"
+        aria-label={`${end.label} of connection from ${selectedRow.fromLabel} to ${selectedRow.toLabel}, anchored ${anchorLabel(anchorFor(selectedRow.connection, end.key))}`}
+        onpointerdown={(event) => beginAnchorDrag(event, selectedRow.connection, end.key, at)}
+        onpointermove={moveAnchorDrag}
+        onpointerup={endAnchorDrag}
+        onpointercancel={cancelAnchorDrag}
+        onkeydown={(event) => onHandleKeyDown(event, selectedRow.connection, end.key)}
+      />
+    {/each}
+  </svg>
+{/if}
 
 <style>
   .connection-layer {
@@ -522,15 +550,27 @@
     outline-offset: 2px;
   }
 
+  .handle-layer {
+    position: absolute;
+    overflow: visible;
+    pointer-events: none;
+    /* Above the cards, unlike the lines themselves — see the token's own note. */
+    z-index: var(--z-connection-handles);
+  }
+
   .handle {
     fill: var(--color-accent);
-    /* The layer as a whole is pointer-events: none, so a handle has to opt back in. */
+  }
+
+  .grab {
+    fill: transparent;
+    /* The layer as a whole is pointer-events: none, so the target has to opt back in. */
     pointer-events: all;
     cursor: grab;
     outline: none;
   }
 
-  .handle:focus-visible {
+  .grab:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }

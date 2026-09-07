@@ -220,8 +220,11 @@ appearing here first.</p>
   <td><b>Amended: §9.13.</b> The property table gains an <code>Anchor</code> row; rule 8 is
     narrowed from "the route is computed" to "a BEND is computed", because the two ends can now be
     authored and the middle still cannot; the Route table's selection-handles row records that the
-    endpoint squares are draggable. <b>Amended: the data model.</b> <code>connection</code> gains
-    <code>from_anchor</code> and <code>to_anchor</code> — a change to
+    endpoint squares are draggable. <b>Amended: the stacking ladder.</b> A new rung,
+    <code>--z-connection-handles: 25</code>, carries a selected connection's endpoint handles above
+    the cards — the one exception to "cards always paint over lines", and the only way a handle
+    sitting on a card border can be seen or grabbed. <b>Amended: the data model.</b>
+    <code>connection</code> gains <code>from_anchor</code> and <code>to_anchor</code> — a change to
     <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4. <b>Still a non-goal:</b>
     waypoints. There is no handle on the middle of a line and no way to drag a bend.
     <i>Owner, 2026-09-07.</i></td>
@@ -1522,8 +1525,16 @@ an amendment to the data model in <code>docs/mvp-plan.html</code> §4 and
 accent square on each endpoint. Dragging one now pins that end to the card side under the pointer,
 and the line follows the drag rather than jumping when it is let go. Nearest side is measured
 against the card's own half-width and half-height, so a point just above a wide card reads as
-<code>top</code>. The handles are the only part of the overlay besides the hit path that takes a
-pointer at all. A press that does not travel is only a selection.</p>
+<code>top</code>. A press that does not travel is only a selection.</p>
+
+<p><b>The handles are drawn above the cards</b>, on their own rung between cards and the marquee,
+and they are the one exception to "cards always paint over lines". An endpoint sits on a card's
+<i>border</i>, so on the connection rung a card covered half of every handle and left a 3px sliver
+that could be neither seen nor pointed at. The line itself still paints under every card. Only the
+selected connection has handles, so the layer holds at most two. The drawn square stays 7 × 7;
+the transparent <b>grab target</b> around it is 14 × 14, because a 7px square that shares its
+edge with a card is an unfair thing to ask anyone to hit. The handles and the hit path are the only
+parts of the overlay that take a pointer at all.</p>
 
 <p><b>Getting back to <code>auto</code>.</b> A drag always lands on a side, so it can never reach
 <code>auto</code>. Two things can: <b>Enter</b> or <b>Space</b> on a focused handle steps that end

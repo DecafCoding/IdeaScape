@@ -194,6 +194,11 @@
      placed before the cards in DOM order, so cards always paint over lines. */
   --z-connections: 10;
   --z-cards: 20;
+  /* A selected connection's endpoint handles, and nothing else, sit ABOVE the cards. They
+     are selection furniture, not line: an endpoint lands on a card's border, so on the
+     connection rung a 7px handle showed a 3px sliver and could not be pointed at. The line
+     itself still paints under every card. */
+  --z-connection-handles: 25;
   --z-marquee: 30;
   --z-canvas-bars: 40;
   --z-search-popover: 50;
