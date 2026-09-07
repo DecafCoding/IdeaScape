@@ -47,6 +47,8 @@ function connection(overrides: Partial<Connection> = {}): Connection {
     width: 1,
     label_visible: true,
     route: 'straight',
+    from_anchor: 'auto',
+    to_anchor: 'auto',
     ...overrides,
   };
 }
@@ -196,7 +198,7 @@ describe('the connection overlay', () => {
   });
 
   function draw() {
-    return render(ConnectionLayer, { props: { onSelect: () => {} } });
+    return render(ConnectionLayer, { props: { onSelect: () => {}, onAnchorChange: () => {} } });
   }
 
   /**
@@ -355,10 +357,75 @@ describe('the connection overlay', () => {
     expect(getByTestId('connection-layer').getAttribute('data-total')).toBe('1');
   });
 
+  /**
+   * The endpoint handles (design-system §9.13, "Anchor"). They are the only part of the
+   * overlay besides the hit path that takes a pointer at all, so each test drives one
+   * directly rather than going through the canvas surface — which is what the real gesture
+   * does too, because the handle takes the pointer capture.
+   */
+  describe('the endpoint handles', () => {
+    function pointer(target: EventTarget, type: string, init: MouseEventInit = {}) {
+      target.dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, ...init }));
+    }
+
+    function drawSelected(onAnchorChange: (id: number, end: string, anchor: string) => void) {
+      canvasStore.selectConnection(7);
+      const { container } = render(ConnectionLayer, {
+        props: { onSelect: () => {}, onAnchorChange },
+      });
+      const handles = [...container.querySelectorAll('rect.handle')];
+      // jsdom has no PointerEvent and no pointer capture; a MouseEvent carries the button
+      // and the client coordinates the handlers actually read.
+      for (const handle of handles) {
+        (handle as SVGElement).setPointerCapture = () => {};
+      }
+      return handles as SVGElement[];
+    }
+
+    it('handles_aSelectedLine_showsOneAtEachEnd', () => {
+      const handles = drawSelected(() => {});
+      expect(handles).toHaveLength(2);
+      expect(handles[0].getAttribute('aria-label')).toContain('anchored Auto');
+    });
+
+    it('handleDragged_releasedBelowTheCard_pinsThatEndToTheBottom', () => {
+      const onAnchorChange = vi.fn();
+      const [start] = drawSelected(onAnchorChange);
+
+      pointer(start, 'pointerdown', { clientX: 100, clientY: 50 });
+      pointer(start, 'pointermove', { clientX: 100, clientY: 450 });
+      pointer(start, 'pointerup');
+
+      expect(onAnchorChange).toHaveBeenCalledWith(7, 'from', 'bottom');
+    });
+
+    it('handlePressed_withoutMoving_writesNothing', () => {
+      const onAnchorChange = vi.fn();
+      const [start] = drawSelected(onAnchorChange);
+
+      pointer(start, 'pointerdown', { clientX: 100, clientY: 50 });
+      pointer(start, 'pointerup');
+
+      expect(onAnchorChange).not.toHaveBeenCalled();
+    });
+
+    it('handleEnterPressed_onAnAutomaticEnd_stepsItOnToTheFirstSide', async () => {
+      const onAnchorChange = vi.fn();
+      const [, end] = drawSelected(onAnchorChange);
+
+      await fireEvent.keyDown(end, { key: 'Enter' });
+
+      expect(onAnchorChange).toHaveBeenCalledWith(7, 'to', 'top');
+    });
+  });
+
   it('hitPath_clicked_selectsTheConnectionAndClearsTheCardSelection', async () => {
     canvasStore.setSelection([1, 2]);
     const { container } = render(ConnectionLayer, {
-      props: { onSelect: (id: number) => canvasStore.selectConnection(id) },
+      props: {
+        onSelect: (id: number) => canvasStore.selectConnection(id),
+        onAnchorChange: () => {},
+      },
     });
     await fireEvent.click(container.querySelector('path.hit')!);
     expect(canvasStore.selectedConnectionId).toBe(7);
@@ -367,7 +434,10 @@ describe('the connection overlay', () => {
 
   it('hitPath_enterPressedWhileFocused_selectsTheConnection', async () => {
     const { container } = render(ConnectionLayer, {
-      props: { onSelect: (id: number) => canvasStore.selectConnection(id) },
+      props: {
+        onSelect: (id: number) => canvasStore.selectConnection(id),
+        onAnchorChange: () => {},
+      },
     });
     await fireEvent.keyDown(container.querySelector('path.hit')!, { key: 'Enter' });
     expect(canvasStore.selectedConnectionId).toBe(7);
@@ -505,12 +575,16 @@ describe('lines follow, and leave with, their cards', () => {
 
   it('endpoints_afterMovingACard_followTheNewRectangle', async () => {
     // The hit path holds the untrimmed geometry, which is what this is about.
-    const first = render(ConnectionLayer, { props: { onSelect: () => {} } });
+    const first = render(ConnectionLayer, {
+      props: { onSelect: () => {}, onAnchorChange: () => {} },
+    });
     expect(first.container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L400,50');
     cleanup();
 
     canvasStore.patchPlacement(2, { x: 700 });
-    const second = render(ConnectionLayer, { props: { onSelect: () => {} } });
+    const second = render(ConnectionLayer, {
+      props: { onSelect: () => {}, onAnchorChange: () => {} },
+    });
     expect(second.container.querySelector('path.hit')?.getAttribute('d')).toBe('M100,50 L700,50');
   });
 

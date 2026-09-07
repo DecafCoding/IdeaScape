@@ -20,6 +20,7 @@ import type {
   Canvas,
   CanvasDeleteEffect,
   Connection,
+  ConnectionEdit,
   DeleteEffect,
   Item,
   Placement,
@@ -273,20 +274,10 @@ export function deleteConnectionsCommand(removed: Connection[]): UndoableCommand
   };
 }
 
-/** The four fields the properties panel commits together. */
-export interface ConnectionEdit {
-  label: string | null;
-  directed: number;
-  color: string;
-  width: number;
-  labelVisible: boolean;
-  route: string;
-}
-
 /**
- * Changing a connection's label, arrow direction, colour, width, route or chip visibility.
- * Pushed on commit, not per keystroke — and every field travels together, because one command
- * writes them all.
+ * Changing a connection's label, arrow direction, colour, width, route, chip visibility or
+ * either anchor. Pushed on commit, not per keystroke — and every field travels together in
+ * one `ConnectionEdit`, because one command writes them all.
  */
 export function editConnectionCommand(
   connectionId: number,
@@ -294,15 +285,7 @@ export function editConnectionCommand(
   after: ConnectionEdit,
 ): UndoableCommand {
   async function write(state: ConnectionEdit) {
-    const row = await invokeSafe<Connection>('update_connection', {
-      connectionId,
-      label: state.label,
-      directed: state.directed,
-      color: state.color,
-      width: state.width,
-      labelVisible: state.labelVisible,
-      route: state.route,
-    });
+    const row = await invokeSafe<Connection>('update_connection', { connectionId, ...state });
     canvasStore.upsertConnection(row);
   }
   return {

@@ -57,6 +57,8 @@ function connection(overrides: Partial<Connection> = {}): Connection {
     width: 1,
     label_visible: true,
     route: 'straight',
+    from_anchor: 'auto',
+    to_anchor: 'auto',
     ...overrides,
   };
 }
@@ -102,6 +104,8 @@ describe('editConnectionCommand', () => {
         width: 1,
         labelVisible: true,
         route: 'straight',
+        fromAnchor: 'auto',
+        toAnchor: 'auto',
       },
       {
         label: 'blocks',
@@ -110,6 +114,8 @@ describe('editConnectionCommand', () => {
         width: 3,
         labelVisible: false,
         route: 'elbow',
+        fromAnchor: 'auto',
+        toAnchor: 'auto',
       },
     );
 
@@ -123,6 +129,8 @@ describe('editConnectionCommand', () => {
       width: 1,
       labelVisible: true,
       route: 'straight',
+      fromAnchor: 'auto',
+      toAnchor: 'auto',
     });
     expect(canvasStore.connections.get(7)?.directed).toBe(1);
 
@@ -134,6 +142,8 @@ describe('editConnectionCommand', () => {
         width: 3,
         label_visible: false,
         route: 'elbow',
+        from_anchor: 'auto',
+        to_anchor: 'auto',
       }),
     );
     await command.redo();

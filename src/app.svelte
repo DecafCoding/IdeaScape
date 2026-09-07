@@ -88,11 +88,13 @@
   } from './lib/menu';
   import type { Point } from './lib/geometry';
   import {
+    connectionEdit,
     parseImagePayload,
     parseLinkPayload,
     parseNotePayload,
     parseVideoPayload,
     type AssetRef,
+    type ConnectionEdit,
     type DeleteEffect,
     type Item,
     type LinkPreviewResult,
@@ -1095,41 +1097,34 @@
     });
   }
 
-  async function changeConnection(
-    label: string | null,
-    directed: number,
-    color: string,
-    width: number,
-    labelVisible: boolean,
-    route: string,
-  ) {
+  /**
+   * Commit a connection's fields. Everything travels in one `ConnectionEdit`, so the panel's
+   * controls and a dragged endpoint handle share this one path and one undo entry.
+   */
+  async function changeConnection(edit: ConnectionEdit) {
     const before = canvasStore.selectedConnection;
     if (!before) return;
     await guard(async () => {
-      await updateConnection(
-        before.id,
-        label,
-        directed,
-        color,
-        width,
-        labelVisible,
-        route,
-        saveHooks,
-      );
-      undoStack.push(
-        editConnectionCommand(
-          before.id,
-          {
-            label: before.label,
-            directed: before.directed,
-            color: before.color,
-            width: before.width,
-            labelVisible: before.label_visible,
-            route: before.route,
-          },
-          { label, directed, color, width, labelVisible, route },
-        ),
-      );
+      await updateConnection(before.id, edit, saveHooks);
+      undoStack.push(editConnectionCommand(before.id, connectionEdit(before), edit));
+    });
+  }
+
+  /**
+   * Pin one end of a line to a card side, or set it back to `auto`. It goes through
+   * `changeConnection`, so a dragged handle is undone exactly like a panel change — but it
+   * names its own connection rather than the selected one, because a handle can be released
+   * after the selection has moved on.
+   */
+  async function changeConnectionAnchor(connectionId: number, end: 'from' | 'to', anchor: string) {
+    const before = canvasStore.connections.get(connectionId);
+    if (!before) return;
+    const edit = connectionEdit(before);
+    if (end === 'from') edit.fromAnchor = anchor;
+    else edit.toAnchor = anchor;
+    await guard(async () => {
+      await updateConnection(connectionId, edit, saveHooks);
+      undoStack.push(editConnectionCommand(connectionId, connectionEdit(before), edit));
     });
   }
 
@@ -1490,7 +1485,10 @@
           }}
         >
           <!-- Before the card layer in DOM order, so cards always paint over lines. -->
-          <ConnectionLayer onSelect={(id) => canvasStore.selectConnection(id)} />
+          <ConnectionLayer
+            onSelect={(id) => canvasStore.selectConnection(id)}
+            onAnchorChange={(id, end, anchor) => void changeConnectionAnchor(id, end, anchor)}
+          />
           <ConnectionLabels />
 
           <CardLayer
@@ -1524,8 +1522,7 @@
           onSendBack={() => void reorder('back')}
           onDuplicate={() => void duplicateSelection()}
           onDelete={() => void deleteSelection()}
-          onConnectionChange={(label, directed, color, width, labelVisible, route) =>
-            void changeConnection(label, directed, color, width, labelVisible, route)}
+          onConnectionChange={(edit) => void changeConnection(edit)}
           onDeleteConnection={() => void deleteSelectedConnection()}
           onAltTextChange={(alt) => void commitAltText(alt)}
           onAltVisibleChange={(visible) => void commitAltVisible(visible)}

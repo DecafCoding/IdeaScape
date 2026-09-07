@@ -308,6 +308,8 @@ describe('the properties panel Connection state', () => {
       width: 1,
       label_visible: true,
       route: 'straight',
+      from_anchor: 'auto',
+      to_anchor: 'auto',
     });
     canvasStore.selectConnection(7);
   });
@@ -338,7 +340,16 @@ describe('the properties panel Connection state', () => {
     input.value = 'blocks';
     await fireEvent.change(input);
     expect(onConnectionChange).toHaveBeenCalledTimes(1);
-    expect(onConnectionChange).toHaveBeenCalledWith('blocks', 1, 'default', 1, true, 'straight');
+    expect(onConnectionChange).toHaveBeenCalledWith({
+      label: 'blocks',
+      directed: 1,
+      color: 'default',
+      width: 1,
+      labelVisible: true,
+      route: 'straight',
+      fromAnchor: 'auto',
+      toAnchor: 'auto',
+    });
   });
 
   it('panel_aDirectionButtonClicked_invokesUpdateConnectionWithTheNewValue', async () => {
@@ -347,7 +358,46 @@ describe('the properties panel Connection state', () => {
       props: { expanded: true, onToggle: () => {}, onConnectionChange },
     });
     await fireEvent.click(getByText('Both'));
-    expect(onConnectionChange).toHaveBeenCalledWith('causes', 3, 'default', 1, true, 'straight');
+    expect(onConnectionChange).toHaveBeenCalledWith({
+      label: 'causes',
+      directed: 3,
+      color: 'default',
+      width: 1,
+      labelVisible: true,
+      route: 'straight',
+      fromAnchor: 'auto',
+      toAnchor: 'auto',
+    });
+  });
+
+  it('panel_bothEndsAutomatic_theResetButtonIsDisabled', () => {
+    const { getByText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {} },
+    });
+    expect(getByText('From Auto · To Auto')).toBeInTheDocument();
+    expect(getByText('Reset To Auto')).toBeDisabled();
+  });
+
+  it('panel_resetToAutoClicked_putsBothEndsBackOnAuto', async () => {
+    const pinned = canvasStore.connections.get(7)!;
+    canvasStore.upsertConnection({ ...pinned, from_anchor: 'right', to_anchor: 'top' });
+    const onConnectionChange = vi.fn();
+    const { getByText } = render(PropertiesPanel, {
+      props: { expanded: true, onToggle: () => {}, onConnectionChange },
+    });
+    expect(getByText('From Right · To Top')).toBeInTheDocument();
+
+    await fireEvent.click(getByText('Reset To Auto'));
+    expect(onConnectionChange).toHaveBeenCalledWith({
+      label: 'causes',
+      directed: 1,
+      color: 'default',
+      width: 1,
+      labelVisible: true,
+      route: 'straight',
+      fromAnchor: 'auto',
+      toAnchor: 'auto',
+    });
   });
 
   it('panel_aColourSwatchClicked_invokesUpdateConnectionWithTheNewKey', async () => {
@@ -356,7 +406,16 @@ describe('the properties panel Connection state', () => {
       props: { expanded: true, onToggle: () => {}, onConnectionChange },
     });
     await fireEvent.click(getByLabelText('Blue'));
-    expect(onConnectionChange).toHaveBeenCalledWith('causes', 1, 'blue', 1, true, 'straight');
+    expect(onConnectionChange).toHaveBeenCalledWith({
+      label: 'causes',
+      directed: 1,
+      color: 'blue',
+      width: 1,
+      labelVisible: true,
+      route: 'straight',
+      fromAnchor: 'auto',
+      toAnchor: 'auto',
+    });
   });
 
   it('panel_aWidthButtonClicked_invokesUpdateConnectionWithTheNewStep', async () => {
@@ -366,7 +425,16 @@ describe('the properties panel Connection state', () => {
     });
     // The buttons show a bar, not a word — the name lives on the aria-label.
     await fireEvent.click(getByLabelText('Thick'));
-    expect(onConnectionChange).toHaveBeenCalledWith('causes', 1, 'default', 3, true, 'straight');
+    expect(onConnectionChange).toHaveBeenCalledWith({
+      label: 'causes',
+      directed: 1,
+      color: 'default',
+      width: 3,
+      labelVisible: true,
+      route: 'straight',
+      fromAnchor: 'auto',
+      toAnchor: 'auto',
+    });
   });
 
   it('panel_theElbowRouteButtonClicked_invokesUpdateConnectionWithTheNewKey', async () => {
@@ -375,7 +443,16 @@ describe('the properties panel Connection state', () => {
       props: { expanded: true, onToggle: () => {}, onConnectionChange },
     });
     await fireEvent.click(getByText('Elbow'));
-    expect(onConnectionChange).toHaveBeenCalledWith('causes', 1, 'default', 1, true, 'elbow');
+    expect(onConnectionChange).toHaveBeenCalledWith({
+      label: 'causes',
+      directed: 1,
+      color: 'default',
+      width: 1,
+      labelVisible: true,
+      route: 'elbow',
+      fromAnchor: 'auto',
+      toAnchor: 'auto',
+    });
   });
 
   it('panel_theRouteAlreadyChosen_clickingItAgainWritesNothing', async () => {
@@ -396,7 +473,16 @@ describe('the properties panel Connection state', () => {
     expect(box.checked).toBe(true);
     await fireEvent.click(box);
     // The label text travels unchanged; only the visibility flag flips.
-    expect(onConnectionChange).toHaveBeenCalledWith('causes', 1, 'default', 1, false, 'straight');
+    expect(onConnectionChange).toHaveBeenCalledWith({
+      label: 'causes',
+      directed: 1,
+      color: 'default',
+      width: 1,
+      labelVisible: false,
+      route: 'straight',
+      fromAnchor: 'auto',
+      toAnchor: 'auto',
+    });
   });
 
   it('panel_theCurrentDirection_carriesWeightAsWellAsFill', () => {

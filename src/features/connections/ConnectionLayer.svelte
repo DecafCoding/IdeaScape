@@ -13,6 +13,7 @@
 <script lang="ts">
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import {
+    nearestSide,
     polylinePath,
     rectEdgePoint,
     routeInView,
@@ -20,14 +21,17 @@
     trimRoute,
   } from '../../lib/connectionGeometry';
   import {
+    anchorLabel,
     arrowHeadSize,
     arrowInset,
     arrowMarkerId,
     connectionStroke,
     connectionWidthPx,
+    CONNECTION_ANCHORS,
     CONNECTION_COLORS,
     CONNECTION_WIDTHS,
     ELBOW_RADIUS,
+    type AnchorSide,
   } from '../../lib/connectionStyle';
   import { CULL_MARGIN_PX, recordConnectionCullCounts } from '../../lib/culling';
   import { viewportWorldRect, type Point, type Rect } from '../../lib/geometry';
@@ -42,9 +46,43 @@
   interface Props {
     /** Raised when a line is chosen by pointer or keyboard. */
     onSelect: (connectionId: number) => void;
+    /**
+     * Raised when one end of a line is pinned to a card side, or cycled back to `auto`.
+     * The layer never writes: the root owns the command and the undo entry.
+     */
+    onAnchorChange: (connectionId: number, end: ConnectionEnd, anchor: string) => void;
   }
 
-  const { onSelect }: Props = $props();
+  const { onSelect, onAnchorChange }: Props = $props();
+
+  /** Which end of a line a handle belongs to. */
+  type ConnectionEnd = 'from' | 'to';
+
+  const ENDS = [
+    { key: 'from', label: 'Start' },
+    { key: 'to', label: 'End' },
+  ] as const satisfies ReadonlyArray<{ key: ConnectionEnd; label: string }>;
+
+  /**
+   * A handle being dragged. `origin` is where it sat when the press landed, in world units,
+   * so the pointer's world position is that plus the screen delta over the zoom — the same
+   * arithmetic a card move does, and it does not need the canvas surface, which stops
+   * reporting the pointer the moment the handle takes the capture.
+   *
+   * `side` is what the drop would pin to. It is null until the pointer has moved, and while
+   * it is set the route is drawn through it, so the line follows the drag rather than
+   * jumping when it is let go.
+   */
+  interface AnchorDrag {
+    connectionId: number;
+    end: ConnectionEnd;
+    startX: number;
+    startY: number;
+    origin: Point;
+    side: AnchorSide | null;
+  }
+
+  let anchorDrag = $state<AnchorDrag | null>(null);
 
   interface DrawnConnection {
     connection: Connection;
@@ -76,7 +114,13 @@
       const from = canvasStore.placements.get(connection.from_placement_id);
       const to = canvasStore.placements.get(connection.to_placement_id);
       if (!from || !to) continue;
-      const points = routePoints(rectOf(from), rectOf(to), connection.route);
+      const points = routePoints(
+        rectOf(from),
+        rectOf(to),
+        connection.route,
+        anchorFor(connection, 'from'),
+        anchorFor(connection, 'to'),
+      );
       if (!points) continue;
       if (!routeInView(points, canvasStore.view, canvasStore.viewportSize, CULL_MARGIN_PX)) {
         continue;
@@ -92,6 +136,15 @@
   });
 
   const total = $derived(canvasStore.connections.size);
+
+  /** The anchor a line is drawn with: the side under a live drag, or the stored key. */
+  function anchorFor(connection: Connection, end: ConnectionEnd): string {
+    const drag = anchorDrag;
+    if (drag && drag.connectionId === connection.id && drag.end === end && drag.side) {
+      return drag.side;
+    }
+    return end === 'from' ? connection.from_anchor : connection.to_anchor;
+  }
 
   /**
    * The svg's own box, in world units: the slice of the world the viewport shows, with the
@@ -164,6 +217,8 @@
     width: 1,
     label_visible: true,
     route: 'straight',
+    from_anchor: 'auto',
+    to_anchor: 'auto',
   };
 
   /** The untrimmed path — what the hit target and the pending line are drawn from. */
@@ -225,6 +280,99 @@
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     choose(event, id);
+  }
+
+  // --- the endpoint handles ---------------------------------------------
+  //
+  // Dragging one pins that end of the line to a card side (design-system §9.13, "Anchor").
+  // Handles and the hit path are the only parts of this svg that take a pointer at all, so
+  // each opts back in against the layer's blanket `pointer-events: none`.
+
+  /** The card rectangle the dragged end belongs to, or null if it has since gone. */
+  function rectOfEnd(drag: AnchorDrag): Rect | null {
+    const connection = canvasStore.connections.get(drag.connectionId);
+    if (!connection) return null;
+    const id = drag.end === 'from' ? connection.from_placement_id : connection.to_placement_id;
+    const placement = canvasStore.placements.get(id);
+    return placement ? rectOf(placement) : null;
+  }
+
+  function beginAnchorDrag(
+    event: PointerEvent,
+    connection: Connection,
+    end: ConnectionEnd,
+    origin: Point,
+  ) {
+    if (event.button !== 0) return;
+    // Without this the press reaches the canvas surface, which takes the capture for a
+    // marquee and the drag never happens — the same trap `choose` documents.
+    event.stopPropagation();
+    (event.currentTarget as Element).setPointerCapture(event.pointerId);
+    onSelect(connection.id);
+    anchorDrag = {
+      connectionId: connection.id,
+      end,
+      startX: event.clientX,
+      startY: event.clientY,
+      origin,
+      side: null,
+    };
+  }
+
+  function moveAnchorDrag(event: PointerEvent) {
+    const drag = anchorDrag;
+    if (!drag) return;
+    const rect = rectOfEnd(drag);
+    if (!rect) return;
+    const zoom = canvasStore.view.zoom || 1;
+    const pointer = {
+      x: drag.origin.x + (event.clientX - drag.startX) / zoom,
+      y: drag.origin.y + (event.clientY - drag.startY) / zoom,
+    };
+    anchorDrag = { ...drag, side: nearestSide(rect, pointer) };
+  }
+
+  /**
+   * Commit the side under the pointer. A press that never moved, and a drop back on the side
+   * already stored, both write nothing — a click on a handle is only a selection.
+   */
+  function endAnchorDrag() {
+    const drag = anchorDrag;
+    anchorDrag = null;
+    if (!drag || !drag.side) return;
+    const connection = canvasStore.connections.get(drag.connectionId);
+    if (!connection) return;
+    const current = drag.end === 'from' ? connection.from_anchor : connection.to_anchor;
+    if (current === drag.side) return;
+    onAnchorChange(drag.connectionId, drag.end, drag.side);
+  }
+
+  function cancelAnchorDrag() {
+    anchorDrag = null;
+  }
+
+  /**
+   * The keyboard route to the same thing: Enter or Space steps this end through Auto, Top,
+   * Right, Bottom and Left, and round again. A pointer drag can never reach `auto` — it
+   * always lands on a side — so this cycle and the panel's Reset To Auto are how an end
+   * goes back to being worked out for you.
+   */
+  function cycleAnchor(connection: Connection, end: ConnectionEnd) {
+    const current = end === 'from' ? connection.from_anchor : connection.to_anchor;
+    const keys = CONNECTION_ANCHORS.map((a) => a.key);
+    const at = keys.findIndex((key) => key === current);
+    onAnchorChange(connection.id, end, keys[(at + 1) % keys.length]);
+  }
+
+  function onHandleKeyDown(event: KeyboardEvent, connection: Connection, end: ConnectionEnd) {
+    if (event.key === 'Escape') {
+      cancelAnchorDrag();
+      return;
+    }
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    cycleAnchor(connection, end);
   }
 </script>
 
@@ -307,9 +455,27 @@
         <!-- The selection signal is the square handles plus the extra width, exactly as it
              is on a card. The stroke keeps its own colour: §10 contract 7 says a line never
              takes the accent. -->
-        <!-- A bend carries no handle: the route is computed, never dragged (§9.13 rule 8). -->
-        <rect class="handle" x={first.x - 3.5} y={first.y - 3.5} width="7" height="7" />
-        <rect class="handle" x={last.x - 3.5} y={last.y - 3.5} width="7" height="7" />
+        <!-- The two endpoint handles are draggable: a drop pins that end to the card side
+             under the pointer (§9.13, "Anchor"). A BEND still carries no handle — the middle
+             of a line is computed, never authored (§9.13 rule 8). -->
+        {#each ENDS as end (end.key)}
+          {@const at = end.key === 'from' ? first : last}
+          <rect
+            class="handle"
+            x={at.x - 3.5}
+            y={at.y - 3.5}
+            width="7"
+            height="7"
+            role="button"
+            tabindex="0"
+            aria-label={`${end.label} of connection from ${row.fromLabel} to ${row.toLabel}, anchored ${anchorLabel(anchorFor(row.connection, end.key))}`}
+            onpointerdown={(event) => beginAnchorDrag(event, row.connection, end.key, at)}
+            onpointermove={moveAnchorDrag}
+            onpointerup={endAnchorDrag}
+            onpointercancel={cancelAnchorDrag}
+            onkeydown={(event) => onHandleKeyDown(event, row.connection, end.key)}
+          />
+        {/each}
       {/if}
     </g>
   {/each}
@@ -358,6 +524,15 @@
 
   .handle {
     fill: var(--color-accent);
+    /* The layer as a whole is pointer-events: none, so a handle has to opt back in. */
+    pointer-events: all;
+    cursor: grab;
+    outline: none;
+  }
+
+  .handle:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
   }
 
   .pending {

@@ -9,8 +9,11 @@ import {
   longestSegment,
   polylinePath,
   routeInView,
+  nearestSide,
   routePoints,
   segmentMidpoint,
+  sideMidpoint,
+  sideNormal,
   trimRoute,
   trimSegment,
 } from '../connectionGeometry';
@@ -334,5 +337,96 @@ describe('routeInView', () => {
         viewport,
       ),
     ).toBe(false);
+  });
+});
+
+describe('anchors', () => {
+  // Two cards side by side with a 200-unit gap: A at 0..100, B at 300..400.
+  const a = box(0, 0);
+  const b = box(300, 0);
+
+  it('routePoints_bothAnchorsAuto_drawsExactlyWhatItDrewBeforeAnchorsExisted', () => {
+    // The whole reason both columns default to 'auto': no existing canvas changes shape.
+    expect(routePoints(a, b, 'straight', 'auto', 'auto')).toEqual(routePoints(a, b, 'straight'));
+    expect(routePoints(a, b, 'elbow', 'auto', 'auto')).toEqual(routePoints(a, b, 'elbow'));
+  });
+
+  it('routePoints_anUnknownAnchorKey_readsAsAuto', () => {
+    expect(routePoints(a, b, 'straight', 'sideways', '')).toEqual(routePoints(a, b, 'straight'));
+  });
+
+  it('routePoints_straightWithAPinnedEnd_leavesThatSideMidpoint', () => {
+    const points = routePoints(a, b, 'straight', 'top', 'auto');
+    expect(points?.[0]).toEqual({ x: 50, y: 0 });
+  });
+
+  it('routePoints_straightWithOneAutoEnd_aimsAtThePinnedPointNotTheCardCentre', () => {
+    // A's end is pinned to its top. B's automatic end must clip toward THAT point, or the
+    // two halves of one line disagree about where the line is going.
+    const points = routePoints(a, b, 'straight', 'top', 'auto');
+    expect(points?.[1]).toEqual(rectEdgePoint(b, { x: 50, y: 0 }));
+  });
+
+  it('routePoints_straightWithBothEndsPinned_joinsTheTwoSideMidpoints', () => {
+    expect(routePoints(a, b, 'straight', 'bottom', 'top')).toEqual([
+      { x: 50, y: 100 },
+      { x: 350, y: 0 },
+    ]);
+  });
+
+  it('routePoints_elbowWithBothEndsPinnedToTheSameSide_leavesAndEntersSquareOn', () => {
+    const points = routePoints(a, b, 'elbow', 'top', 'top');
+    expect(points).not.toBeNull();
+    const route = points!;
+    // Both ends sit on their card's top edge and run straight up out of it.
+    expect(route[0]).toEqual({ x: 50, y: 0 });
+    expect(route[route.length - 1]).toEqual({ x: 350, y: 0 });
+    expect(route[1]).toEqual({ x: 50, y: -12 });
+    expect(route[route.length - 2]).toEqual({ x: 350, y: -12 });
+    // And every segment is horizontal or vertical, which is what makes it an elbow.
+    for (let i = 1; i < route.length; i += 1) {
+      const same = route[i].x === route[i - 1].x || route[i].y === route[i - 1].y;
+      expect(same).toBe(true);
+    }
+  });
+
+  it('routePoints_elbowWithTwoStubsPointingAway_crossesOutsideBothOfThem', () => {
+    // Both stubs run up, so the crossing has to sit above the higher of the two — halfway
+    // between them would run back down through a card.
+    const lower = box(300, 200);
+    const route = routePoints(a, lower, 'elbow', 'top', 'top')!;
+    const highest = Math.min(...route.map((p) => p.y));
+    expect(highest).toBe(-12);
+  });
+
+  it('routePoints_twoOverlappingCards_stillDrawsNothingWhenAnEndIsPinned', () => {
+    expect(routePoints(a, box(50, 50), 'elbow', 'right', 'left')).toBeNull();
+  });
+
+  it('sideMidpoint_eachSide_isTheMiddleOfThatBorder', () => {
+    expect(sideMidpoint(a, 'top')).toEqual({ x: 50, y: 0 });
+    expect(sideMidpoint(a, 'bottom')).toEqual({ x: 50, y: 100 });
+    expect(sideMidpoint(a, 'left')).toEqual({ x: 0, y: 50 });
+    expect(sideMidpoint(a, 'right')).toEqual({ x: 100, y: 50 });
+  });
+
+  it('sideNormal_eachSide_pointsOutOfTheCard', () => {
+    expect(sideNormal('top')).toEqual({ x: 0, y: -1 });
+    expect(sideNormal('bottom')).toEqual({ x: 0, y: 1 });
+    expect(sideNormal('left')).toEqual({ x: -1, y: 0 });
+    expect(sideNormal('right')).toEqual({ x: 1, y: 0 });
+  });
+
+  it('nearestSide_justAboveAWideCard_isTopNotASide', () => {
+    // The point is further from the centre horizontally than vertically in raw units. It is
+    // the card's own proportions that make Top the right answer.
+    const wide = box(0, 0, 400, 60);
+    expect(nearestSide(wide, { x: 260, y: -20 })).toBe('top');
+  });
+
+  it('nearestSide_besideACard_isTheSideItIsBeside', () => {
+    expect(nearestSide(a, { x: 500, y: 60 })).toBe('right');
+    expect(nearestSide(a, { x: -500, y: 60 })).toBe('left');
+    expect(nearestSide(a, { x: 50, y: 900 })).toBe('bottom');
   });
 });

@@ -30,6 +30,49 @@ export const DEFAULT_CONNECTION_ROUTE: ConnectionRouteKey = 'straight';
  */
 export const ELBOW_RADIUS = 2;
 
+/**
+ * Which side of a card an end of a line is pinned to. `auto` is what every line has always
+ * done: the geometry picks the side from where the two cards sit. Design-system §9.13,
+ * "Anchor".
+ *
+ * The row stores the KEY and this file owns what it means, exactly as `route` does, so the
+ * stub length and the side rules can be retuned without a migration.
+ */
+export const CONNECTION_ANCHORS = [
+  { key: 'auto', label: 'Auto' },
+  { key: 'top', label: 'Top' },
+  { key: 'right', label: 'Right' },
+  { key: 'bottom', label: 'Bottom' },
+  { key: 'left', label: 'Left' },
+] as const;
+
+export type ConnectionAnchorKey = (typeof CONNECTION_ANCHORS)[number]['key'];
+
+/** A side an end can be pinned to — every anchor key except `auto`. */
+export type AnchorSide = Exclude<ConnectionAnchorKey, 'auto'>;
+
+/** Both ends start automatic, so adding the feature changes no existing canvas. */
+export const DEFAULT_CONNECTION_ANCHOR: ConnectionAnchorKey = 'auto';
+
+/**
+ * How far an elbow runs straight out of a pinned side before it is allowed to turn, in world
+ * units. Without it two ends pinned to the same side would bend the moment they left the
+ * card and the corner would sit on the border.
+ */
+export const ANCHOR_STUB = 12;
+
+/** The stored key as a side, or null for `auto` and for anything unrecognised. */
+export function anchorSide(anchor: string): AnchorSide | null {
+  const found = CONNECTION_ANCHORS.find((a) => a.key === anchor);
+  if (!found || found.key === 'auto') return null;
+  return found.key;
+}
+
+/** The label shown for a stored key, falling back to `Auto` for an unknown one. */
+export function anchorLabel(anchor: string): string {
+  return CONNECTION_ANCHORS.find((a) => a.key === anchor)?.label ?? 'Auto';
+}
+
 export const CONNECTION_COLORS = [
   { key: 'default', label: 'Default', token: 'var(--color-connection)' },
   { key: 'red', label: 'Red', token: 'var(--color-line-red)' },
