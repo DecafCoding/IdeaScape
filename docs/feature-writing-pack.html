@@ -1,0 +1,1017 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IdeaScape — Feature Plan: The Writing Pack</title>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f6f8fa; --line:#d8dee4; --fg:#1f2328;
+    --dim:#59636e; --accent:#0969da; --warn:#9a6700; --warnbg:#fff8c5;
+    --ok:#1a7f37;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.65 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:900px;margin:0 auto;padding:40px 24px 90px}
+  h1{font-size:32px;margin:0 0 6px;letter-spacing:-.01em}
+  h2{font-size:22px;margin:46px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:17px;margin:28px 0 8px}
+  p{margin:0 0 12px}
+  .sub{color:var(--dim);font-size:17px;margin:0 0 20px}
+  .meta{color:var(--dim);font-size:13px;background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;padding:12px 15px;margin:0 0 14px}
+  .callout{background:var(--warnbg);border:1px solid #d4a72c66;border-left:4px solid var(--warn);
+    border-radius:6px;padding:14px 16px;margin:0 0 18px}
+  .callout b{color:var(--warn)}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin:0 0 6px}
+  ul.checklist{list-style:none;padding-left:0}
+  ul.checklist li{padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+    margin:0 0 7px;background:var(--panel)}
+  ul.checklist li[data-checked="true"]::before{content:"\2714 ";color:var(--ok);font-weight:700}
+  ul.checklist li[data-checked="false"]::before{content:"\2718 ";color:var(--dim);font-weight:700}
+  ul.checklist li[data-checked="false"]{color:var(--dim);background:#fff}
+  table{width:100%;border-collapse:collapse;border:1px solid var(--line);
+    border-radius:8px;overflow:hidden;margin:0 0 18px}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);
+    font-size:15px;vertical-align:top}
+  th{background:var(--panel);font-size:12px;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--dim)}
+  tr:last-child td{border-bottom:none}
+  code{background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;font-size:14px}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:14px 16px;overflow-x:auto;margin:0 0 18px}
+  pre code{background:none;border:none;padding:0;font-size:13.5px;line-height:1.6}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-left:8px;
+    background:#ddf4ff;color:var(--accent);border:1px solid #54aeff66;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>IdeaScape — Feature Plan: The Writing Pack</h1>
+<p class="sub">Give IdeaScape a set of typed cards for writing a book. The card types are data, not
+code. Cards join with lines that carry a meaning. The outline is the canvas.</p>
+
+<div class="meta">
+  <b>Status:</b> agreed, and <b>ready to plan</b>. Every branch of the feature interview is
+  closed. The visual design, the last open one, was folded in on 2026-09-08. See the amendments.<br>
+  <b>Written:</b> 2026-09-07, from the <code>dev-add-feature</code> session of the same date.<br>
+  <b>Parent plan:</b> <code>docs/mvp-plan.html</code> — this feature is <b>in scope</b>, as the new
+  phase <b>P6</b>. No existing phase is renumbered.<br>
+  <b>Technical authority:</b> <code>docs/architecture.html</code>. This feature <b>fits</b> it, with
+  three narrow exceptions recorded in section 7.<br>
+  <b>Visual authority:</b> <code>docs/design-system.html</code> &sect;9.25&ndash;&sect;9.33.
+  <b>Read it before writing any component</b> — it holds the generated panel, all seven field
+  kinds measured for the 177px panel, the combo, the chip, the slider, the seven card faces,
+  connection roles and the three full-screen sheets. This document stays the authority on the
+  blueprint format, the field semantics and the data model; that one is the authority on every
+  visual value.<br>
+  <b>Companion:</b> <code>docs/competitive-scan.html</code> — this feature closes four rows.<br>
+  <b>Outside source:</b> the Book Guides library at
+  <code>SecondBrain\Book Guides</code> — 13 guides, 275 tropes, 52 internal conflicts, 45
+  sub-genres in 8 classes. Used in P6 for its list content only. The template importer that reads a
+  whole guide is deferred. See section 3.<br>
+  <b>Prior work reused:</b> two settled feature plans from the earlier PlotReactor project —
+  <code>feature-character-record.html</code> and <code>feature-guide-library.html</code>. Three of
+  their rulings are carried over unchanged. See section 5.
+</div>
+
+
+<h2>1. Summary and motivation</h2>
+
+<h3>What is missing today</h3>
+
+<p>The MVP is finished. All five phases are complete. A user can place notes, pictures, links and
+videos on a canvas and join them with lines.</p>
+
+<p>Every card is the same shape. A card holds free text. Nothing on the canvas knows what it
+<i>is</i>. A character and a chapter are stored identically, so the application cannot show a
+character differently, cannot offer a list of tropes, and cannot tell that four beats belong to one
+scene.</p>
+
+<p><code>docs/mvp-plan.html</code> §1 already names story building as one of the two example
+projects the user gave: <i>"One project for a story. One canvas per chapter. Characters, tropes and
+themes get reused across chapters."</i> The data model was built for that use. The card types
+were not.</p>
+
+<h3>What "done" changes</h3>
+
+<p>The user makes a canvas for a chapter. They add Beat cards and wire them into a Scene card. They
+add Character cards and wire those into the scene as well. They add a Chapter card and write the
+prose in it. They go to the book canvas, where the same Chapter card sits beside twenty-nine
+others.</p>
+
+<p>Every card carries the fields its type needs. A Character has personality sliders. A Book has a
+genre, a sub-genre and its tropes, printed on the card face as chips. Nothing is required. A card
+with only a name is valid.</p>
+
+<h3>Why now</h3>
+
+<p>The MVP shipped. The plan's own deferred list holds four rows that are all one feature seen from
+four sides: reusable shaped items, templates, tags and metadata, and boards nested inside a canvas.
+Building them separately would build the same machinery four times.</p>
+
+<div class="callout">
+  <b>The plan predicted this.</b> <code>docs/mvp-plan.html</code> §4 says: <i>"The
+  <code>kind</code> field with a typed payload is what lets a fifth kind be added cheaply. A
+  character kind later brings its own payload and its own editor."</i> This feature is that
+  sentence, built.
+</div>
+
+
+<h2>2. Fit with the existing application</h2>
+
+<h3>It extends the core loop. It does not change it</h3>
+
+<p>The core loop is: add a card, drag it where it belongs, draw a line to another card. A blueprint
+card is added, dragged and joined exactly as a note card is. Nothing about the loop changes.</p>
+
+<p>The plan's placement rule holds. The application never chooses a position for a card. It never
+moves a card for the user. That is why the template importer in section 3 fills fields and creates
+no cards.</p>
+
+<h3>It uses the data model as built</h3>
+
+<p><code>docs/mvp-plan.html</code> §4 separates an <b>item</b> from a <b>placement</b>. The item
+holds the content. The placement holds position and size on one canvas. One item may have many
+placements.</p>
+
+<p>That is what makes a Character usable on three chapter canvases as one record. It is also what
+makes a Chapter card appear both on its own chapter canvas and on the book canvas. There is no
+copy to keep in step. It is one card, placed twice.</p>
+
+<h3>It obeys the never list</h3>
+
+<ul>
+  <li>No accounts, no sharing, no cloud. Nothing here touches them.</li>
+  <li>No network call the user did not start. This feature makes <b>no network call at all</b>.
+    The list content is read from a local file that ships with the application.</li>
+  <li>No usage tracking. No update check.</li>
+  <li>No AI. See section 3.</li>
+</ul>
+
+
+<h2>3. Scope</h2>
+
+<h3>In — P6</h3>
+
+<ul class="checklist">
+  <li data-checked="true"><b>One new item kind, <code>blueprint</code>.</b> The card type lives in
+    the payload, not in the schema.</li>
+  <li data-checked="true"><b>The blueprint engine.</b> One form that reads a field list. Card types
+    are data files, not code.</li>
+  <li data-checked="true"><b>Seven field kinds:</b> Short Text, Long Text, Pick, Pick Many, Image,
+    Number, Scale.</li>
+  <li data-checked="true"><b>Seven shipped card types:</b> Book, Chapter, Scene, Beat, Character,
+    Location, Theme-free Note stays as it is.</li>
+  <li data-checked="true"><b>The combo control.</b> A text box with a list button beside it. A typed
+    value is always accepted. Used by Pick and Pick Many.</li>
+  <li data-checked="true"><b>Shipped lists</b> — genres, sub-genres, story tropes, character tropes,
+    themes. Read-only. Drawn from the Book Guides library.</li>
+  <li data-checked="true"><b>User list entries</b>, held per project, so a copied project carries its
+    own vocabulary.</li>
+  <li data-checked="true"><b>One-hop list filtering.</b> A field may name one parent field. The
+    filter sorts the list. It never removes an entry.</li>
+  <li data-checked="true"><b>Chips on the card face.</b> A Pick or Pick Many value marked
+    <code>showOnFace</code> prints as a chip.</li>
+  <li data-checked="true"><b>Scale fields, with Randomize.</b> The Character personality spread is
+    five Big Five sliders, with the shaped roll carried from PlotReactor.</li>
+  <li data-checked="true"><b>Connection roles.</b> A new <code>role</code> column. Six suggested
+    roles. Any card may join any card. No pair is ever refused.</li>
+  <li data-checked="true"><b>Expand Into A Canvas.</b> A card may point at a canvas that details it.
+    Opening the card opens that canvas.</li>
+  <li data-checked="true"><b>The delete rule, corrected.</b> A blueprint item survives the deletion
+    of its last placement. See section 5.</li>
+  <li data-checked="true"><b>An Unplaced list</b> in the left column, so a blueprint item with no
+    placement is still reachable and still deletable.</li>
+  <li data-checked="true"><b>Search reaches blueprint cards</b> — the name field and every Long Text
+    field.</li>
+  <li data-checked="true"><b>A Settings toggle, Show Writing Cards</b>, default on. It hides the
+    seven card types from the Add menu. It never hides a card that is already on a canvas.</li>
+</ul>
+
+<h3>Deferred — real, wanted, not now</h3>
+
+<ul class="checklist">
+  <li data-checked="false"><b>Book templates.</b> Pick a genre, pick a sub-genre, pick a template
+    drawn from a previous book, and have it fill the Book card's fields. This is the Guide Library
+    from PlotReactor, ported. It is deferred because P6 must prove the card and field machinery
+    first. Its rulings are recorded in section 5 so the later work cannot contradict this one.</li>
+  <li data-checked="false"><b>Highlight mode.</b> Click a trope chip and every card carrying it
+    lights up while the rest dim. This is the strongest visual idea in the whole feature. It is
+    deferred only because it needs the chips to exist first.</li>
+  <li data-checked="false"><b>Board cards.</b> A card whose content is computed, not typed —
+    "Tropes In Play", a cast list, the chapter spine. It needs a second card concept and live
+    refresh.</li>
+  <li data-checked="false"><b>User-written blueprints.</b> A screen where the user builds their own
+    card type. The engine is the same. The hard parts are what happens to existing cards when a
+    field is removed, blueprint versioning, and a broken blueprint file.</li>
+  <li data-checked="false"><b>A Link To Card field.</b> A field that points at another card.
+    Connections already say this, and two ways to say one thing is a defect.</li>
+  <li data-checked="false"><b>The full library screen.</b> P6 ships an Unplaced list only. The
+    complete library screen stays on the backlog.</li>
+  <li data-checked="false"><b>Card packs.</b> Turning sets of card types on and off. One flat
+    writing pack ships. Splitting later is easy. Merging back is not.</li>
+  <li data-checked="false"><b>AI filling a field.</b> The blueprint's <code>meaning</code> line is
+    the only seam. It earns its place in P6 as on-screen help text.</li>
+</ul>
+
+<h3>Never — not this product</h3>
+
+<ul class="checklist">
+  <li data-checked="false"><b>A required intake form.</b> No wizard. No interview. No field that
+    blocks a save. A card with only a name is always valid.</li>
+  <li data-checked="false"><b>A hard rule table for connections.</b> The application never refuses
+    to join two cards.</li>
+  <li data-checked="false"><b>A filter that hides a list entry.</b> Filtering sorts. A typed value
+    always works.</li>
+  <li data-checked="false"><b>Shipping the craft guide documents themselves.</b> Carried from the
+    PlotReactor ruling in section 5.</li>
+  <li data-checked="false"><b>MBTI or Enneagram type pickers.</b> A typed system does not belong on
+    a slider.</li>
+  <li data-checked="false"><b>AI-generated slider values.</b> Randomize is local random numbers,
+    permanently.</li>
+</ul>
+
+
+<h2>4. Blast radius</h2>
+
+<p>The application is built. Every row below is a change to working code.</p>
+
+<table>
+  <tr><th>Touched</th><th>Change</th><th>If it is wrong</th></tr>
+  <tr>
+    <td><code>src-tauri/migrations/</code></td>
+    <td>Migration 0007 rebuilds <code>item</code> to widen its <code>kind</code> CHECK. Migration
+      0008 adds <code>connection.role</code>. Migration 0009 adds the user list table.</td>
+    <td>A shipped project fails to open. This is the single highest-risk task in the phase.</td>
+  </tr>
+  <tr>
+    <td><code>src/lib/types.ts</code></td>
+    <td><code>ItemKind</code> gains <code>'blueprint'</code>. New types for the blueprint, the field
+      and the pick entry.</td>
+    <td>The Rust and TypeScript shapes drift apart.</td>
+  </tr>
+  <tr>
+    <td><code>src/lib/cardKinds.ts</code></td>
+    <td><code>defaultSizeFor</code> must read the blueprint, not the kind, for a blueprint card.</td>
+    <td>Every writing card opens at the note default size.</td>
+  </tr>
+  <tr>
+    <td><code>src/features/cards/</code></td>
+    <td>A new card component that renders a face from a blueprint. Chips are new.</td>
+    <td>The frame-rate gate fails. Chips add elements to every card.</td>
+  </tr>
+  <tr>
+    <td>The properties panel</td>
+    <td>Today it has four fixed states. It gains one state that is generated from a field list.</td>
+    <td>The panel is rebuilt per card type, which is what blueprints exist to avoid.</td>
+  </tr>
+  <tr>
+    <td><code>src/features/connections/</code></td>
+    <td>A role is stored, suggested from the two card types, and shown on the line.</td>
+    <td>A role becomes a rule and starts refusing connections.</td>
+  </tr>
+  <tr>
+    <td><code>src-tauri/src/commands/item.rs</code></td>
+    <td>The last-placement delete rule is made conditional on the item kind.</td>
+    <td>A character is destroyed when the user removes them from one chapter. This is the worst
+      failure in the feature.</td>
+  </tr>
+  <tr>
+    <td><code>src-tauri/src/commands/search.rs</code></td>
+    <td>A fourth LIKE query, over blueprint card names and Long Text fields.</td>
+    <td>Half the user's book is unfindable.</td>
+  </tr>
+  <tr>
+    <td><code>src/features/canvases/</code></td>
+    <td>An Unplaced list. Expand Into A Canvas creates a canvas and places the card on it.</td>
+    <td>An unplaced blueprint item becomes invisible junk, which is the exact problem the old
+      delete rule existed to prevent.</td>
+  </tr>
+  <tr>
+    <td><code>src/features/undo/</code></td>
+    <td>New inverse commands: set a field, add and remove a list entry, run Randomize, set a
+      role.</td>
+    <td>Randomize cannot be undone, so the user will not press it.</td>
+  </tr>
+  <tr>
+    <td><code>docs/design-system.html</code></td>
+    <td><b>Done.</b> &sect;9.25&ndash;&sect;9.33, folded in 2026-09-08 from the revised handoff
+      bundle (8 Writing Pack frames).</td>
+    <td>Nothing. This dependency is closed.</td>
+  </tr>
+  <tr>
+    <td><code>settings.json</code> and the Settings screen</td>
+    <td>Gains a sixth value, <code>show_writing_cards</code>, default <code>true</code>. The Settings
+      screen gains a sixth row, using the toggle control P5 already built.</td>
+    <td>A missing value must read as <code>true</code>. A settings file written before P6 has no such
+      key, and the writing cards would silently vanish from every existing project.</td>
+  </tr>
+  <tr>
+    <td>The 60 fps gate</td>
+    <td>Must be re-measured on 250 blueprint cards carrying chips.</td>
+    <td>The product's main promise fails.</td>
+  </tr>
+</table>
+
+
+<h2>5. Data model changes</h2>
+
+<h3>Ruling: one new item kind, not one per card type</h3>
+
+<p><code>item.kind</code> gains exactly one value, <code>blueprint</code>. The card type is a
+field inside the payload.</p>
+
+<pre><code>blueprint {
+  blueprint: "character",        // which card type this is
+  name: "Untitled",              // every blueprint card has a name
+  detail_canvas_id: 42 | null,   // Expand Into A Canvas
+  fields: { &lt;field key&gt;: &lt;value&gt; }
+}</code></pre>
+
+<p>SQLite cannot change a CHECK constraint in place, so widening
+<code>CHECK (kind IN (...))</code> means rebuilding the <code>item</code> table. Doing that once is
+acceptable. Doing it for every new card type is not.</p>
+
+<p>With the type in the payload, a new card type is a new data file and no migration at all. That is
+the whole point of blueprints, and it is also what keeps user-written blueprints possible later — a
+user cannot ship a migration.</p>
+
+<p>The cost is stated plainly: <code>kind</code> no longer tells the front end what a card looks
+like. Code must read <code>payload.blueprint</code>. That is one extra step, in one place.</p>
+
+<h3>The blueprint</h3>
+
+<p>A blueprint is a read-only data file that ships inside the application. It is not a database row.
+A card refers to it by id.</p>
+
+<table>
+  <tr><th>Blueprint holds</th><th>Meaning</th></tr>
+  <tr><td><code>id</code></td><td><code>character</code>. Permanent. Stored on every card of that
+    type.</td></tr>
+  <tr><td><code>label</code></td><td>Character. What the Add menu shows.</td></tr>
+  <tr><td><code>default_size</code></td><td>The authored width and height, as
+    <code>cardKinds.ts</code> already gives per kind.</td></tr>
+  <tr><td><code>fields</code></td><td>An ordered list. Each entry is a field, below.</td></tr>
+</table>
+
+<h3>The field</h3>
+
+<table>
+  <tr><th>Field holds</th><th>Meaning</th></tr>
+  <tr><td><code>key</code></td><td><code>logline</code>. Permanent. It is what the payload stores
+    against.</td></tr>
+  <tr><td><code>label</code></td><td>Logline. What the form shows.</td></tr>
+  <tr><td><code>kind</code></td><td>One of the seven kinds below.</td></tr>
+  <tr><td><code>meaning</code></td><td>One plain sentence saying what this field is. It is the grey
+    help text under the box. It is also the definition an AI would be given later.</td></tr>
+  <tr><td><code>show_on_face</code></td><td>Whether the value prints on the card face.</td></tr>
+  <tr><td><code>list</code></td><td>Pick and Pick Many only. Which list the button offers.</td></tr>
+  <tr><td><code>filter_by</code></td><td>Pick and Pick Many only. The key of one other field on the
+    same card. One hop. No chains.</td></tr>
+  <tr><td><code>low</code>, <code>high</code></td><td>Scale only. The word at each end. Fixed in the
+    blueprint, never typed per card.</td></tr>
+  <tr><td><code>randomizable</code></td><td>Scale only. Whether the dice button is offered.</td></tr>
+</table>
+
+<h3>The seven field kinds</h3>
+
+<table>
+  <tr><th>Kind</th><th>Stores</th><th>Notes</th></tr>
+  <tr><td>Short Text</td><td>A string</td><td>Plain text. Not Markdown.</td></tr>
+  <tr><td>Long Text</td><td>A Markdown string</td><td>Same contract as the note payload's
+    <code>text</code>. Rendered with the existing sanitised path. <b>Never shown on the card
+    face.</b></td></tr>
+  <tr><td>Pick</td><td>One pick entry</td><td>Combo control. A typed value is always accepted.</td></tr>
+  <tr><td>Pick Many</td><td>An ordered list of pick entries</td><td>Same control.</td></tr>
+  <tr><td>Image</td><td>An asset file name</td><td>Uses the existing <code>assets/</code> module,
+    content hash and reference counting, unchanged.</td></tr>
+  <tr><td>Number</td><td>An integer or a decimal</td><td></td></tr>
+  <tr><td>Scale</td><td>An integer, −3 to +3, default 0</td><td>Seven notches. 0 is a true neutral
+    and a real answer.</td></tr>
+</table>
+
+<h3>Ruling: a pick entry is an id, your text and its sources</h3>
+
+<p>Carried unchanged from <code>feature-guide-library.html</code>. A Pick or Pick Many value is not
+a plain string.</p>
+
+<pre><code>{ id: "trope.chosen-one" | null,   // null when the user typed their own
+  text: "...",                     // the user's own words. Theirs from then on
+  sources: [ ... ] }               // where it came from. Read-only. May be empty</code></pre>
+
+<p>Editing your own text never changes the id. An id means "this came from there". It does not
+promise you used it the same way. A value the user invents has no id and is fully valid.</p>
+
+<p>This buys the deferred template importer, the deferred highlight mode and any later count or
+check, with no new machinery. It costs one nested shape today.</p>
+
+<h3>Ruling: the last-placement delete rule is corrected</h3>
+
+<div class="callout">
+  <b>This is a change to an existing, shipped rule.</b> <code>docs/mvp-plan.html</code> §4 says:
+  "Deleting the last placement of an item deletes the item and its asset files." That rule was
+  written because the MVP has no library screen, so an unplaced item would be invisible junk. A
+  reusable Character breaks it. Removing a character from the one chapter they appear in would
+  destroy the character record, its sliders, its tropes and its notes.
+</div>
+
+<p>The corrected rule:</p>
+
+<ul>
+  <li><b>note, image, link and video</b> keep the existing behaviour. Deleting the last placement
+    deletes the item and its asset files. Nothing changes for them.</li>
+  <li><b>blueprint</b> items survive. The item stays in the project with no placement.</li>
+  <li>An unplaced blueprint item appears in a new <b>Unplaced</b> list in the left column. From
+    there it can be placed on a canvas or deleted for good.</li>
+  <li>Deleting an unplaced blueprint item deletes it and releases its asset references, in one
+    transaction, undoable in one step.</li>
+</ul>
+
+<p>The Unplaced list is the smallest thing that keeps the old rule's promise. Nothing becomes
+invisible junk. The full library screen stays deferred.</p>
+
+<h3>Connections gain a role</h3>
+
+<p><code>connection</code> gains one nullable column, <code>role</code>. It is a short text value.
+It does not replace <code>label</code>, which stays a free note the user types.</p>
+
+<table>
+  <tr><th>Role</th><th>Means</th><th>Typical use</th></tr>
+  <tr><td>Feeds</td><td>This is source material for that</td><td>Beat to Scene. Scene to
+    Chapter. Beat straight to Chapter.</td></tr>
+  <tr><td>Follows</td><td>Order, not content</td><td>Chapter to Chapter. Scene to Scene.</td></tr>
+  <tr><td>Appears In</td><td>This person is present</td><td>Character to Scene.</td></tr>
+  <tr><td>Told By</td><td>Point of view</td><td>Character to Scene or Chapter.</td></tr>
+  <tr><td>Part Of <em>(added 2026-09-08)</em></td><td>Containment. It reads <strong>Contains</strong> from the other end &mdash; one role, two readings</td><td>Chapter to Book. Scene to Chapter, where the writer means "belongs to" rather than "feeds".</td></tr>
+  <tr><td>Set In</td><td>Where it happens</td><td>Location to Scene.</td></tr>
+  <tr><td>Relates To</td><td>No direction, no meaning</td><td>The default. The escape hatch. What
+    every existing connection already is.</td></tr>
+</table>
+
+<div class="callout">
+  <b>Ruling: roles are loose.</b> Any card may join any card. The application suggests a role from
+  the two card types. The user may change it to anything, including Relates To. <b>The application
+  never refuses a connection and never shows a validation error.</b> Beat straight to Chapter is a
+  real way to write, and a rules table would be long, wrong and irritating.
+</div>
+
+<p>Every existing connection has <code>role = NULL</code>, which reads as Relates To. No back-fill
+is needed.</p>
+
+<h3>Expand Into A Canvas</h3>
+
+<p><code>payload.detail_canvas_id</code> points at the canvas that details this card. It is set when
+the user presses Expand Into A Canvas. That action creates a canvas, names it after the card, and
+places <b>this same card</b> on it.</p>
+
+<p>Because a card is an item with many placements, the card on the book canvas and the card on the
+chapter canvas are one record. Editing either edits both. There is no copy and nothing to keep in
+step.</p>
+
+<p>A cycle is allowed. Canvas A may hold a card whose detail canvas is B, while B holds a card whose
+detail canvas is A. Nothing is drawn inside anything, so nothing recurses. Deleting a canvas sets
+<code>detail_canvas_id</code> back to null on any card that pointed at it.</p>
+
+<h3>The lists</h3>
+
+<table>
+  <tr><th>List</th><th>Source</th><th>Filtered by</th></tr>
+  <tr><td>Genres</td><td>Shipped. The 8 sub-genre classes from the Book Guides library</td><td>—</td></tr>
+  <tr><td>Sub-genres</td><td>Shipped. The 45 sub-genres, each tagged with its class</td><td>Genre</td></tr>
+  <tr><td>Story tropes</td><td>Shipped. The plot, setting, theme and tone tropes</td><td>Genre</td></tr>
+  <tr><td>Character tropes</td><td>Shipped. The character tropes</td><td>—</td></tr>
+  <tr><td>Themes</td><td>Shipped, small. Grows from use</td><td>—</td></tr>
+</table>
+
+<p>Shipped lists are read-only data files inside the application. A user's own typed value is saved
+to a per-project table, so it is offered again next time. A copied project folder carries its own
+vocabulary, which matches the plan's rule that a project folder is self-contained.</p>
+
+<p>Only sub-genres and story tropes are tagged. Tagging the other three buys nothing and is a lot of
+typing. An untagged entry is never hidden. It sorts below the matching ones.</p>
+
+<h3>The seven card types</h3>
+
+<table>
+  <tr><th>Card</th><th>Fields</th><th>Face shows</th></tr>
+  <tr><td>Book</td><td>Name, Logline, Genre, Sub-genre, Story tropes, Themes, Notes</td>
+    <td>Name, logline, genre and sub-genre chips, trope chips</td></tr>
+  <tr><td>Chapter</td><td>Name, Summary, Themes, Prose</td><td>Name, summary, theme chips.
+    <b>Never the prose.</b></td></tr>
+  <tr><td>Scene</td><td>Name, Summary, Notes</td><td>Name, summary</td></tr>
+  <tr><td>Beat</td><td>Name, Text</td><td>Name, text</td></tr>
+  <tr><td>Character</td><td>Name, Picture, Role, One-liner, Description, five Scale sliders,
+    Character tropes, Notes</td><td>Picture, name, role, one-liner, trope chips</td></tr>
+  <tr><td>Location</td><td>Name, Picture, Summary, Notes</td><td>Picture, name, summary</td></tr>
+  <tr><td>Note</td><td>Unchanged. The existing <code>note</code> kind</td><td>Unchanged</td></tr>
+</table>
+
+<div class="callout">
+  <b>Prose never prints on a card face.</b> The same Chapter card sits on a book canvas and on its
+  own chapter canvas. If the face carried prose, one card would be a small tile in one place and a
+  wall of text in the other, and the design would need per-placement display rules. Keeping Long
+  Text off the face removes that problem entirely, and it protects the 250-card frame gate.
+</div>
+
+<h3>Personality, carried from PlotReactor</h3>
+
+<p>Carried unchanged from <code>feature-character-record.html</code>. It is a settled specification
+and this feature does not re-decide it.</p>
+
+<ul>
+  <li>Five Big Five sliders. Whole numbers, −3 to +3, seven notches. All 0 by default, and all 0 is
+    a real answer meaning "unremarkable, like most people".</li>
+  <li>A plain word at each end of every slider. The words live in the blueprint.</li>
+  <li>One Randomize button on the section header. It rerolls all five and touches nothing else.</li>
+  <li>Each slider rolls on a bell-shaped table. The relative weights for −3, −2, −1, 0, +1, +2, +3
+    are <b>1, 3, 6, 8, 6, 3, 1</b>.</li>
+  <li><b>The guarantee.</b> If all five results fall inside −1 to +1, one slider chosen at random
+    rerolls until it reaches −2, +2 or beyond.</li>
+  <li>Plain local random numbers. No network call. No AI. Permanently.</li>
+  <li>Undo restores all five previous values in one step.</li>
+</ul>
+
+<p>The guarantee is the point. An unguarded bell curve gives a cast of ordinary people. A flat roll
+gives a cast of extremists. The guarantee gives a mostly ordinary person with one clear edge.</p>
+
+<h3>Rulings recorded for the deferred template importer</h3>
+
+<p>These are carried from <code>feature-guide-library.html</code>. Nothing in P6 implements them.
+They are written here so the later work cannot contradict this plan.</p>
+
+<ul>
+  <li><b>Generic fields only.</b> A book guide records every element twice — as that book did it,
+    and with the names stripped out. The application loads the stripped half only. The rule is
+    enforced in the reader, not in the interface, so no later screen can leak a specific field by
+    accident. Title, author and year are facts and are shown.</li>
+  <li><b>Copy, never reference.</b> Applying a template copies the text into the project. Removing
+    a guide afterwards changes nothing in any book. Its source lines grey out and wake on re-add.</li>
+  <li><b>One entry per id, many sources.</b> Pulling the same trope from two guides adds a second
+    source to the existing entry. It never creates a second entry.</li>
+  <li><b>Templates fill fields. They create no cards.</b> One guide can carry 31 slots and four
+    guides can offer over sixty rows. Dropping sixty cards on a canvas would also break the plan's
+    rule that the application never chooses a position for a card.</li>
+</ul>
+
+<h3>Migration and rollback</h3>
+
+<table>
+  <tr><th>Migration</th><th>Does</th><th>Rollback</th></tr>
+  <tr><td>0007</td><td>Rebuilds <code>item</code> with the widened <code>kind</code> CHECK. Copies
+    every row. Recreates both indexes.</td><td>None needed. Every existing row is unchanged and a
+    P5 build reads them all.</td></tr>
+  <tr><td>0008</td><td>Adds <code>connection.role TEXT NULL</code>.</td><td>A P5 build ignores the
+    column.</td></tr>
+  <tr><td>0009</td><td>Adds the per-project user list entry table.</td><td>A P5 build ignores the
+    table.</td></tr>
+</table>
+
+<p>A project written before P6 opens in a P6 build unchanged. A project written after P6 opens in a
+P5 build with the blueprint cards missing from the canvas, because a P5 build's <code>kind</code>
+check rejects them. That is a one-way step, and it is the same step every schema change makes.</p>
+
+<p>Migration 0007 is the riskiest task in the phase. It rewrites a table holding the user's work.
+It is task 1 for that reason. See section 10.</p>
+
+
+<h2>6. Interfaces and contracts</h2>
+
+<h3>Surfaces changed</h3>
+
+<table>
+  <tr><th>Surface</th><th>Contract</th></tr>
+  <tr><td>The Add menu</td><td>Gains the seven writing card types, under one <b>Writing</b> heading.
+    The heading and its seven entries are hidden when <b>Show Writing Cards</b> is off. No pack
+    picker. No project type.</td></tr>
+  <tr><td>The Settings screen</td><td>Gains a sixth row, <b>Show Writing Cards</b>, using the toggle
+    control built in P5. Applied as it is changed, like every other setting. No Save and no
+    Cancel.</td></tr>
+  <tr><td>The card face</td><td>Generated from the blueprint's <code>show_on_face</code> fields.
+    Text and chips only. No editing on the face.</td></tr>
+  <tr><td>The properties panel</td><td>Gains one generated state. It draws a control per field, in
+    blueprint order, with the <code>meaning</code> line as grey help text under each.</td></tr>
+  <tr><td>The combo control</td><td>A text box with a list button. Typing filters. A typed value not
+    in the list is accepted and saved to the project's own list.</td></tr>
+  <tr><td>A connection</td><td>Shows its role. The role is suggested from the two card types and is
+    always editable. The existing free <code>label</code> is unchanged.</td></tr>
+  <tr><td>The left column</td><td>Gains an Unplaced list. It is empty and hidden until a blueprint
+    item loses its last placement.</td></tr>
+  <tr><td>Search</td><td>Reaches blueprint card names and Long Text fields. Canvas names still rank
+    first. A card hit is still one result, named by the card's name.</td></tr>
+  <tr><td>The Tauri command seam</td><td>New commands only. No generic query call. The front end
+    still builds no SQL.</td></tr>
+  <tr><td>Undo</td><td>Five new inverse commands: set a field, add a list entry, remove a list entry,
+    Randomize, set a role.</td></tr>
+</table>
+
+<div class="callout">
+  <b>Ruling: the toggle hides the Add menu, and nothing else.</b> When <b>Show Writing Cards</b> is
+  off, a writing card already on a canvas still draws, still edits, still searches, and still
+  connects. Its properties panel is unchanged. Only the way to add a <i>new</i> one goes away.
+  <br><br>
+  A toggle that hid cards on the canvas would look exactly like data loss, and the plan's failure
+  rule is that the application never makes the user's work disappear. A missing
+  <code>show_writing_cards</code> key reads as <code>true</code> for the same reason: a settings file
+  written before P6 must not silently empty the Add menu.
+  <br><br>
+  This is a switch on one flat pack. It is <b>not</b> a pack registry and it does not bring back
+  project types. Both stay deferred, for the reasons in section 3.
+</div>
+
+<h3>Contract with the Book Guides library</h3>
+
+<table>
+  <tr><th>Depends on</th><th>What breaks if it changes</th></tr>
+  <tr><td>Trope ids are permanent. The library's own rule is to never rename an id, and to add an
+    alias or a variant instead.</td><td>Every stored pick entry's source link, and every later
+    count. This is the single hardest outside dependency in the feature.</td></tr>
+  <tr><td>The sub-genre class structure — 45 entries in 8 classes.</td><td>The genre and sub-genre
+    lists, and the one-hop filter between them.</td></tr>
+</table>
+
+<p>P6 reads the list content only. It does not read a guide file and it does not validate a schema.
+Both belong to the deferred template importer.</p>
+
+<h3>What does not change</h3>
+
+<ul>
+  <li>The core loop. Add, drag, join.</li>
+  <li>The four existing card kinds. Their payloads, their faces and their panel states are
+    untouched.</li>
+  <li>The assets module. Content hash, copy-in, dedupe and reference counting are reused as they
+    are.</li>
+  <li>The network boundary. This feature makes no network call.</li>
+  <li>The one error type. The IPC wrapper. The import direction rule.</li>
+</ul>
+
+
+<h2>7. Architecture fit</h2>
+
+<p><b>Outcome: it fits, with three narrow exceptions.</b> No decision in
+<code>docs/architecture.html</code> has to change. No amendment is needed and none was made.</p>
+
+<h3>Decisions this feature leans on</h3>
+
+<table>
+  <tr><th>Slug</th><th>How it is used</th></tr>
+  <tr><td><code>storage-engine</code></td><td>The typed payload carries every new field. Three small
+    additive migrations. One file per project, unchanged.</td></tr>
+  <tr><td><code>db-access-layer</code></td><td><code>rusqlite_migration</code> runs 0007 to 0009
+    when a project opens. Numbered files, as already established.</td></tr>
+  <tr><td><code>note-text-format</code></td><td>A Long Text field is Markdown in the payload,
+    rendered through the existing sanitised path, edited as a plain text box. The same contract, for
+    a second kind of card.</td></tr>
+  <tr><td><code>asset-storage</code></td><td>An Image field holds a file name, never a path. The
+    existing hash and reference counting are reused with no change.</td></tr>
+  <tr><td><code>rendering-approach</code></td><td>A blueprint card is a page element and is culled
+    like every other card.</td></tr>
+  <tr><td><code>architecture-pattern</code>, <code>module-layout</code>,
+    <code>import-direction</code></td><td>A new feature folder holds the card and the panel state.
+    The blueprint reader and the field types go in <code>src/lib/</code>, because two features read
+    them.</td></tr>
+  <tr><td><code>ipc-contract</code></td><td>New named commands. One error type. No SQL in the front
+    end.</td></tr>
+  <tr><td><code>undo-model</code></td><td>Five new inverse commands. Randomize is one command
+    carrying five effects, which the model already supports.</td></tr>
+  <tr><td><code>network-boundary</code></td><td>Untouched. This feature makes no network call.</td></tr>
+</table>
+
+<h3>Exception 1 — <code>search-method</code> widens from three queries to four</h3>
+
+<p>The decision says three LIKE queries: canvas names, note titles, note bodies. This feature adds a
+fourth, over blueprint card names and Long Text fields, using SQLite's built-in
+<code>json_extract</code> as Phase 4 already does.</p>
+
+<p>The ranking rule is unchanged and is the part that matters. Canvas names still rank first. The
+size argument still holds: 25 canvases times 250 cards is about 6,000 rows, and a full scan of
+6,000 short rows takes a few milliseconds. This is a widening inside the decision, not a departure
+from it. Its undo cost stays <code>cheap</code>.</p>
+
+<h3>Exception 2 — <code>settings-storage</code> grows from five values to six</h3>
+
+<p>The decision says <code>settings.json</code> "holds the five values the Settings screen edits".
+This feature adds a sixth, <code>show_writing_cards</code>.</p>
+
+<p>The decision itself is untouched. It is still one JSON file per machine, under
+<code>%APPDATA%\IdeaScape</code>, outside every project folder, written by the application, with
+working defaults, never required to exist. Nothing in it is user data. Its undo cost stays
+<code>cheap</code>. This is a sixth scalar in a file the application owns.</p>
+
+<div class="callout">
+  <b>One stale line to correct later.</b> <code>docs/architecture.html</code> §3 and
+  <code>CLAUDE.md</code> both say <code>settings.json</code> holds <b>five</b> values. After P6 that
+  is six. This feature plan does not edit either file — <code>dev-architecture</code> owns the first
+  and <code>dev-claud-md</code> the second. Correct both when P6 is planned, not before.
+</div>
+
+<h3>Exception 3 — the <code>item</code> table is rebuilt once</h3>
+
+<p><code>storage-engine</code> assumes additive migrations. Migration 0007 is not additive. It
+creates a new table, copies every row, drops the old one and recreates the indexes, because SQLite
+cannot change a CHECK constraint in place.</p>
+
+<p>It is done <b>once</b>. Section 5 records why: putting the card type in the payload means no
+later card type ever needs a migration. If a second table rebuild is ever proposed for the same
+reason, that is a signal the payload design was wrong, and it should return to
+<code>dev-architecture</code>.</p>
+
+<h3>The one thing that was not settled &mdash; now settled</h3>
+
+<div class="callout">
+  <b><code>docs/design-system.html</code> now holds this feature in full.</b> &sect;9.25&ndash;&sect;9.33,
+  folded in on 2026-09-08 from the revised handoff bundle: the generated blueprint form, all seven
+  field controls, the combo in four states, the chip, the slider and its dice button, a card face
+  for each of the seven card types, connection roles, and three full-screen sheets.
+  <br><br>
+  Its <b>properties panel stays at 177 px expanded</b>. The bundle drew every writing panel at
+  252 px; the owner declined that, so each control was re-measured for 153 px of content width.
+  Only the Number field moved, and it moved by one pixel.
+  <br><br>
+  <code>CLAUDE.md</code> says: "Read it before writing any component. Do not invent a visual value."
+  That still holds &mdash; and there is now something to read. <b>P6 can be executed.</b>
+</div>
+
+
+<h2>8. Compatibility and rollout</h2>
+
+<ul>
+  <li><b>Existing projects.</b> A project made in P1 to P5 opens in a P6 build with no change. The
+    three migrations run when the project opens, as the existing rule already requires.</li>
+  <li><b>Existing cards.</b> Note, image, link and video cards are untouched, on screen and in
+    storage. Their delete rule is unchanged.</li>
+  <li><b>Existing connections.</b> Every one gets <code>role = NULL</code>, which reads as Relates
+    To. No back-fill.</li>
+  <li><b>Going backwards.</b> A P6 project opened in a P5 build loses its blueprint cards, because
+    that build's <code>kind</code> check rejects them. One way, and normal for a schema change.</li>
+  <li><b>No feature flag.</b> One user, one machine, no staged rollout. A flag would be pure
+    cost.</li>
+  <li><b>Nothing to fill in.</b> No key, no service, no setting. The lists ship inside the
+    application.</li>
+  <li><b>Intermediate states are valid.</b> A blueprint card with only a name is a complete card. A
+    canvas with no Chapter card is a valid canvas. Nothing blocks a save, ever.</li>
+</ul>
+
+
+<h2>9. Testing and regression plan</h2>
+
+<h3>Proves this feature works</h3>
+
+<ul>
+  <li>Migration 0007 runs on a project holding note, image, link and video items. Every row
+    survives, both indexes exist, and every card still draws.</li>
+  <li>A blueprint card saves with every field empty except a default name. Nothing blocks the
+    save.</li>
+  <li>Every one of the seven field kinds round-trips through the payload and back.</li>
+  <li>A typed value not in a shipped list is accepted, saved, and offered again in that project.</li>
+  <li>A filtered list <b>sorts</b>. Every entry is still reachable, including untagged ones.</li>
+  <li>All five Character sliders default to 0, and an all-zero spread is a valid saved state.</li>
+  <li>Randomize never leaves all five sliders inside −1 to +1. Run it 10,000 times and assert the
+    guarantee holds every time.</li>
+  <li>The Randomize weight spread matches 1, 3, 6, 8, 6, 3, 1 within tolerance over a large sample,
+    measured before the guarantee reroll.</li>
+  <li>Undo after Randomize restores all five values in one step, and Randomize changes no other
+    field.</li>
+  <li>Editing a pick entry's own text never changes its id.</li>
+  <li>Any card type may join any other card type. No pair is refused. A Beat joined straight to a
+    Chapter is accepted and keeps the role the user chose.</li>
+  <li>Expand Into A Canvas creates a canvas and places <b>the same item</b> on it. Editing the card
+    on either canvas changes both.</li>
+  <li>Deleting a canvas clears <code>detail_canvas_id</code> on every card that pointed at it.</li>
+  <li>A cycle between two detail canvases is created, saved, reopened and navigated without a
+    crash.</li>
+  <li>Deleting the last placement of a Character keeps the Character. It appears in the Unplaced
+    list. Deleting it from there removes it, and undo brings it back whole.</li>
+  <li>Search finds a blueprint card by its name and by text inside a Long Text field.</li>
+  <li>Turning <b>Show Writing Cards</b> off removes the Writing heading and its seven entries from
+    the Add menu, and turning it on restores them.</li>
+  <li>With the toggle off, a writing card already on a canvas still draws, still edits, still
+    connects and is still found by search.</li>
+  <li>A <code>settings.json</code> written before P6, with no <code>show_writing_cards</code> key,
+    reads as <b>on</b>. The Add menu is not emptied.</li>
+</ul>
+
+<h3>Proves the old behaviour still works</h3>
+
+<ul>
+  <li><b>The delete rule for the four original kinds is unchanged.</b> Deleting the last placement
+    of an image still deletes the item and its picture file, and undo still brings both back. This
+    is the regression that matters most, because section 5 changes the rule beside it.</li>
+  <li>Search still ranks canvas names first.</li>
+  <li>Note, image, link and video cards render and edit exactly as before.</li>
+  <li>Existing connections still draw, still carry their labels, and still follow and leave with
+    their cards.</li>
+  <li>A network monitor records <b>zero traffic</b> for a whole session that creates every card
+    type, runs Randomize and fills every list field.</li>
+  <li>A Long Text field can never run script. The existing sanitised Markdown path is proved against
+    the new field.</li>
+  <li>Every screen renders correctly in the dark theme, at the locked token values.</li>
+  <li>Every new control is reachable and operable from the keyboard alone.</li>
+  <li>The installer stays under 20 MB. The shipped lists are the first bulk data the application has
+    ever carried, so this must be measured, not assumed.</li>
+</ul>
+
+<h3>The gate</h3>
+
+<p><b>60 frames per second while panning 250 blueprint cards carrying chips.</b> This is the same
+hard gate P1 set and every phase since has re-measured. Chips add elements to every card face. This
+is the first feature that makes a card face more expensive, so the gate is the real risk, not a
+formality.</p>
+
+
+<h2>10. Build plan</h2>
+
+<p>This is phase <b>P6</b>. No existing phase is renumbered. The order below puts the riskiest
+assumption first.</p>
+
+<ol>
+  <li><b>Migration 0007</b> — rebuild <code>item</code> with the widened <code>kind</code> CHECK.
+    Prove it against a project holding all four existing kinds. This is first because it rewrites a
+    table holding the user's work, and everything else waits on it.</li>
+  <li><b>Migrations 0008 and 0009</b> — the connection role column and the per-project user list
+    table.</li>
+  <li><b>The blueprint and field types</b>, in <code>src/lib/</code>, mirrored on the Rust side. The
+    blueprint reader and the seven shipped card type files.</li>
+  <li><b>The shipped lists</b>, extracted from the Book Guides library into read-only data files.
+    Measure the size against the 20 MB installer cap here, before anything is built on them.</li>
+  <li><b>The blueprint item payload</b>, and the item commands that read and write a field.</li>
+  <li><b>The corrected delete rule</b>, and the Unplaced list. Do this before the card is drawn. It
+    is the item most likely to force a rethink, because it changes a shipped rule.</li>
+  <li><b>The generated properties panel</b> — one control per field kind, in blueprint order, with
+    the <code>meaning</code> line as help text.</li>
+  <li><b>The combo control</b>, the pick entry shape, and the per-project user list.</li>
+  <li><b>One-hop list filtering</b>, as a pure function, tested on its own.</li>
+  <li><b>The Scale control</b>, the shaped roll, the guarantee, and undo.</li>
+  <li><b>The blueprint card face</b> — text fields and chips, generated from
+    <code>show_on_face</code>.</li>
+  <li><b>Connection roles</b> — the column, the suggestion from the two card types, and the display
+    on the line.</li>
+  <li><b>Expand Into A Canvas</b> — the pointer, the create-and-place action, and the delete
+    cleanup.</li>
+  <li><b>The fourth search query</b>, and the results it returns.</li>
+  <li><b>Undo</b> for every new action.</li>
+  <li><b>The Show Writing Cards setting</b> &mdash; a sixth value in <code>settings.json</code>, a
+    sixth row on the Settings screen using the existing toggle, and the Add menu filter. A missing
+    key reads as on.</li>
+  <li><b>Measure the gate</b> — 250 blueprint cards with chips, at 60 fps — and re-measure the
+    installer size.</li>
+</ol>
+
+<div class="callout">
+  <b>Riskiest assumption first.</b> Two tasks carry nearly all the risk. Migration 0007 is a rewrite
+  of a table holding real user work. The corrected delete rule changes a rule that has shipped and
+  that four card kinds still depend on. Both are near the front on purpose.
+</div>
+
+
+<h2>11. Done criteria</h2>
+
+<ul class="checklist">
+  <li data-checked="false">A project made before P6 opens in a P6 build with every card
+    intact.</li>
+  <li data-checked="false">All seven writing card types can be added, filled, saved, reopened and
+    deleted.</li>
+  <li data-checked="false">A card saves with only a default name. Nothing is ever required.</li>
+  <li data-checked="false">A typed list value is accepted, saved and offered again in the same
+    project.</li>
+  <li data-checked="false">A filtered list sorts and never hides an entry.</li>
+  <li data-checked="false">Randomize never produces a flat spread, and undo restores all five
+    sliders in one step.</li>
+  <li data-checked="false">Any card joins any card. No pair is refused. The suggested role can
+    always be changed.</li>
+  <li data-checked="false">Expand Into A Canvas creates a canvas holding the same card, and editing
+    it in one place changes both.</li>
+  <li data-checked="false">Removing a Character from their only chapter keeps the Character, and the
+    Unplaced list finds them.</li>
+  <li data-checked="false">Deleting the last placement of an image still deletes the picture file,
+    and undo still brings it back.</li>
+  <li data-checked="false">Search finds a Chapter by a phrase inside its prose. Canvas names still
+    rank first.</li>
+  <li data-checked="false">Show Writing Cards hides the seven types from the Add menu, and a card
+    already on a canvas is untouched by it.</li>
+  <li data-checked="false">250 blueprint cards with chips pan at 60 frames per second.</li>
+  <li data-checked="false">The installer is under 20 MB with the shipped lists inside it.</li>
+  <li data-checked="false">A network monitor records zero traffic for the whole session.</li>
+  <li data-checked="false">Every new screen and control matches <code>docs/design-system.html</code>
+    at its locked token values, in light and in dark.</li>
+</ul>
+
+
+<h2>12. Open risks and assumptions</h2>
+
+<h3>The one blocking dependency &mdash; now cleared</h3>
+
+<div class="callout">
+  <b>The visual design existed nowhere on 2026-09-07. It exists now.</b> The designer's revised
+  bundle drew eight Writing Pack frames (<code>23a</code>, <code>24a</code>, <code>24b</code>,
+  <code>25a</code>, <code>26a</code>, <code>26b</code>, <code>27a</code>, <code>28a</code>) and
+  <code>dev-ui-update</code> folded them into <code>docs/design-system.html</code> on 2026-09-08 as
+  &sect;9.25&ndash;&sect;9.33.
+  <br><br>
+  <b>P6 can be planned.</b> Everything this section asked for is drawn: the generated panel, all
+  seven field controls, the combo in four states, the chip, the slider and its dice button, the
+  seven card faces, connection roles, the rail's new <code>Cards</code> group, and the Settings
+  row. Three additions the design pass made are worth knowing before planning tasks &mdash; they
+  are decisions, not surprises, and each has a handoff-log row:
+</div>
+<ul>
+  <li><b>Book, Chapter and Character open full-screen sheets</b>, because they outgrow the panel.
+    Scene, Beat and Location stay in the panel. This section had assumed the panel alone.</li>
+  <li><b>The panel stays at 177px</b>, not the 252px the bundle drew. Every control was re-measured;
+    only the Number field moved, by 1px.</li>
+  <li><b>A seventh role, Part Of</b>, was added &mdash; see the role table in section 5. The other
+    six names are unchanged, because this document owns the data model and
+    <code>Relates To</code> is what <code>role = NULL</code> reads as.</li>
+</ul>
+
+<h3>Risks</h3>
+
+<table>
+  <tr><th>Risk</th><th>Effect</th><th>Answer</th></tr>
+  <tr><td>Migration 0007 damages a project</td><td>The user loses real work</td><td>It is task 1. It
+    is tested against a project holding all four existing kinds before anything is built on
+    it.</td></tr>
+  <tr><td>Chips break the frame gate</td><td>The product's main promise fails</td><td>It is the
+    phase gate. Prose is barred from the card face for this reason.</td></tr>
+  <tr><td>The corrected delete rule leaves invisible junk</td><td>The exact problem the old rule
+    prevented</td><td>The Unplaced list, built in the same task.</td></tr>
+  <tr><td>The shipped lists push the installer over 20 MB</td><td>A hard plan limit is
+    broken</td><td>Measured at task 4, before anything is built on them. The lists are plain text and
+    are expected to be small, but this is the first bulk data the application has carried.</td></tr>
+  <tr><td>Roles quietly become rules</td><td>The application starts refusing what writers actually
+    do</td><td>Written as a ruling in section 5 and as a test in section 9.</td></tr>
+  <tr><td>A trope id is renamed in the Book Guides library</td><td>Every stored source link
+    breaks</td><td>The library's own rule already forbids it. Ids are copied into the project, so a
+    change outside never rewrites a saved card.</td></tr>
+  <tr><td>The blueprint field list grows without limit</td><td>The panel becomes the "tedious detail
+    window with no clear value" the PlotReactor scan recorded against yWriter</td><td>Blueprints are
+    written by the owner, not by users, in P6. Keep each card's field list short.</td></tr>
+</table>
+
+<h3>Assumptions</h3>
+
+<ul>
+  <li>One flat writing pack is enough. One Settings toggle hides it. No project type and no pack
+    picker are needed.</li>
+  <li>Seven card types cover a book. An eighth is a new data file and no code.</li>
+  <li>The shipped lists are small enough to sit inside the installer.</li>
+  <li>The user writes the blueprints. No user-facing blueprint editor is needed in P6.</li>
+  <li>A canvas is whatever the user names it. The application enforces no level structure.</li>
+</ul>
+
+
+<h2>Amendments</h2>
+
+<p class="meta"><b>2026-09-08 — the visual design folded in by <code>dev-ui-update</code>.</b>
+Source: <code>docs/handoff/</code>, revised to 31 screens, of which eight are this feature.
+<b>The one blocking dependency in section 12 is cleared</b> and P6 is ready for
+<code>dev-plan-phase 6</code>. The design lives in
+<code>docs/design-system.html</code> §9.25–§9.33; this document is unchanged on the blueprint
+format, the field semantics and the data model, which it still owns.<br>
+<b>Three things this document had assumed differently.</b> (1) <b>Book, Chapter and Character each
+open a full-screen sheet</b> in place of the canvas; only Scene, Beat and Location are
+panel-only, where section 6 had put all of them. (2) <b>The properties panel stays at 177px</b> —
+the bundle drew every writing panel at 252px and the owner declined it, so every control was
+re-measured for 153px of content width; only the Number field moved, by one pixel. (3) <b>A
+seventh connection role, <code>Part Of</code></b>, joins the six in section 5. It reads
+<code>Contains</code> from the other end, which is what lets one <b>Joined to</b> group show both
+directions. The other six names stand: the mockups drew four under their own words
+(<code>Leads to</code> for <code>Feeds</code>), and this document won on naming because it owns the
+model and <code>Relates To</code> is the <code>NULL</code> default the migration relies on.<br>
+<b>One naming change to a surface.</b> The left column's <code>Add</code> group becomes
+<b>Cards</b>, with a <code>General</code> submenu and a <code>Writing Pack</code> submenu, rather
+than the "one Writing heading" section 6 described — eight card types do not fit as flat rows in a
+168px rail. The <i>rule</i> section 6 states is unchanged: one flat pack, no pack picker, no
+project types. <b>Show Writing Cards</b> keeps its name and is the Settings screen's
+<b>seventh</b> row, not its sixth — the Font row of 2026-09-07 took the sixth. It is still the
+sixth stored value in <code>settings.json</code>, so architecture-fit exception 2 is unchanged.<br>
+<b>No decision in this document was reversed, and the scope of P6 did not grow.</b></p>
+
+<p class="meta"><b>2026-09-07 — created.</b> Written from the <code>dev-add-feature</code> session of
+the same date. Every branch closed except the visual design, which is recorded in section 12 as the
+one blocking dependency. Four rows on the MVP plan's deferred list are folded into this one feature:
+reusable shaped items, templates and starter canvases, tags and card metadata, and boards nested
+inside a canvas. Three rulings are carried unchanged from the earlier PlotReactor plans: the pick
+entry id spine, generic fields only, and the Character personality specification. One shipped rule
+is corrected: the last-placement delete rule in <code>docs/mvp-plan.html</code> §4 now applies to
+the four original card kinds only.</p>
+<p class="meta"><b>2026-09-07 — a Settings toggle added, same session.</b> The plan had the seven
+writing card types always present in the Add menu, in every project. The owner asked whether the
+pack could be hidden. The earlier "one writing pack" decision had answered only <i>how many</i>
+packs there are, never <i>whether the pack shows</i>. Added: <b>Show Writing Cards</b>, a sixth
+value in <code>settings.json</code> and a sixth row on the Settings screen, default on, using the
+toggle control P5 already built. It hides the Add menu entries only. A card already on a canvas is
+never affected, and a missing key reads as on. Recorded as architecture-fit exception 2 in section
+7, because <code>settings-storage</code> now carries six values rather than five. That leaves one
+factual line to correct in <code>docs/architecture.html</code> §3 and in <code>CLAUDE.md</code>,
+both of which still say five. Correct them when P6 is planned. No decision changed, and no pack
+registry or project type was reopened.</p>
+
+</div>
+</body>
+</html>

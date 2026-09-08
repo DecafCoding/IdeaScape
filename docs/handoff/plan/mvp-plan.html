@@ -117,7 +117,8 @@ parent. That shape is on the backlog as a shortcut, not as the core loop.</p>
   <li data-checked="true">Note cards, with plain text and basic formatting</li>
   <li data-checked="true">Image cards, by file drop, file picker and clipboard paste</li>
   <li data-checked="true">Web link cards, showing title, icon and preview picture</li>
-  <li data-checked="true">Video cards, showing title and thumbnail, opening in the browser on click</li>
+  <li data-checked="true">Video cards, showing title and thumbnail, opening in the browser on
+    click. <b>YouTube only</b></li>
   <li data-checked="true">Connections between two cards on one canvas, with arrow direction and an
     optional text label</li>
   <li data-checked="true">Move, resize, multi-select, delete and z-order for cards</li>
@@ -129,10 +130,15 @@ parent. That shape is on the backlog as a shortcut, not as the core loop.</p>
   <li data-checked="true">Works with no internet, except for link previews and video thumbnails</li>
   <li data-checked="true">Duplicate a card, from the element menu and from the properties panel</li>
   <li data-checked="true">A keyboard shortcut set — the 14 keys printed on the context menus and the
-    search footer. See <code>docs/design-system.html</code> §11.2</li>
+    search footer. See <code>docs/design-system.html</code> §11.6</li>
   <li data-checked="true">A Settings screen, applied as changes are made, holding: the project
-    folder (read-only), auto-save cadence, snap to grid, zoom with, and theme</li>
+    folder (read-only), auto-save cadence, snap to grid, zoom with, theme, and — from P6 — show
+    writing cards</li>
   <li data-checked="true">A light and a dark theme, chosen as Light, Dark or System</li>
+  <li data-checked="true">The writing pack — seven typed card types built from data blueprints,
+    connections that carry a role, list fields with chips on the card face, and a card that expands
+    into its own canvas. Builds in <b>P6</b>. See
+    <code>docs/feature-writing-pack.html</code></li>
 </ul>
 <div class="callout">
   <b>2026-09-05 — four items added by <code>dev-ui-update</code>.</b> Duplicate, the shortcut set,
@@ -150,18 +156,30 @@ parent. That shape is on the backlog as a shortcut, not as the core loop.</p>
     not meet. This is a deliberate choice.</b> See section 11</li>
   <li data-checked="false">Video that plays inside its card — <b>a table stake the MVP meets only in
     part. This is a deliberate choice.</b> See section 11</li>
-  <li data-checked="false">A library screen, showing every item in a project and its unplaced items</li>
-  <li data-checked="false">Reusable shaped items, such as characters, tropes and themes, each with
-    its own payload and its own editor</li>
+  <li data-checked="false">Vimeo video cards — <b>removed from the MVP on 2026-09-06.</b> YouTube
+    only. A Vimeo address still works: it becomes an ordinary link card. The
+    <code>provider</code> field in the video payload already exists, so adding Vimeo back is one
+    glyph and one address rule</li>
+  <li data-checked="false">A library screen, showing every item in a project and its unplaced items —
+    <b>partly met by P6.</b> The writing pack ships an Unplaced list only. The full screen stays
+    here</li>
   <li data-checked="false">Relationships between library items, and a graph view of them</li>
-  <li data-checked="false">Boards nested inside a canvas</li>
   <li data-checked="false">A browser extension web clipper</li>
   <li data-checked="false">AI features, started by the user, using the user's own key</li>
   <li data-checked="false">Freehand drawing and an ink layer</li>
-  <li data-checked="false">Templates and starter canvases</li>
+  <li data-checked="false">Book templates — pick a genre and a sub-genre, then fill a Book card's
+    fields from a guide drawn from a previous book. Deferred inside the writing pack, with its
+    rulings already recorded. See <code>docs/feature-writing-pack.html</code> §3</li>
+  <li data-checked="false">Highlight mode — click a chip and every card carrying that value lights
+    up. Deferred inside the writing pack</li>
+  <li data-checked="false">Board cards — a card whose content is computed rather than typed.
+    Deferred inside the writing pack</li>
+  <li data-checked="false">User-written blueprints — a screen where the user builds their own card
+    type. Deferred inside the writing pack</li>
   <li data-checked="false">Version history and restore</li>
   <li data-checked="false">PDF cards and PDF annotation</li>
-  <li data-checked="false">Tags, colours and card metadata</li>
+  <li data-checked="false">Colours on cards. <b>Tags and card metadata are met by P6</b>, as list
+    fields printed on the card face as chips</li>
   <li data-checked="false">Task lists and column layouts</li>
   <li data-checked="false">Font and typography choice</li>
   <li data-checked="false">Import from other tools</li>
@@ -228,8 +246,8 @@ of the data model, and that rewrite would take every existing canvas with it.</p
   </tr>
   <tr>
     <td><code>connection</code></td>
-    <td>id, canvas_id, from_placement_id, to_placement_id, label, directed</td>
-    <td>Joins two placements on the same canvas</td>
+    <td>id, canvas_id, from_placement_id, to_placement_id, label, directed, color, width, label_visible, route, from_anchor, to_anchor, bend</td>
+    <td>Joins two placements on the same canvas. <code>color</code>, <code>width</code>, <code>label_visible</code>, <code>route</code>, <code>from_anchor</code> and <code>to_anchor</code> are style keys resolved by the front end; <code>route</code> is <code>straight</code> or <code>elbow</code>, and each anchor is <code>auto</code> or a card side. <code>bend</code> is a hand-placed bend as JSON, held in the frame of the two card centres, or empty for none. No canvas coordinate is ever stored on a connection. See <code>docs/design-system.html</code> §9.13</td>
   </tr>
 </table>
 
@@ -237,7 +255,8 @@ of the data model, and that rewrite would take every existing canvas with it.</p
 <pre><code>note   { title, text }
 image  { asset, natural_width, natural_height, alt }
 link   { url, title, description, favicon_asset, thumbnail_asset, fetched_at }
-video  { url, provider, title, thumbnail_asset, fetched_at }</code></pre>
+video  { url, provider, title, thumbnail_asset, fetched_at }
+blueprint { blueprint, name, detail_canvas_id, fields }</code></pre>
 <p>An <code>asset</code> value is a file name inside the project's <code>assets</code> folder.
 It is never an absolute path.</p>
 <p>A note carries a <code>title</code> as well as its body <code>text</code>. The title is a plain
@@ -246,6 +265,14 @@ fields are searched. <i>Added 2026-09-05 by <code>dev-ui-update</code>: every no
 design handoff has a title, and the earlier payload had nowhere to put it.</i></p>
 <p>The <code>kind</code> field with a typed payload is what lets a fifth kind be added cheaply. A
 character kind later brings its own payload and its own editor. Behaviour stays per kind.</p>
+<p><i>Added 2026-09-07 by <code>dev-add-feature</code>: the fifth kind is
+<code>blueprint</code>, and it is the <b>only</b> kind the writing pack adds. The card type — Book,
+Chapter, Scene, Beat, Character, Location — is a value inside the payload, not a value of
+<code>kind</code>. SQLite cannot change a CHECK constraint in place, so a kind per card type would
+mean rebuilding the <code>item</code> table for every new card type. With the type in the payload,
+a new card type is a data file and no migration at all. The cost is that <code>kind</code> no
+longer says what a card looks like; code reads <code>payload.blueprint</code>. See
+<code>docs/feature-writing-pack.html</code> §5.</i></p>
 
 <h3>Connections join placements, not items</h3>
 <p>A line lives on one canvas. Placing the same item on a second canvas brings no lines with it.
@@ -259,10 +286,21 @@ view.</p>
   <li>Deleting a canvas deletes its placements and its connections. Items are then checked, and the
     rule below applies.</li>
   <li>Deleting a placement deletes the connections attached to it.</li>
-  <li>Deleting the last placement of an item deletes the item and its asset files.</li>
+  <li>Deleting the last placement of a <b>note, image, link or video</b> item deletes the item and
+    its asset files.</li>
+  <li>Deleting the last placement of a <b>blueprint</b> item keeps the item. It moves to the
+    Unplaced list in the left column, where it can be placed again or deleted for good.</li>
 </ul>
-<p>The last rule stops invisible junk. The MVP has no library screen, so an item with no placement
+<p>The rule stops invisible junk. The MVP has no library screen, so an item with no placement
 could never be seen or removed. Undo restores the item, the placement and the asset files together.</p>
+<div class="callout">
+  <b>2026-09-07 — the delete rule is corrected by <code>dev-add-feature</code>.</b> It was one rule
+  for every kind: deleting the last placement deleted the item. A blueprint card is meant to be
+  reused, so that rule would destroy a Character when the user removed them from the one chapter
+  they appear in, taking their sliders, tropes and notes with them. The four original kinds keep the
+  old behaviour exactly. Blueprint items survive, and the new Unplaced list keeps the old rule's
+  promise that nothing becomes invisible. See <code>docs/feature-writing-pack.html</code> §5.
+</div>
 
 <h2>5. Interfaces</h2>
 
@@ -294,7 +332,7 @@ before 2026-09-05, and the design handoff also calls it "the rail". Use <i>left 
 <h3>Inputs</h3>
 <ul>
   <li>Mouse. Drag to move. Handles to resize. Drag on empty space to select many.</li>
-  <li>Keyboard. The full shortcut set is in <code>docs/design-system.html</code> §11.2 — 14 keys,
+  <li>Keyboard. The full shortcut set is in <code>docs/design-system.html</code> §11.6 — 14 keys,
     each of them printed on a context menu or the search footer, so the application must honour
     them. In short: <code>N</code> note, <code>I</code> image, <code>C</code> connect,
     <code>Enter</code> edit or open, <code>Esc</code> clear or close, <code>Del</code> delete,
@@ -349,7 +387,8 @@ breaking when the user moves or renames the original file.</p>
 <ul>
   <li>Microsoft Edge WebView2, for the browser engine. It ships with Windows 11.</li>
   <li>Web page fetching, for link preview title, description and picture.</li>
-  <li>YouTube and Vimeo public metadata, for the video card title and thumbnail.</li>
+  <li>YouTube public metadata, for the video card title and thumbnail. <i>Vimeo was removed on
+    2026-09-06 — see the deferred list in section 3.</i></li>
 </ul>
 
 <h3>Deployment</h3>
@@ -425,7 +464,7 @@ screen that moves phase here moves there too.</p>
   <li>Project folder, SQLite database and the schema in section 4</li>
   <li><b>The full token layer, both palettes</b>, and the theme attribute. The control that flips it
     is P5; the tokens are needed here so the shell is not built twice</li>
-  <li><b>Vendored fonts and icons</b> — Source Serif 4 and the 33 Phosphor glyphs, both local, with
+  <li><b>Vendored fonts and icons</b> — Source Serif 4 and the 34 Phosphor glyphs, both local, with
     no network fetch. See <code>docs/design-system.html</code> §14</li>
   <li><b>The application shell</b> — title bar, left column, canvas with its dot grid, zoom bar, and
     the properties panel in both its expanded and collapsed forms</li>
@@ -486,6 +525,34 @@ screen that moves phase here moves there too.</p>
     token values, with nothing moving between the two themes</li>
 </ul>
 
+<h3>P6 — The writing pack <span class="tag">added 2026-09-07</span></h3>
+<p>New. It sits last so no earlier phase is renumbered. It is planned in full in
+<code>docs/feature-writing-pack.html</code>, which this list summarises.</p>
+<ul>
+  <li>Migration 0007 — rebuild <code>item</code> to widen its <code>kind</code> CHECK. First,
+    because it rewrites a table holding the user's work</li>
+  <li>Migrations 0008 and 0009 — the connection <code>role</code> column, and the per-project user
+    list table</li>
+  <li>The blueprint engine: one form generated from a field list, and seven field kinds</li>
+  <li>Seven shipped card types: Book, Chapter, Scene, Beat, Character, Location, and the existing
+    Note</li>
+  <li>The shipped lists — genres, sub-genres, story tropes, character tropes, themes — drawn from
+    the Book Guides library, with per-project user entries and one-hop filtering that sorts and
+    never hides</li>
+  <li>Chips on the card face. Long Text never prints on a face</li>
+  <li>Scale sliders, with the shaped Randomize roll and its guarantee</li>
+  <li>Connection roles — suggested, always editable, and never a rule</li>
+  <li>Expand Into A Canvas, and the Unplaced list that the corrected delete rule needs</li>
+  <li>Search widens to a fourth query, over blueprint card names and Long Text fields</li>
+  <li>A Settings toggle, <b>Show Writing Cards</b>, default on. It hides the seven card types from
+    the Add menu. It never hides a card already on a canvas, and a settings file with no such key
+    reads as on. <code>settings.json</code> grows from five values to six</li>
+  <li><b>Gate:</b> 250 blueprint cards carrying chips pan at 60 frames per second, and the installer
+    stays under 20 MB with the shipped lists inside it</li>
+  <li><b>Blocked until the design pass runs.</b> <code>docs/design-system.html</code> holds nothing
+    for this phase. Run <code>dev-ui-update</code> before <code>dev-plan-phase 6</code></li>
+</ul>
+
 <h2>10. Done criteria</h2>
 <p>The MVP is finished when every line below passes.</p>
 <ul class="checklist">
@@ -542,9 +609,10 @@ screen that moves phase here moves there too.</p>
   <tr><td>Web pages block preview fetching, or give poor data</td>
       <td>Link cards look plain</td>
       <td>The failure states in section 7 are designed as normal states, not errors</td></tr>
-  <tr><td>YouTube or Vimeo change their public metadata</td>
+  <tr><td>YouTube changes its public metadata</td>
       <td>Video cards lose title and thumbnail</td>
-      <td>The card falls back to the address. The card still works</td></tr>
+      <td>The card falls back to the address. The card still works. Only one provider is
+      supported, so there is one thing to fix</td></tr>
   <tr><td>The library has no screen in the MVP</td>
       <td>Reusable items cannot be managed yet</td>
       <td>The delete rule in section 4 stops junk building up until the screen exists</td></tr>
@@ -602,6 +670,42 @@ called the "canvas list" is now the <b>left column</b> in every document.<br>
 entries had been answered by <code>docs/architecture.html</code> on the same day and the block was
 stale.<br>
 No screen was removed. No phase was renumbered.</p>
+<p class="meta"><b>2026-09-06 &mdash; open design questions settled by <code>dev-ui-update</code>.</b>
+Ten of the twelve questions in <code>docs/design-system.html</code> §15 were answered. Two touch
+this plan.<br>
+<b>Scope reduced by one:</b> <b>Vimeo is out of the MVP</b> and moves to the deferred list. Video
+cards are YouTube only. A Vimeo address still works &mdash; it becomes an ordinary link card. The
+<code>provider</code> field in the video payload already exists, so adding Vimeo back later is one
+glyph and one address rule. This is the first scope reduction the design handoff has caused; the
+four earlier changes all added.<br>
+<b>Section 6 and section 11 follow:</b> the external dependency line and the provider risk row now
+name YouTube alone.<br>
+Scope now holds <b>17 in-scope items</b> and 20 deferred. No phase changed. Every other answer was
+visual and lives in <code>docs/design-system.html</code> &mdash; hover, pressed and motion values,
+the missing-file card, a 50px card minimum, a 350px minimum window, and the rule that a connection
+label is hidden under 50px of line.</p>
+<p class="meta"><b>2026-09-07 &mdash; the writing pack folded in by <code>dev-add-feature</code>.</b>
+Full plan: <code>docs/feature-writing-pack.html</code>. It is the first feature added since the MVP
+was finished.<br>
+<b>Scope grew by one item</b> and a new phase <b>P6</b>. That one item replaces four deferred rows,
+which were four sides of the same feature: reusable shaped items, templates and starter canvases,
+tags and card metadata, and boards nested inside a canvas. Templates split back out and stay
+deferred as <b>book templates</b>, with their rulings recorded. Three more rows were added to the
+deferred list from inside the feature: highlight mode, board cards and user-written blueprints. The
+library screen row is now marked partly met, because P6 ships an Unplaced list only.<br>
+<b>The data model changed twice.</b> A fifth item kind, <code>blueprint</code>, whose payload holds
+the card type. And the <b>last-placement delete rule is corrected</b>: it now applies to note, image,
+link and video only, because it would otherwise destroy a reused Character. That is the first shipped
+rule this plan has had to change.<br>
+<b>Section 9 gained P6.</b> No existing phase was renumbered. P6 is blocked until
+<code>dev-ui-update</code> runs, because <code>docs/design-system.html</code> holds no design for
+any of it.<br>
+<b>The Settings screen grows to six values.</b> A toggle, <b>Show Writing Cards</b>, default on,
+hides the seven card types from the Add menu. It never hides a card already on a canvas, and a
+settings file with no such key reads as on. <code>docs/architecture.html</code> §3 and
+<code>CLAUDE.md</code> both still say <code>settings.json</code> holds five values. Correct that one
+line in each when P6 is planned.<br>
+Scope now holds <b>18 in-scope items</b> and 23 deferred. No architecture decision changed.</p>
 
 </div>
 </body>

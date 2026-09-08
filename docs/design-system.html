@@ -64,9 +64,13 @@ document alone.</p>
 <h2>1. Status and authority</h2>
 
 <div class="meta">
-  <b>Written:</b> 2026-09-05. <b>Last amended:</b> 2026-09-06.<br>
-  <b>Consolidates:</b> <code>docs/handoff/</code> (2026-09-05) — the IdeaScape desktop UI bundle,
-  12 screens.<br>
+  <b>Written:</b> 2026-09-05. <b>Last amended:</b> 2026-09-08.<br>
+  <b>Consolidates:</b> <code>docs/handoff/</code> — the IdeaScape desktop UI bundle, in two
+  passes. <b>2026-09-05:</b> 12 screens. <b>2026-09-08:</b> a revised bundle of
+  <b>31 screens</b>, adding the canvas interaction states and two failure screens
+  (<code>21a</code>–<code>21h</code>, <code>22a</code>, <code>22b</code>, <code>22c</code>) and the
+  <b>Writing Pack</b> (<code>23a</code>, <code>24a</code>, <code>24b</code>, <code>25a</code>,
+  <code>26a</code>, <code>26b</code>, <code>27a</code>, <code>28a</code>).<br>
   <b>Fidelity:</b> high. Colours, type sizes, spacing, radii, shadows and copy are final.<br>
   <b>Design system:</b> Broadsheet, bound at
   <code>docs/handoff/_ds/broadsheet-ceab0636-4e8c-4494-8c93-3524fad568e6/</code>.
@@ -86,6 +90,13 @@ document alone.</p>
     byte-identical to the live docs.)</li>
   <li><b>A locked decision is never deleted.</b> It is superseded, dated, with its reason, in the
     handoff log in section 2.</li>
+  <li><b>What shipped wins over what was drawn later.</b> Six things in the 2026-09-08 bundle
+    were drawn before the owner decisions of 2026-09-06 and 2026-09-07 reached the designer, so the
+    bundle re-draws states this document had already moved on from: the Verdana chrome font, the
+    video card's play badge and "Click to open in your browser" line, the label chip at opacity
+    .62, a two-easing motion table, and the missing-asset card in the destructive accent. Each is
+    <b>stale in the bundle</b>, is recorded as such in the handoff log, and is <b>not</b> applied
+    here.</li>
 </ol>
 
 <h3>Two things the mockups are not</h3>
@@ -278,6 +289,129 @@ appearing here first.</p>
     <b>Show Title</b> and <b>Show Description</b>. This document never named either, so no
     section changes. <i>Owner, 2026-09-07.</i></td>
 </tr>
+
+<tr>
+  <td>2026-09-08</td>
+  <td><code>docs/handoff/</code><br>revised bundle</td>
+  <td><b>Nineteen new screens folded in.</b> <b>Turns 21–22</b> — every state this document had on
+    its gap list is now drawn: <code>21a</code> drawing a line, <code>21b</code> a connection
+    selected, <code>21c</code> marquee multi-select, <code>21d</code> a note mid-edit,
+    <code>21e</code> an image mid-drop, <code>21f</code> the New project dialog, <code>21g</code>
+    canvas rename and delete confirm, <code>21h</code> 254 cards at 24%, <code>22a</code> a missing
+    asset file, <code>22b</code> a damaged database, <code>22c</code> the states-and-motion
+    reference sheet. New §9.14–§9.24. <b>Turns 23–28</b> — the <b>Writing Pack</b>: six authored
+    card types, the seven field kinds, the combo, the card faces, the generated panel, connection
+    roles, and three full-screen sheets. New §9.25–§9.33 and five new contracts in §10.
+    <b>§15.1's gap list is now empty</b> — all eight of its items graduated into §9.</td>
+  <td><b>Superseded: nothing that shipped.</b> Authority rule 5 was added to §1 to say so. The
+    bundle re-draws six settled things and each is stale, not new: the Verdana chrome font (§6.1,
+    settled 2026-09-05), the video card's play badge and open-on-body gesture (§9.6, settled
+    2026-09-07), the label chip at opacity .62 (§9.13, settled 2026-09-07), the two-easing
+    four-duration motion table on <code>22c</code> (§11.3 holds one curve and nine durations, and
+    that one curve is what shipped in <code>src/lib/tokens.css</code>), the missing-asset card in
+    the destructive accent (§9.4, see below), and the properties panel at 252px (see below).
+    <b>Amended:</b> §5.3 (four elevations), §6.2 (three roles), §7 (28 glyphs), §8.3 (the rail's
+    <code>Add</code> group becomes <code>Cards</code>), §9.4 (the missing-file bar and its two
+    buttons), §9.11 (a seventh Settings row), §9.13 (a new <b>Role</b> block), §10 (contract 10
+    widened, contracts 15–19 added), §13.2, §15.1, §15.2, §15.4 and §16 (a new P6).</td>
+</tr>
+
+<tr>
+  <td>2026-09-08</td>
+  <td>owner decision</td>
+  <td><b>Which card types get a screen of their own.</b> <b>Book</b> (<code>27a</code>),
+    <b>Chapter</b> (<code>28a</code>) and <b>Character</b> (<code>25a</code>) each open a
+    full-screen sheet in place of the canvas. <b>Scene</b>, <b>Beat</b> and <b>Location</b> stay in
+    the properties panel. See §9.28 and §9.31–§9.33.</td>
+  <td><b>Resolved: the Location sheet.</b> The bundle listed it as the one Writing Pack form still
+    undrawn. Location is a panel type, so there is no sheet to draw and the gap is closed rather
+    than carried. <i>Owner, 2026-09-08.</i></td>
+</tr>
+
+<tr>
+  <td>2026-09-08</td>
+  <td>owner decision</td>
+  <td>—</td>
+  <td><b>Superseded: the 252px properties panel.</b> Every Writing Pack panel in the bundle is
+    drawn at 252px, while the bundle's own shell section still says 177px — the bundle disagrees
+    with itself. <code>--size-panel-expanded</code> shipped at <b>177px</b> in P1. Decision (owner,
+    2026-09-08): <b>the panel stays at 177px</b>, so 153px of content width. Every Writing Pack
+    control was therefore <b>re-measured for 177px in §9.25</b> — the Number field goes full width
+    with its stepper inside, the Scale slider loses its fixed 132px, and the combo is full width.
+    That re-measurement was <b>authored by <code>dev-ui-update</code>, not drawn</b>; a later drawn
+    pass supersedes it and gets its own row. <i>Owner, 2026-09-08.</i></td>
+</tr>
+
+<tr>
+  <td>2026-09-08</td>
+  <td>owner decision</td>
+  <td><b>Added: the four missing elevations.</b> Card hover, card dragging, the note text bar and
+    dialogs now have rows in §5.3. The first two were already specified in §11.2 and simply had no
+    row; the text bar and the dialog step are genuinely new.</td>
+  <td><b>Amended: deviation 7.</b> The shadow list grows from seven named shadows to
+    <b>eleven</b>, and stays closed at eleven. This is the same single deviation from Broadsheet,
+    not an eighth one. <i>Owner, 2026-09-08.</i></td>
+</tr>
+
+<tr>
+  <td>2026-09-08</td>
+  <td>owner decision</td>
+  <td><b>Added from <code>22a</code>:</b> the canvas <b>missing-file bar</b>, the
+    <code>Locate file…</code> and <code>Replace</code> buttons under the card, and the panel's
+    File-group warning row. All three are drawn in the second accent.</td>
+  <td><b>Split decision on <code>22a</code>.</b> The drawn card face uses
+    <code>--color-accent-2</code> on a neutral-100 ground; the card this document authored on
+    2026-09-06 uses a dashed border and no second accent, and <b>that is what shipped</b> in
+    <code>src/features/cards/ImageCard.svelte</code>. Decision (owner, 2026-09-08): <b>keep the
+    shipped card</b> and adopt only the three new parts around it. <b>Amended: contract 10.</b> The
+    second accent now means <b>destructive <i>or</i> damage</b> — never decorative — because
+    <code>22b</code>'s damaged-database screen needs the same widening. <i>Owner,
+    2026-09-08.</i></td>
+</tr>
+
+<tr>
+  <td>2026-09-08</td>
+  <td>owner decision</td>
+  <td><b>Added: Part Of.</b> The one role the mockups contribute that the plan's list lacked. It
+    reads <code>Contains</code> from the other end, which is what lets one <b>Joined to</b> group
+    carry both directions.</td>
+  <td><b>Settled: the role vocabulary, at seven.</b> <code>24a</code>/<code>24b</code> draw four
+    roles under their own names; <code>docs/feature-writing-pack.html</code> §5 defines six.
+    Decision (owner, 2026-09-08): <b>the plan's six names stand</b> — <code>Leads to</code> is
+    drawn but the role is <b>Feeds</b> — because the plan owns the data model and
+    <code>Relates To</code> is what <code>role = NULL</code> reads as; taking the drawn four would
+    have deleted the migration's default. The mockups keep what they were actually deciding: the
+    rest glyph, the open chip and the hover behaviour. <b>Amended:</b> §9.13 gains a vocabulary
+    table; §9.29, §9.28, §9.32 and §9.33 now name the roles correctly. <b>Amended:</b>
+    <code>docs/prd.html</code> §11 Phase 6 and
+    <code>docs/feature-writing-pack.html</code> §5. <b>No new glyph</b> — all seven were already in
+    §7.1, so the set stays at 61. <i>Owner, 2026-09-08.</i></td>
+</tr>
+<tr>
+  <td>2026-09-08</td>
+  <td>consolidation decision</td>
+  <td>—</td>
+  <td><b>Resolved: monospace.</b> The bundle sets <code>monospace</code> in five places — menu
+    shortcut hints, the coordinates in <b>Placed on</b>, and the Scale slider's value. Broadsheet
+    ships no <code>--font-mono</code>, and §6.1 forbids reaching for a second family. Decision:
+    <b>no mono family.</b> Those roles keep the chrome font and take
+    <code>font-variant-numeric: tabular-nums</code>, which is what the alignment was actually for.
+    Reversible: a real mono would be a project token, a handoff-log row, and would have to survive
+    the Font setting's three families.</td>
+</tr>
+
+<tr>
+  <td>2026-09-08</td>
+  <td>consolidation decision</td>
+  <td>—</td>
+  <td><b>Naming settled across the plan and the mockups.</b> The rail group is <b>Cards</b>, with
+    <code>General</code> and <code>Writing Pack</code> submenu parents, taken from the bundle —
+    eight card types do not fit as flat rows in a 168px rail, and
+    <code>docs/feature-writing-pack.html</code>'s "one Writing heading" predates the submenu. The
+    Settings row is <b>Show Writing Cards</b>, taken from the plan, in a new <b>Packs</b> group. It
+    is the <b>seventh</b> row, not the sixth: the Font row of 2026-09-07 took the sixth.
+    <i>Owner, 2026-09-08.</i></td>
+</tr>
 </tbody>
 </table>
 
@@ -327,17 +461,23 @@ first.</p>
   scannable. This is the only place both accents meet.</td></tr>
 <tr><td>7</td><td>"For elevation use <code>--shadow-sm/md/lg</code> rather than ad-hoc
   box-shadows."</td>
-  <td>Seven named shadows, six of them ad-hoc (section 5.3). Only the zoom bar's
+  <td><b>Eleven</b> named shadows, ten of them ad-hoc (section 5.3). Only the zoom bar's
   <code>0 3px 10px rgba(45,43,43,.16)</code> is exactly <code>--shadow-md</code>.</td>
-  <td>The app has distinct elevations for card, selected card, picker card, zoom bar, menu, popover
-  and toggle knob. Broadsheet ships three steps. Add the rest as project tokens.</td></tr>
+  <td>The app has distinct elevations for card, card hover, card dragging, selected card, picker
+  card, zoom bar, menu, popover, the note text bar, dialogs and the toggle knob. Broadsheet ships
+  three steps. Add the rest as project tokens. <i>Widened from seven to eleven on 2026-09-08 —
+  still one deviation, not an eighth.</i></td></tr>
 </tbody>
 </table>
 
 <div class="note">
 <b>Reverted, not deviated.</b> An eighth deviation — a sans-serif chrome font — appeared in every
 mockup frame (<code>Verdana, Geneva, sans-serif</code>). It was reverted on 2026-09-05: the chrome
-font is Broadsheet's Source Serif 4. See section 6 and the handoff log.
+font is Broadsheet's Source Serif 4. See section 6 and the handoff log. The 2026-09-08 bundle still
+draws Verdana; that is stale, not a re-proposal (authority rule 5).<br><br>
+<b>A ninth was also declined.</b> The 2026-09-08 bundle sets <code>monospace</code> in five small
+roles. There is no mono family. Those roles keep the chrome font with
+<code>font-variant-numeric: tabular-nums</code>. See the handoff log, 2026-09-08.
 </div>
 
 <h2>4. Colour</h2>
@@ -552,6 +692,10 @@ large text and interface chrome — <b>not</b> for body copy. The rule:</p>
 <tbody>
 <tr><td>Card</td><td><code>0 2px 8px rgba(45,43,43,.14)</code></td>
   <td><code>0 2px 8px rgba(0,0,0,.42)</code></td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Card — hover</td><td><code>0 3px 11px rgba(45,43,43,.16)</code></td>
+  <td>not drawn — scale as §4.5</td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Card — dragging</td><td><code>0 8px 22px rgba(45,43,43,.22)</code></td>
+  <td>not drawn — scale as §4.5</td><td><span class="tag gap">new token</span></td></tr>
 <tr><td>Selected card</td><td><code>0 4px 14px rgba(45,43,43,.18)</code></td>
   <td><code>0 4px 14px rgba(0,0,0,.5)</code></td><td><span class="tag gap">new token</span></td></tr>
 <tr><td>Picker card</td><td><code>0 2px 8px rgba(45,43,43,.12)</code></td>
@@ -562,6 +706,10 @@ large text and interface chrome — <b>not</b> for body copy. The rule:</p>
   <td>not drawn — open question 6</td><td><span class="tag gap">new token</span></td></tr>
 <tr><td>Search popover</td><td><code>0 12px 30px rgba(45,43,43,.3)</code></td>
   <td>not drawn — open question 6</td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Note text bar</td><td><code>0 6px 18px rgba(45,43,43,.24)</code></td>
+  <td>not drawn — scale as §4.5</td><td><span class="tag gap">new token</span></td></tr>
+<tr><td>Dialog</td><td><code>0 18px 44px rgba(45,43,43,.38)</code></td>
+  <td>not drawn — scale as §4.5</td><td><span class="tag gap">new token</span></td></tr>
 <tr><td>Toggle knob</td><td><code>0 1px 3px rgba(45,43,43,.3)</code></td>
   <td>not drawn — open question 6</td><td><span class="tag gap">new token</span></td></tr>
 </tbody>
@@ -640,7 +788,20 @@ second family</b>. See open question 2.
   <td>The selected note widens its title by half a pixel and lifts its body to opacity .85</td></tr>
 <tr><td>Picker project name</td><td>14px / 600</td><td>Letter-spacing -.01em, ellipsized</td></tr>
 <tr><td>Empty-state heading</td><td>22px / 400</td><td>Letter-spacing -.02em</td></tr>
+<tr><td>Dialog title</td><td>19px / 400</td>
+  <td>Letter-spacing -.01em. The New project dialog and the delete confirm (§9.19, §9.20)</td></tr>
+<tr><td>Empty-state heading</td><td>22px / 400</td><td>Letter-spacing -.02em</td></tr>
 <tr><td>Page heading</td><td>32px / 400</td><td>Letter-spacing -.02em. "Open a project", "Settings"</td></tr>
+<tr><td><b>Type kicker</b> <span class="tag new">new</span></td><td>9.5px / 400</td>
+  <td>Letter-spacing .11em, uppercase, opacity .45. The Writing Pack card face's kind row
+  (§9.27), and the type name on a sheet header (§9.31)</td></tr>
+<tr><td><b>Sheet card name</b> <span class="tag new">new</span></td><td>14px / 600</td>
+  <td>The card name in a full-screen sheet header (§9.31–§9.33)</td></tr>
+<tr><td><b>Tabular figures</b> <span class="tag new">new</span></td><td>10px and 11px / 400 and 600</td>
+  <td>Menu shortcut hints (10px, opacity .45), the coordinates in <b>Placed on</b> (10px, opacity
+  .4) and the Scale slider's signed value (11px / 600, opacity .65). All three take
+  <code>font-variant-numeric: tabular-nums</code> in the chrome font. <b>There is no monospace
+  family</b> — see the handoff log, 2026-09-08</td></tr>
 </tbody>
 </table>
 
@@ -697,7 +858,8 @@ Use .35 — it is the drawn value. The one exception is the disabled Refetch but
 </tbody>
 </table>
 
-<h3>7.1 Every glyph used — 33 in total</h3>
+<h3>7.1 Every glyph used — 61 in total</h3>
+<p class="frames">33 as of 2026-09-07; 28 added by the 2026-09-08 bundle, in the last three rows.</p>
 <table>
 <thead><tr><th>Group</th><th>Glyphs</th></tr></thead>
 <tbody>
@@ -722,6 +884,26 @@ Use .35 — it is the drawn value. The one exception is the disabled Refetch but
   <td><code>ph-cursor</code> <code>ph-flow-arrow</code> <code>ph-arrow-line-up</code>
   <code>ph-arrow-line-down</code> <code>ph-folder-plus</code> <code>ph-folder</code>
   <code>ph-arrow-left</code></td></tr>
+<tr><td>Canvas states and failures <span class="tag new">new</span></td>
+  <td><code>ph-crosshair</code> (21a) <code>ph-arrow-right</code> <code>ph-arrows-horizontal</code>
+  <code>ph-arrow-down</code> (21b) <code>ph-align-left-simple</code>
+  <code>ph-align-center-horizontal</code> <code>ph-align-right-simple</code>
+  <code>ph-align-top-simple</code> <code>ph-align-center-vertical</code>
+  <code>ph-align-bottom-simple</code> (21c) <code>ph-download-simple</code> (21e)
+  <code>ph-warning</code> (21g, 22a) <code>ph-gauge</code> (21h)
+  <code>ph-warning-circle</code> (22a, 22b)</td></tr>
+<tr><td>The Cards group and the six types <span class="tag new">new</span></td>
+  <td><code>ph-squares-four</code> (General) <code>ph-book-open</code> (Writing Pack)
+  <code>ph-caret-right</code> (submenu parent) <code>ph-book</code> <code>ph-file-text</code>
+  <code>ph-film-slate</code> <code>ph-dot-outline</code> <code>ph-user-circle</code>
+  <code>ph-map-pin</code></td></tr>
+<tr><td>Writing Pack controls and roles <span class="tag new">new</span></td>
+  <td><code>ph-caret-down</code> (combo, and the Number stepper's lower half)
+  <code>ph-caret-up</code> (open combo, and the stepper's upper half)
+  <code>ph-dice-five</code> (Randomize) <code>ph-user</code> (Appears in)
+  <code>ph-eye</code> (Told by). <b>Leads to</b> reuses <code>ph-arrow-right</code>;
+  <b>Part of / Contains</b> reuses <code>ph-file-text</code>; a chip's remove control reuses
+  <code>ph-x</code>; <b>Expand into a canvas</b> reuses <code>ph-square-half</code></td></tr>
 </tbody>
 </table>
 
@@ -736,17 +918,25 @@ Use .35 — it is the drawn value. The one exception is the disabled Refetch but
   <code>ph-circle-dashed</code>; the video provider logo; page-level button icons</td></tr>
 <tr><td>14px</td>
   <td>The title-bar save state; the text-format buttons; search result rows; the collapsed-panel
-  caret</td></tr>
-<tr><td>15px</td><td>Context-menu rows</td></tr>
+  caret; Cards submenu rows; the Randomize <code>ph-dice-five</code></td></tr>
+<tr><td>15px</td>
+  <td>Context-menu rows; the <code>ph-warning</code> in a warning block (§9.20, §9.22)</td></tr>
 <tr><td>16px</td><td>Picker card folder icons</td></tr>
 <tr><td>20px</td><td>The <code>ph-image</code> placeholder on a small image card</td></tr>
 <tr><td>22px</td><td>The <code>ph-image</code> in a link card's preview band</td></tr>
 <tr><td>26px</td><td>The <code>ph-image</code> placeholder on a large image card</td></tr>
 <tr><td>20px / 26px</td><td><code>ph-image-broken</code> on a missing-file card, matching the
   <code>ph-image</code> size it replaces (9.4)</td></tr>
+<tr><td>9px / 13px</td>
+  <td>A connection <b>role</b>: 9px inside the 15px rest glyph, 13px inside the open chip's disc
+  (§9.13)</td></tr>
+<tr><td>12px</td>
+  <td>The submenu's caret parent; a card face's type kicker (Beat takes 13px); the
+  <code>ph-square-half</code> expanded mark on a face (§9.27)</td></tr>
+<tr><td>19px</td><td>The <code>ph-warning-circle</code> on the damaged-database message (§9.23)</td></tr>
 </tbody>
 </table>
-<p class="frames">Tool and action row icon size is not stated in the handoff. See open question 1.</p>
+<p class="frames">Tool and action row icons are 13px (open question 1, settled 2026-09-06).</p>
 
 <h2>8. The application shell</h2>
 
@@ -819,14 +1009,22 @@ content, about 300px.</p>
 opacity .45 pushed right.</p>
 
 <h4>Section labels</h4>
-<p>Four labels — <code>Canvases</code>, <code>Tools</code>, <code>Add</code>, <code>History</code> —
-at 10px, letter-spacing .1em, uppercase, opacity .65.</p>
+<p>Four labels — <code>Canvases</code>, <code>Tools</code>, <code>Cards</code>,
+<code>History</code> — at 10px, letter-spacing .1em, uppercase, opacity .65.</p>
 <ul>
   <li><code>Canvases</code> — padding <code>0 12px 5px</code>, with a right-aligned
     <code>ph-plus</code> at 13px opacity .5.</li>
-  <li><code>Tools</code>, <code>Add</code>, <code>History</code> — padding
+  <li><code>Tools</code>, <code>Cards</code>, <code>History</code> — padding
     <code>14px 14px 8px</code> or <code>16px 14px 8px</code>.</li>
 </ul>
+<div class="callout">
+<b><code>Add</code> became <code>Cards</code> on 2026-09-08</b>, and its two flat rows became two
+submenu parents. Reason: the Writing Pack takes the card kinds from two to eight, and eight flat
+rows do not fit a 168px rail beside four other groups.
+<code>docs/feature-writing-pack.html</code> §6 says "the Add menu gains the seven writing card
+types, under one Writing heading" — that predates the submenu and is superseded here on naming
+only. The <i>rule</i> it states still holds: one flat pack, no pack picker, no project types.
+</div>
 
 <h4>Canvas rows</h4>
 <p>Padding <code>5px 12px</code>, 12px, gap 8px, <code>ph-square-half</code> at 13px, name
@@ -847,7 +1045,7 @@ ellipsized.</p>
 <thead><tr><th>State</th><th>Treatment</th></tr></thead>
 <tbody>
 <tr><td><b>Active tool</b></td>
-  <td>Background <code>--color-accent</code> #0088b0, colour <code>--color-bg</code> #f3f2f2, weight
+  <td>Background <code>--color-accent</code> #0088b0, colour <code>--color-on-accent</code> #f3f2f2, weight
   600</td></tr>
 <tr><td>Available</td><td>Opacity .85</td></tr>
 <tr><td>Unavailable</td><td>Opacity .35</td></tr>
@@ -860,13 +1058,56 @@ ellipsized.</p>
 <tbody>
 <tr><td>Tools</td>
   <td>Select <code>ph-cursor</code> · Pan <code>ph-hand</code> · Connect <code>ph-flow-arrow</code></td></tr>
-<tr><td>Add</td><td>Note <code>ph-note</code> · Image <code>ph-image</code></td></tr>
+<tr><td><b>Cards</b></td>
+  <td>General <code>ph-squares-four</code> · Writing Pack <code>ph-book-open</code>. <b>Both are
+  submenu parents</b>, not actions — see below</td></tr>
 <tr><td>History</td>
   <td>Undo <code>ph-arrow-counter-clockwise</code> · Redo <code>ph-arrow-clockwise</code></td></tr>
 <tr><td>(pinned)</td>
   <td>Settings <code>ph-gear</code>, at the bottom with <code>margin-top: auto</code></td></tr>
 </tbody>
 </table>
+
+<h4>The Cards submenus <span class="frames">drawn open on <code>21a</code></span> <span class="tag new">new 2026-09-08</span></h4>
+<p>Each parent row carries <code>ph-caret-right</code> at 12px opacity .5, right-aligned. <b>An open
+parent takes the pressed appearance</b> — background <code>--color-accent</code>, colour
+<code>--color-on-accent</code>, weight 600 — and its caret goes to opacity .8. So an open parent and the
+active tool look the same, which is correct: both are "this is what you are doing".</p>
+<p>The submenu is <b>the context-menu shell, flown out of the rail</b>. It reuses §9.9's grammar
+rather than inventing a second menu style.</p>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Position</td><td><code>position: absolute; left: 100%</code>, top-aligned to its parent row</td></tr>
+<tr><td>Width</td><td>206px</td></tr>
+<tr><td>Ground</td><td><code>--color-surface</code>, radius 3px</td></tr>
+<tr><td>Shadow</td><td><code>0 10px 28px rgba(45,43,43,.3)</code> — the context-menu step (§5.3)</td></tr>
+<tr><td>Padding</td><td><code>5px 0</code></td></tr>
+<tr><td>Stacking</td>
+  <td><code>--z-context-menu</code> (§8.6). It must paint over the canvas and over any card</td></tr>
+<tr><td>Rows</td>
+  <td>Padding <code>5px 12px</code>, gap 9px, 12px, a 14px icon at opacity .7, and the shortcut
+  right-aligned at 10px opacity .45 with <code>font-variant-numeric: tabular-nums</code></td></tr>
+<tr><td>Row states</td><td>§11.2's menu-row line, unchanged</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Submenu</th><th>Rows, in order</th></tr></thead>
+<tbody>
+<tr><td><code>General</code></td>
+  <td>Note <code>ph-note</code> <code>N</code> · Image <code>ph-image</code> <code>I</code></td></tr>
+<tr><td><code>Writing Pack</code></td>
+  <td>Book <code>ph-book</code> <code>2</code> · Chapter <code>ph-file-text</code> <code>3</code> ·
+  Scene <code>ph-film-slate</code> <code>4</code> · Beat <code>ph-dot-outline</code>
+  <code>5</code> · Character <code>ph-user-circle</code> <code>6</code> · Location
+  <code>ph-map-pin</code> <code>7</code></td></tr>
+</tbody>
+</table>
+<p><b>When <code>Show Writing Cards</code> is off (§9.11), the <code>Writing Pack</code> parent row
+is not drawn at all</b> — not dimmed. The plan's rule is that the toggle is a menu filter and
+nothing else: a writing card already on a canvas still draws, edits, searches and connects.
+<code>General</code> is then the only child, and it stays a submenu rather than flattening, so the
+rail does not change shape when a setting is flipped.</p>
 
 <h3>8.4 Canvas</h3>
 <pre><code>flex: 1; position: relative; overflow: hidden;
@@ -924,6 +1165,38 @@ Clicking the caret reopens it.</p>
 <p>The panel collapses whenever the selection is empty — including while searching, because
 searching selects nothing.</p>
 
+<h3>8.6 Stacking ladder <span class="tag new">recorded 2026-09-08</span></h3>
+<div class="callout">
+<b>Where this comes from.</b> No handoff pass has ever drawn a z-index scale. The ladder below is
+<b>the one that shipped</b> in <code>src/lib/tokens.css</code>, recorded here so the new screens in
+§9.14–§9.33 can cite a rung instead of inventing one. The <code>--z-connection-handles</code> rung
+was added by the owner on 2026-09-07 and already has a handoff-log row.
+</div>
+<table>
+<thead><tr><th>Token</th><th>Value</th><th>What sits there</th></tr></thead>
+<tbody>
+<tr><td><code>--z-connections</code></td><td>10</td>
+  <td>The SVG overlay. Below the cards, always (§9.13)</td></tr>
+<tr><td><code>--z-cards</code></td><td>20</td><td>Every card on the canvas</td></tr>
+<tr><td><code>--z-connection-handles</code></td><td>25</td>
+  <td>A <i>selected</i> connection's endpoint handles and bend handle — the one exception to "cards
+  paint over lines", because a handle on a card border must still be grabbable</td></tr>
+<tr><td><code>--z-marquee</code></td><td>30</td><td>The selection band (§9.16)</td></tr>
+<tr><td><code>--z-canvas-bars</code></td><td>40</td>
+  <td>The zoom bar, the Connect hint bar, the drop hint bar, the missing-file bar, the performance
+  badge, the note text bar, and every canvas caption</td></tr>
+<tr><td><code>--z-search-popover</code></td><td>50</td><td>The search popover (§9.8)</td></tr>
+<tr><td><code>--z-context-menu</code></td><td>60</td>
+  <td>Both context menus, and the Cards submenus flown out of the rail (§8.3)</td></tr>
+<tr><td><code>--z-dialog</code></td><td>70</td>
+  <td>The dialog backdrop and the dialog (§9.19, §9.20). Nothing sits above it</td></tr>
+</tbody>
+</table>
+<p><b>A full-screen sheet takes no rung.</b> Settings (§9.11) and the three Writing Pack sheets
+(§9.31–§9.33) <i>replace</i> the canvas in the layout rather than covering it, so they are siblings
+of the canvas and never stack over it. That is the whole reason they keep the title bar, the rail
+and the panel exactly where they are.</p>
+
 <h2>9. Screens</h2>
 
 <p>Twelve frames. Card anatomy lives in 9.3 to 9.6 and is shared by every screen that shows a
@@ -944,7 +1217,7 @@ content column has padding <code>54px 64px 0</code>.</p>
     <ul>
       <li><i>Primary:</i> <code>New project…</code> with <code>ph-folder-plus</code>, 13px, padding
         <code>7px 16px</code>, radius 4px, background and border <code>--color-accent</code>, colour
-        <code>--color-bg</code>.</li>
+        <code>--color-on-accent</code>.</li>
       <li><i>Secondary:</i> <code>Open folder…</code> with <code>ph-folder-open</code>, transparent,
         1px <code>--color-divider</code> border, <code>--color-text</code>.</li>
     </ul></li>
@@ -1112,6 +1385,46 @@ carry the meaning.</p>
 <p>Everything else — Position, Size, Alt text, Order, Duplicate, Delete — behaves exactly as
 normal.</p>
 
+<h4>Three parts adopted from <code>22a</code> <span class="tag new">new 2026-09-08</span></h4>
+<div class="callout">
+<b>A split decision.</b> <code>22a</code> draws this card in the second accent on a
+<code>--color-neutral-100</code> ground. The card above was authored on 2026-09-06 and
+<b>shipped</b> that way in <code>src/features/cards/ImageCard.svelte</code>. The owner kept the
+shipped card on 2026-09-08 and adopted only the three parts below, which the shipped work does not
+have. See the handoff log.
+</div>
+<p><b>1. Two buttons, under the card.</b> They sit outside the card, 8px below its bottom edge,
+left-aligned to it, gap 6px, both 11.5px, padding <code>4px 11px</code>, radius 3px. They are
+<b>drawn only while the card is selected</b>, so an unselected broken card stays quiet.</p>
+<ul>
+  <li><code>Locate file…</code> — 1px <code>--color-accent</code> border,
+    <code>--color-accent-700</code> text. It opens a file picker and re-points the payload at what
+    the user chooses. Undoable.</li>
+  <li><code>Replace</code> — 1px <code>--color-divider</code> border, <code>--color-text</code>. It
+    copies a new file into <code>assets/</code> under its content hash, exactly as a first drop
+    does.</li>
+</ul>
+<p><b>2. The canvas missing-file bar.</b> Top-left of the canvas, at
+<code>left: 18px; top: 14px</code> — the same slot as the Connect hint bar (§9.14), so the two are
+never drawn at once. Radius 3px, padding <code>4px 11px</code>, gap 8px, 11.5px, background
+<code>--color-accent-2-100</code> #fff1f4, colour <code>--color-accent-2-800</code> #790e3d, with
+<code>ph-warning</code> at 15px in <code>--color-accent-2</code>. It reads
+<b><code>2 files</code> are missing from this project</b>, then
+<code>Nothing was deleted</code> at opacity .55.</p>
+<p><b>The count is of files, not of cards</b>, and it is drawn whenever the number is one or more —
+a project that has lost one file has usually lost several, and the bar is how the user finds the
+rest. On dark: <code>--color-accent-2-900</code> ground with <code>--color-accent-2-200</code>
+text.</p>
+<p><b>3. A warning row at the top of the panel's File group.</b>
+<code>ph-warning-circle</code> at 13px plus <code>Missing since this project was opened</code> in
+<code>--color-accent-2-800</code> at 11px, then the path below at 11px opacity .55 with
+<code>word-break: break-all</code>, then <code>Recorded 1920 × 1280 · 412 KB</code> at opacity .45.
+<b>This supersedes the <code>Missing · the card is kept</code> line above</b>: the recorded
+dimensions are kept and labelled <i>recorded</i>, rather than dropped, because the layout depends
+on them and hiding them tells the user less.</p>
+<p>The card itself still takes no second accent. <b>The damage colour is on the chrome around the
+card, never on the card face</b> — which is the line contract 10 now draws.</p>
+
 <h3>9.5 Link card selected <span class="frames">frame <code>19b</code></span></h3>
 <h4>Card — fetched</h4>
 <p><code>overflow: hidden</code>, no padding on the shell.</p>
@@ -1242,7 +1555,7 @@ ellipsized. The highlighted row takes <code>background: var(--color-accent-100)<
 <tr><td>Row icon</td><td>15px, opacity .7</td></tr>
 <tr><td>Shortcut</td><td>Right-aligned, 11px, opacity .45</td></tr>
 <tr><td>Highlighted row</td>
-  <td>Background <code>--color-accent</code>, colour <code>--color-bg</code>; its shortcut goes to
+  <td>Background <code>--color-accent</code>, colour <code>--color-on-accent</code>; its shortcut goes to
   opacity .8</td></tr>
 <tr><td>Destructive row</td><td><code>--color-accent-2</code> #d6006c, with no icon dimming</td></tr>
 <tr><td>Separator</td><td>1px <code>--color-divider</code>, <code>margin: 5px 0</code></td></tr>
@@ -1270,6 +1583,11 @@ ellipsized. The highlighted row takes <code>background: var(--color-accent-100)<
 menu.</p>
 
 <h3>9.10 Background context menu <span class="frames">frame <code>17b</code></span></h3>
+<p class="frames"><b>The Writing Pack adds no rows here.</b> <code>17b</code> was redrawn in the
+2026-09-08 bundle and still holds only <code>New note here</code> and <code>Add image…</code>. Six
+more rows would double the menu, and the rail's <code>Cards</code> submenus plus the
+<code>2</code>…<code>7</code> shortcuts already give two routes — which is all contract 11
+asks.</p>
 <p>Width 236px. Same grammar as 9.9.</p>
 <table>
 <thead><tr><th>Row</th><th>Shortcut</th></tr></thead>
@@ -1329,14 +1647,35 @@ cover the same ground.</p>
 <tr><td>Appearance</td><td>Font</td>
   <td>Segmented <b><code>Serif</code></b> / <code>Sans</code> / <code>Marker</code></td>
   <td>Marker is a single-weight hand; sizes never change.</td></tr>
+<tr><td><b>Packs</b> <span class="tag new">new</span></td><td><b>Show Writing Cards</b></td>
+  <td>Toggle, <b>on</b></td>
+  <td>Off hides Book, Chapter, Scene, Beat, Character and Location from the Cards menu. Cards
+  already on a canvas stay.</td></tr>
 </tbody>
 </table>
+
+<h4>The Packs group <span class="tag new">new 2026-09-08</span></h4>
+<p><b>It is the seventh row, and it is full width.</b> Packs sits <i>under</i> the two-column grid
+as a single full-width row, not inside a column, because it governs the whole application rather
+than one area. The control is the same 34 × 19px toggle; on shows the knob right on
+<code>--color-accent</code> (<code>--color-accent-400</code> on dark).</p>
+<p><b>Named from the plan, not the mockup.</b> <code>16a</code> labels the group <code>Packs</code>
+and the row <code>Writing Pack</code>. <code>docs/feature-writing-pack.html</code> §6 names the row
+<b><code>Show Writing Cards</code></b>, and that name won on 2026-09-08 because it says what the
+switch does. The group keeps the mockup's name.</p>
+<p><b>It is a menu filter and nothing more.</b> When it is off, the rail's
+<code>Writing Pack</code> submenu parent is not drawn (§8.3). That is the only surface it touches —
+<b>the background context menu never carried the six types</b> (§9.10). Nothing else changes: a writing card already on a canvas still draws,
+still edits, still searches, still connects, and its panel is untouched. <b>A toggle that hid
+placed cards would look exactly like data loss</b>, and contract 3 forbids that. A missing
+<code>show_writing_cards</code> key reads as <b>true</b>, so a settings file written before P6 does
+not silently empty the menu.</p>
 
 <h4>Segmented control</h4>
 <p><code>display: flex</code>, 11.5px, radius 3px, <code>overflow: hidden</code>, 1px
 <code>--color-divider</code> border. Options padding <code>4px 10px</code> (four-up) or
 <code>4px 12px</code> (two- and three-up). Inactive opacity .6. Active: background
-<code>--color-accent</code>, colour <code>--color-bg</code>, weight 600.</p>
+<code>--color-accent</code>, colour <code>--color-on-accent</code>, weight 600.</p>
 
 <h4>Toggle</h4>
 <p>34 × 19px, radius 10px, background <code>--color-neutral-300</code>. Knob 15 × 15px, radius 50%,
@@ -1664,6 +2003,801 @@ full-width <b>Straighten Line</b> button, disabled while there is no bend.</p>
 <p>Entry points: the <b>Connect</b> tool in the left column, or <b>Connect from here</b>
 (<code>ph-flow-arrow</code>, shortcut <code>C</code>) in a card's context menu.</p>
 
+<h4>Role — what a line means <span class="tag new">new 2026-09-08</span></h4>
+<p><b>The one thing the Writing Pack adds to connections.</b> A connection may carry a
+<b>role</b> — a named relationship, suggested from the two card types and always editable. It is
+<i>not</i> the free label: the label is still the user's own words (§9.15), and a line may carry
+both.</p>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>At rest</td>
+  <td>A <b>glyph</b>. A 15px circle, <code>--color-surface</code>, 1px
+  <code>--color-divider</code>, <code>border-radius: 50%</code>, with a 9px icon at opacity .75,
+  centred on the line</td></tr>
+<tr><td>Open</td>
+  <td>On hover, <b>or when either end card is selected</b>, it opens to the word: a chip at 10px,
+  padding <code>2px 8px 2px 3px</code>, <code>border-radius: 9px</code>, holding a 13px icon disc
+  and the role name</td></tr>
+<tr><td>Open, neutral</td>
+  <td><code>--color-surface</code>, 1px <code>rgba(32,30,29,.32)</code>, shadow
+  <code>0 1px 4px rgba(45,43,43,.14)</code></td></tr>
+<tr><td>Open, selected</td>
+  <td><code>--color-accent</code> ground, <code>--color-on-accent</code> text, the icon disc at
+  <code>rgba(255,255,255,.22)</code></td></tr>
+<tr><td>Glyphs</td>
+  <td>See the vocabulary table below. All seven glyphs are already in §7.1 — <b>the role
+  affordance adds no glyph</b></td></tr>
+<tr><td>Control</td>
+  <td>A <b>Role</b> combo (§9.26) in the properties panel, above <b>Label</b>. A typed role is
+  accepted, like any other combo value</td></tr>
+</tbody>
+</table>
+
+<h5>The vocabulary — seven roles <span class="tag warn">settled 2026-09-08</span></h5>
+<div class="callout">
+<b>The plan's words won; the mockups' appearance won.</b> <code>24a</code> and <code>24b</code> draw
+four roles under different names — <code>Leads to</code>, <code>Part of / Contains</code>,
+<code>Appears in</code>, <code>Told by</code> — while
+<code>docs/feature-writing-pack.html</code> §5 defines six: <b>Feeds</b>, <b>Follows</b>,
+<b>Appears In</b>, <b>Told By</b>, <b>Set In</b>, <b>Relates To</b>. The plan owns the data model
+(authority rule 2) and <b>Relates To is what a <code>NULL</code> role reads as</b>, so taking the
+drawn four would delete the default the migration relies on. Decision (owner, 2026-09-08):
+<b>keep the plan's six names, and adopt the one role the mockups genuinely add — Part Of.</b> Seven
+in total.
+</div>
+<table>
+<thead><tr><th>Role</th><th>Glyph</th><th>Means</th><th>Drawn?</th></tr></thead>
+<tbody>
+<tr><td><b>Feeds</b></td><td><code>ph-arrow-right</code></td>
+  <td>This is source material for that. Beat to Scene, Scene to Chapter, Beat straight to
+  Chapter</td>
+  <td>Yes, as <code>Leads to</code>. <b>The plan's word wins</b></td></tr>
+<tr><td><b>Follows</b></td><td><code>ph-arrow-down</code></td>
+  <td>Order, not content. Chapter to Chapter, Scene to Scene</td><td>No</td></tr>
+<tr><td><b>Part Of</b> <span class="tag new">new</span></td><td><code>ph-file-text</code></td>
+  <td>Containment. <b>It reads <code>Contains</code> from the other end</b> — one role, two
+  readings, which is what lets one <b>Joined to</b> group show both directions (§9.32)</td>
+  <td>Yes, as <code>Part of / Contains</code></td></tr>
+<tr><td><b>Appears In</b></td><td><code>ph-user</code></td><td>This person is present. Character to
+  Scene</td><td>Yes</td></tr>
+<tr><td><b>Told By</b></td><td><code>ph-eye</code></td><td>Point of view. Character to Scene or
+  Chapter</td><td>Yes</td></tr>
+<tr><td><b>Set In</b></td><td><code>ph-map-pin</code></td><td>Where it happens. Location to
+  Scene</td><td>No</td></tr>
+<tr><td><b>Relates To</b></td><td><code>ph-minus</code></td>
+  <td><b>The default.</b> No direction, no meaning — what every connection made before P6 already
+  is. <code>role = NULL</code> reads as this, so no back-fill is needed</td><td>No</td></tr>
+</tbody>
+</table>
+<p><b>The three undrawn roles need no design pass.</b> A role is a glyph plus a word, and all seven
+glyphs are already in the set. <code>Relates To</code> is the one to get right in code, not in
+drawing: <b>a bare connection must keep looking exactly as it does today</b> — no glyph on the line
+— because every existing line is a <code>Relates To</code> and none of them should suddenly grow a
+mark. So the rest glyph is drawn for the other six roles only.</p>
+<p><b>Roles are loose.</b> Any card may join any card. The application <i>suggests</i> a role from
+the two card types, the user may change it to anything including <code>Relates To</code>, and the
+application <b>never refuses a connection and never shows a validation error</b>. A rules table
+would be long, wrong and irritating.</p>
+<p><b>Why a glyph at rest.</b> A canvas of thirty wired cards with thirty open chips is unreadable.
+The glyph says <i>this line means something</i> at any zoom; the word arrives when the user shows
+interest in that line. This is the same rest/hover trade the card face makes (§9.27).</p>
+<p><b>Role and label together.</b> The role glyph or chip owns the line's <b>midpoint</b>. A free
+label chip, when both exist, moves to the <b>midpoint of the longer half</b> and keeps its own
+appearance from §9.13's label rules. They are never stacked. If the line is too short to hold both,
+the <b>role wins and the label is not drawn</b> — the label is kept, not lost, exactly as the 50px
+rule already says.</p>
+<div class="callout">
+<b>Authored, not drawn.</b> <code>24a</code> and <code>24b</code> draw the role glyph and the open
+chip, but no frame draws a line carrying a role <i>and</i> a label. That collision rule was
+<b>authored by <code>dev-ui-update</code> on 2026-09-08</b>. It is buildable as written. A later
+drawn pass supersedes it and gets a handoff-log row. It is also listed in §15.4.
+</div>
+<p><b>A role is suggested, never imposed.</b> The suggestion comes from the two card types (a Beat
+into a Scene suggests <code>Leads to</code>; a Scene into a Chapter suggests <code>Part of</code>).
+The user can change it or clear it, and the line still exists — a connection with no role and no
+label is a bare arrow, which is the P2 behaviour and stays legal.</p>
+
+<h3>9.14 Drawing a line <span class="frames">frame <code>21a</code></span></h3>
+<p>The Connect tool is active and the canvas takes <code>cursor: crosshair</code>.</p>
+<table>
+<thead><tr><th>Piece</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Source card</td>
+  <td>Keeps its accent outline, and grows a <b>10 × 10px anchor dot</b>: filled
+  <code>--color-accent</code>, <code>border-radius: 50%</code>, with a 2px
+  <code>--color-surface</code> ring, centred on the edge the line leaves from</td></tr>
+<tr><td>Pending line</td>
+  <td><code>stroke: var(--color-accent)</code>, <code>stroke-width: 1.5</code>,
+  <code>stroke-dasharray: 5 4</code>, with the accent arrowhead marker, running to the pointer</td></tr>
+<tr><td>Card under the pointer</td>
+  <td><code>outline: 2px dashed var(--color-accent); outline-offset: 2px</code></td></tr>
+<tr><td>Pointer</td><td><code>ph-crosshair</code> at 15px in the accent</td></tr>
+<tr><td>Hint bar</td>
+  <td><code>left: 18px; top: 14px</code>, <code>--color-surface</code>, radius 3px, shadow
+  <code>0 3px 10px rgba(45,43,43,.16)</code>, padding <code>4px 11px</code>, gap 8px, 11.5px:
+  <code>ph-flow-arrow</code> in <code>--color-accent-700</code>, then <b>Release on a card to
+  connect</b>, then <code>Esc to cancel</code> at opacity .45</td></tr>
+<tr><td>Panel</td><td>Collapsed, reading <code>Drawing a line</code></td></tr>
+<tr><td>Title bar</td><td>The count reads <code>12 cards · connecting</code></td></tr>
+</tbody>
+</table>
+<p><b>The pending line is the only dashed <i>line</i> in the interface</b>, and the connect target
+is the only dashed <i>outline</i> besides the missing-asset card's inner border (§9.4). Dashed
+means provisional in both cases.</p>
+<p><b>Everything here is 0ms.</b> The line, the dot and the target outline track the pointer
+one-to-one (§11.3). The hint bar appears with the tool, not with the drag.</p>
+
+<h3>9.15 A connection selected <span class="frames">frame <code>21b</code></span></h3>
+<table>
+<thead><tr><th>Piece</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Line</td>
+  <td><code>stroke: var(--color-accent)</code> at <code>stroke-width: 2.5</code>, with the accent
+  arrowhead</td></tr>
+<tr><td>Endpoints</td>
+  <td>A 10 × 10px handle at each end: <code>--color-surface</code> fill, 2px
+  <code>--color-accent</code> border, <code>border-radius: 50%</code>. They sit at
+  <code>--z-connection-handles</code> and are <b>draggable</b> — dropping one on a card side pins
+  that end's anchor (§9.13, <i>Anchor</i>)</td></tr>
+<tr><td>Label chip</td>
+  <td><b>Inverts.</b> Background <code>--color-accent</code>, colour <code>--color-on-accent</code>,
+  weight 600, full opacity — it reads as selected rather than as ink on paper</td></tr>
+</tbody>
+</table>
+<p><b>Panel groups: Between, Role, Label, Direction, Route, Bend, Anchor.</b> There is no Position,
+no Size and no Order — a connection has none of them. The last three groups were added by the
+owner on 2026-09-07 and are specified in §9.13; <code>21b</code> predates them and draws only the
+first four.</p>
+<ul>
+  <li><b>Between</b> — two rows at 11px opacity .8, each a 13px icon at opacity .6 plus the card's
+    name, ellipsized; between them <code>ph-arrow-down</code> + <code>to</code> at 10.5px opacity
+    .5.</li>
+  <li><b>Role</b> — the combo (§9.26). <i>New 2026-09-08, above Label.</i></li>
+  <li><b>Label</b> — a full-width <code>.input</code>, then
+    <code>Leave it empty for a bare arrow.</code> at 11px opacity .45.</li>
+  <li><b>Direction</b> — a four-up segmented control, each option <code>flex: 1</code>, padding
+    <code>3px 0</code>, centred: <code>ph-arrow-right</code> (active),
+    <code>ph-arrow-left</code>, <code>ph-arrows-horizontal</code>, <code>ph-minus</code>. Helper:
+    <code>Swap the ends, point both ways, or drop the arrowhead.</code></li>
+  <li><b>Footer</b> — the duplicate / delete pair, then
+    <code>Deleting a line leaves both cards where they are</code>.</li>
+</ul>
+
+<h3>9.16 Marquee multi-select <span class="frames">frame <code>21c</code></span></h3>
+<p>The band is <b>two stacked divs on the same rect</b> — one
+<code>background: var(--color-accent)</code> at <code>opacity: .1</code>, one
+<code>border: 1px solid var(--color-accent)</code> at full opacity. <b>A single tinted div would
+fade its own border</b>, which is why this is two elements and not one. It sits at
+<code>--z-marquee</code>. A <code>ph-cursor</code> at 13px marks the dragged corner.</p>
+<p>Every enclosed card takes the <b>full</b> selected treatment — outline and all four handles.</p>
+<div class="note">
+<b>The band must be exactly its selection.</b> In the design file the band was sized to fit a chosen
+selection. In the application it is the other way round: the band is the input and the selection is
+derived from it, live, every frame.
+</div>
+<h4>The panel, multi-selection</h4>
+<ul>
+  <li><b>Header</b> — <code>5 cards</code>, with <code>3 notes · 2 images</code> as the id
+    line.</li>
+  <li><b>Position and Size read <code>mixed</code></b>, in italic at opacity .6, wherever the
+    values differ. A shared value is printed normally and stays editable.</li>
+  <li><b>Align</b> replaces the Text group — a 3-column grid, gap 4px, of six 24px cells, 1px
+    <code>--color-divider</code> borders, radius 2px, 13px icons at opacity .75:
+    <code>ph-align-left-simple</code>, <code>ph-align-center-horizontal</code>,
+    <code>ph-align-right-simple</code>, <code>ph-align-top-simple</code>,
+    <code>ph-align-center-vertical</code>, <code>ph-align-bottom-simple</code>. Helper:
+    <code>One move you asked for — nothing snaps on its own.</code></li>
+  <li><b>Footer note</b> — <code>Moves, deletes and aligns apply to all five</code>.</li>
+</ul>
+<p><b>Align does not break contract 1.</b> Contract 1 says the application never chooses a
+position. Align is a position the <i>user</i> asked for, once, and it is undoable in one step. It is
+not an automatic layout and nothing repeats it afterwards — which is exactly what the helper line
+says out loud.</p>
+
+<h3>9.17 Note mid-edit <span class="frames">frame <code>21d</code></span></h3>
+<p>The card is selected, its body lifts to opacity .85, and a <b>caret</b> sits at the insertion
+point: an inline-block 1 × 13px <code>--color-accent</code> bar,
+<code>vertical-align: -2px</code>, <code>margin-left: 1px</code>. Applied <code>&lt;b&gt;</code>
+shows in the copy as it is typed.</p>
+<h4>The text bar</h4>
+<p>It <b>floats above the card</b>, at <code>left: -2px; top: -38px</code> relative to the card, at
+<code>--z-canvas-bars</code>. <code>--color-surface</code>, radius 3px, shadow
+<code>0 6px 18px rgba(45,43,43,.24)</code> (§5.3), padding 3px, gap 2px. Four 28 × 26px cells at
+14px, radius 2px: <code>ph-text-b</code> active
+(<code>--color-accent-100</code> on <code>--color-accent-800</code>),
+<code>ph-text-italic</code>, then a 1 × 16px divider with 3px side margins, then
+<code>ph-list-bullets</code> and <code>ph-list-numbers</code>, all at opacity .7.</p>
+<p><b>The same four buttons are in the panel's Text group</b> (§9.3), which is the keyboard-free
+equivalent. Contract 11 — no route is the only route.</p>
+<h4>The rest of the screen</h4>
+<ul>
+  <li><b>Title bar</b> — <code>Saving…</code> with <code>ph-circle-dashed</code> in place of the
+    saved time. This is the one looping animation in the product (§11.3).</li>
+  <li><b>Canvas caption</b>, bottom —
+    <code>Esc or click away to finish · every keystroke is undoable</code> at 11px opacity .45.</li>
+  <li><b>Panel</b> — Size reads <code>H auto</code>, with
+    <code>Height follows the text while you type.</code>; footer note
+    <code>Editing · the write lands when you pause</code>.</li>
+</ul>
+<p><b>The text never reflows with a transition</b> (§11.3, <i>never animated</i>). A card growing
+under the cursor with an easing curve reads as the application fighting the typist.</p>
+
+<h3>9.18 Image mid-drop <span class="frames">frame <code>21e</code></span></h3>
+<p>Three things at once, and all three are needed: the canvas says <i>a drop is live</i>, the ghost
+says <i>this is the file</i>, and the dot says <i>here</i>.</p>
+<table>
+<thead><tr><th>Piece</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Canvas</td>
+  <td><code>outline: 2px dashed var(--color-accent); outline-offset: -6px</code>, plus a full-bleed
+  <code>--color-accent</code> wash at <code>opacity: .06</code></td></tr>
+<tr><td>Ghost</td>
+  <td>At the pointer: 220 × 147px, 2px <code>--color-accent</code> border, radius 3px,
+  <code>--color-surface</code> at <code>opacity: .92</code>, holding <code>ph-image</code> at 24px,
+  the file name at 11.5px weight 600, and <code>2400 × 1600 · 1.1 MB</code> at 10.5px opacity .7 —
+  all in <code>--color-accent-700</code></td></tr>
+<tr><td>Drop point</td>
+  <td>A 9px accent dot at the exact point, with <code>Drops here</code> beside it at 11px weight
+  600</td></tr>
+<tr><td>Hint bar</td>
+  <td><code>ph-download-simple</code>, then <b>Copied into <code>assets/</code> on release</b>, then
+  <code>3 more files queued</code> at opacity .45</td></tr>
+<tr><td>Panel</td><td>Collapsed, reading <code>Dropping a file</code></td></tr>
+</tbody>
+</table>
+<p><b>The ghost is 220 × 147px whatever the file is.</b> It is a placeholder, not a preview — the
+real dimensions come from decoding the file after it is copied in, and guessing a size here would
+make the card jump on release.</p>
+
+<h3>9.19 New project dialog <span class="frames">frame <code>21f</code></span></h3>
+<p>The first dialog in the product. Both dialogs share one shell.</p>
+<table>
+<thead><tr><th>Property</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Backdrop</td>
+  <td><code>rgba(32,30,29,.32)</code> over the canvas, at <code>--z-dialog</code>. On dark:
+  <code>rgba(0,0,0,.5)</code></td></tr>
+<tr><td>Box</td>
+  <td><code>left: 50%</code>, width <b>452px</b>, <code>margin-left: -226px</code>,
+  <code>top: 96px</code></td></tr>
+<tr><td>Ground</td><td><code>--color-surface</code>, radius 3px</td></tr>
+<tr><td>Shadow</td><td><code>0 18px 44px rgba(45,43,43,.38)</code> — the dialog step (§5.3)</td></tr>
+<tr><td>Padding</td><td><code>22px 24px 20px</code>, group gap 16px</td></tr>
+<tr><td>Title</td><td>19px, letter-spacing -.01em</td></tr>
+<tr><td>Sub-line</td><td>11.5px, line-height 1.5, opacity .55, naming what gets created</td></tr>
+</tbody>
+</table>
+<ul>
+  <li><b>Name</b> — a 12.5px <code>.input</code>, padding <code>5px 8px</code>, focused on open (1px
+    accent outline).</li>
+  <li><b>Location</b> — a 12px <code>.input</code> plus a <code>Browse</code> button, gap 6px, with
+    the resolved path echoed below at 11px opacity .45, <code>word-break: break-all</code>.</li>
+  <li><b>Action row</b> — <code>Nothing is written until you create it</code> at 11px opacity .42,
+    then <code>Cancel</code> as <code>.btn-ghost</code>, then <code>Create project</code> as the
+    primary.</li>
+</ul>
+<p><b>The path is echoed, not just typed.</b> The user is choosing a folder on their own disk and
+this is the last moment before one is made, so the resolved result is shown rather than inferred —
+and the action row says plainly that nothing has been written yet.</p>
+<p><b>Motion</b> — the backdrop and the box appear together over 110ms, opacity 0→1 plus
+<code>translateY(-3px)</code>→0, no scale (§11.3). Closing is 0ms. <b>Esc cancels</b> and Enter
+commits (§11.6).</p>
+
+<h3>9.20 Canvas rename, and the delete confirm <span class="frames">frame <code>21g</code></span></h3>
+<h4>Rename — inline in the left column</h4>
+<p>The canvas row <b>becomes the input</b>. Full width, 12px, padding <code>2px 5px</code>, radius
+2px, <code>outline: 1px solid var(--color-accent)</code>, with <code>margin: 1px 8px</code> so it
+sits inside the column's existing rhythm rather than pushing the rows around. Caption beside it:
+<code>Enter to keep the name · Esc to leave it</code>.</p>
+<p><b>Renaming happens where the name lives.</b> There is no dialog for it — the row the user
+clicked is the row they type in.</p>
+<h4>Delete confirm — the dialog shell again</h4>
+<p>The same shell as §9.19 at width <b>412px</b>, <code>top: 150px</code>. Title
+<code>Delete "Crew &amp; shifts"?</code> at 19px. Body at 12px line-height 1.6 opacity .72, stating
+what goes and what stays.</p>
+<p><b>The warning block</b> — background <code>--color-accent-2-100</code>, radius 2px, padding
+<code>8px 11px</code>, 11.5px line-height 1.5 in <code>--color-accent-2-800</code>, with
+<code>ph-warning</code> at 15px: <b>6 cards are placed here and nowhere else. They will be deleted
+with the canvas.</b></p>
+<p><b>Actions</b> — <code>Undoable this session</code> at 11px opacity .42, then
+<code>Cancel</code> as a ghost button, then <code>Delete canvas</code> as a primary button on
+<code>--color-accent-2</code> (hover <code>--color-accent-2-600</code>, pressed
+<code>-700</code>).</p>
+<div class="note">
+<b>That count has to be computed, never guessed.</b> It is the number of items whose <i>only</i>
+placement is on this canvas. It is the placement model surfacing in the interface, and it is the
+one number in the product that must never be wrong — it is the difference between "you lose
+nothing" and "you lose six cards".
+</div>
+<p>The dialog is the <b>only</b> confirm in the product, and it exists because deleting a canvas is
+the one act that can destroy several items at once. Contract 8 still holds: it is undoable this
+session, and the dialog says so.</p>
+
+<h3>9.21 254 cards at 24% <span class="frames">frame <code>21h</code></span></h3>
+<p>The P1 performance gate, drawn. <b>Everything on this screen is a reduction, and each one is
+work not done.</b></p>
+<table>
+<thead><tr><th>At low zoom</th><th>What changes</th></tr></thead>
+<tbody>
+<tr><td>Dot grid</td>
+  <td>Scales with the zoom — <code>background-size: 6px 6px</code> at
+  <code>rgba(32,30,29,.1)</code></td></tr>
+<tr><td>Cards</td>
+  <td>20–48px boxes at <code>border-radius: 1px</code> with <code>0 1px 3px</code> shadows. A note
+  keeps <b>three 1–2px text bars</b> so the kind still reads; an image is a flat
+  <code>--color-neutral-300</code></td></tr>
+<tr><td>Connections</td>
+  <td><code>stroke-width: .75</code> at <code>rgba(32,30,29,.3)</code>, <b>no arrowheads</b> —
+  direction is unreadable at this size, so drawing it is wasted work</td></tr>
+<tr><td>Labels and roles</td>
+  <td>Not drawn. The 50px rule (§9.13) removes them on its own at this zoom</td></tr>
+<tr><td>Zoom to fit</td><td>Dimmed to opacity .35 — the view already holds everything</td></tr>
+</tbody>
+</table>
+<p><b>The badge</b>, top-right of the canvas: <code>ph-gauge</code> +
+<code>60fps · 254 cards, 118 drawn</code>.</p>
+<div class="note">
+<b>That badge is the target, not a measurement.</b> The second number is the cull working, and it is
+the first thing to instrument. The gate is measured in the running application, on real hardware —
+a green test suite does not clear it.
+</div>
+<p><b>A card face never simplifies itself by kind.</b> The three text bars on a note are the note
+card's own text, rendered small — not a special low-zoom drawing. The reductions above are all
+things <i>removed</i> at low zoom, never things <i>substituted</i>, so there is no second
+appearance to keep in sync.</p>
+
+<h3>9.22 Missing asset file <span class="frames">frame <code>22a</code></span></h3>
+<p><b>Specified in §9.4</b>, with the card, the two buttons, the canvas missing-file bar and the
+panel's warning row. It is repeated here only so the screen list is complete.</p>
+<p>The one thing worth restating: <b>the card keeps its position, its size, its selection and its
+connections.</b> Only the picture is gone. Nothing is deleted and nothing is silently repaired.</p>
+
+<h3>9.23 Damaged database <span class="frames">frame <code>22b</code></span></h3>
+<p><b>This failure belongs on the project picker</b>, because the canvas never opens. The title bar
+shows the brand and the window controls only.</p>
+<p>The message block sits <b>between the sub-line and the Recent grid</b>:
+<code>max-width: 720px</code>, background <code>--color-accent-2-100</code>, radius 3px, padding
+<code>15px 17px</code>, gap 12px, with <code>ph-warning-circle</code> at 19px in
+<code>--color-accent-2</code>. Inside, in order:</p>
+<ol>
+  <li><b>Skiff did not open</b> — 13px weight 600 in <code>--color-accent-2-800</code>. The
+    project's own name, so the user knows which one.</li>
+  <li><code>The database file could not be read:</code></li>
+  <li>The <b>full path</b>, in a <code>--color-surface</code> inset at 11.5px, radius 2px, padding
+    <code>6px 9px</code>, <code>word-break: break-all</code>.</li>
+  <li>What was <b>not</b> touched, naming <code>assets/</code> — the user's pictures are still
+    there.</li>
+  <li><code>Show the folder</code> (1px <code>--color-accent-2</code> border) and
+    <code>Copy the message</code> (1px <code>--color-divider</code> border), both 12px.</li>
+</ol>
+<p><b>In the Recent grid</b>, the damaged project's card takes
+<code>outline: 2px solid var(--color-accent-2)</code>, swaps <code>ph-folder</code> for
+<code>ph-warning-circle</code> in <code>--color-accent-2</code>, and its meta line reads
+<code>Cannot be read</code> at weight 600 in <code>--color-accent-2-800</code>.</p>
+<div class="note">
+<b>Every other project still opens.</b> That is the point of the screen. One damaged file is not a
+damaged application.
+</div>
+<p><b>There is no repair button.</b> The application does not promise a fix it cannot deliver. It
+names the file, says what survived, and gets out of the way. This is contract 3 at project scale:
+the failure is drawn into a normal screen, not raised as a dialog.</p>
+
+<h3>9.24 States and motion reference sheet <span class="frames">frame <code>22c</code></span></h3>
+<p><b>Not an application screen.</b> It is a reference sheet with no 720px frame and no
+<code>overflow: hidden</code>, and it grows to its content: four state rows (primary button,
+secondary and icon buttons, list rows, canvas cards), each a 5-column grid of swatches showing
+rest, hover, pressed, focus and disabled at real size with the value under it; then a motion
+table.</p>
+<div class="callout">
+<b>Its motion table is stale — do not build from it.</b> <code>22c</code> gives two easing curves
+and four durations (0 / 90 / 140 / 160ms). This document settled motion on <b>2026-09-06</b>:
+<b>one</b> curve, <code>cubic-bezier(.2, 0, .2, 1)</code>, and nine durations. That one curve is
+what shipped, as <code>--ease</code> in <code>src/lib/tokens.css</code>. <b>§11.3 is the
+authority</b> (authority rule 5). The sheet's state swatches agree with §11.1–§11.2 and are useful;
+its durations do not and are not.
+</div>
+<p>Everything the sheet draws correctly is already transcribed in <b>§11.1</b> (the two shared
+tints), <b>§11.2</b> (hover and pressed, per surface) and <b>§11.5</b> (cursors). Read those, not
+the picture.</p>
+
+<h3>9.25 The Writing Pack — the generated panel and the seven field kinds <span class="frames">frame <code>26a</code></span> <span class="tag new">new 2026-09-08</span></h3>
+
+<div class="callout">
+<b>The one idea this whole section rests on.</b> Each of the six types is a <b>data file</b> — a
+<i>blueprint</i> — not a component. The properties panel and the card face are both
+<b>generated</b> from the blueprint's field list. So a new card type is a new data file and
+<b>never new UI</b>. The panel knows the seven field kinds below and nothing else; it has never
+heard of a Character. <code>docs/feature-writing-pack.html</code> is the authority on the blueprint
+format and the field semantics. This document owns only what is drawn.
+</div>
+
+<p>The six types are <b>Book</b>, <b>Chapter</b>, <b>Scene</b>, <b>Beat</b>, <b>Character</b> and
+<b>Location</b>. Note and Image are unchanged.</p>
+
+<h4>The seven kinds</h4>
+<table>
+<thead><tr><th>Kind</th><th>Stores</th><th>Control</th><th>The <code>meaning</code> line under it</th></tr></thead>
+<tbody>
+<tr><td>Short Text</td><td>a string</td>
+  <td><code>.input</code>, full width, radius 2px</td><td>—</td></tr>
+<tr><td>Long Text</td><td>markdown</td>
+  <td><code>textarea.input</code>, full width, <code>line-height: 1.5</code>,
+  <code>resize: none</code></td>
+  <td><b>Never shown on the card face.</b></td></tr>
+<tr><td>Pick</td><td>one pick entry</td><td>the combo (§9.26)</td>
+  <td>Sorted by Genre. Stores an id, your words, and where it came from.</td></tr>
+<tr><td>Pick Many</td><td>an ordered list</td><td>a chip row, then the combo</td>
+  <td>Drag a chip to reorder. The order is yours and is kept.</td></tr>
+<tr><td>Image</td><td>an asset file name</td>
+  <td>a 52px <code>--color-neutral-200</code> square, the file name at 11px opacity .6, then
+  <code>Replace</code> / <code>Remove</code></td>
+  <td>Copied into <code>assets/</code> under its content hash. Never a path.</td></tr>
+<tr><td>Number</td><td>integer or decimal</td>
+  <td>a right-aligned <code>.input</code> with a 22px stepper column
+  (<code>ph-caret-up</code> 12px tall, <code>ph-caret-down</code> 13px, a 1px divider between)</td>
+  <td><b>Empty is not zero.</b> An empty number field is simply unanswered.</td></tr>
+<tr><td>Scale</td><td>−3 to +3, default 0</td><td>the slider (below)</td>
+  <td>Seven notches. The two end words live in the blueprint, never typed per card.</td></tr>
+</tbody>
+</table>
+<p>Every field draws in three parts, always in this order: the <b>label</b> (10px, letter-spacing
+.1em, uppercase, opacity .45), the <b>control</b>, then the blueprint's <b><code>meaning</code>
+line</b> (10px, opacity .45, line-height 1.4). The <code>meaning</code> line is authored once in the
+data file — help text today, a field definition later. <b>It is never written per card.</b></p>
+
+<h4>Measured for the 177px panel <span class="tag warn">authored 2026-09-08</span></h4>
+<div class="callout">
+<b>Where these numbers come from.</b> <code>26a</code> draws every control at 1:1 on a 1064px
+reference sheet, and every Writing Pack <i>panel</i> in the bundle is drawn at <b>252px</b>. The
+panel is <b>177px</b> (§8.5), which the bundle's own shell section also says — the bundle disagrees
+with itself. The owner kept 177px on 2026-09-08, so the controls were re-measured here by
+<code>dev-ui-update</code>, not drawn. A later drawn pass supersedes this and gets a handoff-log
+row.
+</div>
+<p><b>177px panel − 12px padding each side = 153px of content width.</b> Almost everything simply
+goes full width; only one measurement actually moves.</p>
+<table>
+<thead><tr><th>Control</th><th>On the 1064px sheet</th><th>In the 177px panel</th></tr></thead>
+<tbody>
+<tr><td>Short Text</td><td>12.5px, padding <code>5px 8px</code></td>
+  <td><b>11px, padding <code>2px 4px</code></b> — the panel's existing input size (§8.5), not the
+  sheet's. Width 153px</td></tr>
+<tr><td>Long Text</td><td><code>rows=3</code></td>
+  <td>Width 153px, <b>height 44px</b> — the same box as the image card's Alt text (§9.4), so the
+  panel has one textarea size and not two</td></tr>
+<tr><td>Pick / the combo</td><td>232px column</td>
+  <td>Width 153px: input <code>flex: 1</code>, then the 26px caret button. Unchanged
+  otherwise</td></tr>
+<tr><td>Pick Many — chips</td><td>one row</td>
+  <td><b>Wraps</b>, <code>display: flex; flex-wrap: wrap; gap: 4px</code>. A chip takes
+  <code>max-width: 100%</code> with its text ellipsized, so one long trope name never widens the
+  panel</td></tr>
+<tr><td>Image</td><td>52px square, buttons beside</td>
+  <td>Unchanged. The 52px square, the file name ellipsized at 11px, and
+  <code>Replace</code> / <code>Remove</code> as two 11px buttons in a <code>gap: 5px</code> row —
+  the same pair as the File group (§9.4)</td></tr>
+<tr><td>Number</td><td>132px input + 22px stepper = 154px</td>
+  <td><b>131px input + 22px stepper = 153px.</b> This is the only number that moves, and it moves by
+  1px</td></tr>
+<tr><td>Scale</td><td>a fixed rail</td>
+  <td>The rail spans the full 153px. The seven dots stay <code>space-between</code>, so the notch
+  positions are still <code>0 / 16.66 / 33.33 / 50 / 66.66 / 83.33 / 100%</code> and nothing about
+  the knob maths changes</td></tr>
+</tbody>
+</table>
+<p><b>The honest result: the bundle's controls already fit.</b> Everything except the Number field
+was measured in percentages or in <code>flex</code>, so 153px costs one pixel. That is why the
+owner's 177px decision is cheap, and it is worth knowing before anyone reopens it.</p>
+
+<h4>The chip — one style everywhere</h4>
+<table>
+<thead><tr><th>Where</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>In a form</td>
+  <td><code>display: inline-flex</code>, gap 5px, padding <code>3px 6px 3px 10px</code>, 1px
+  <code>--color-divider</code> border, <code>border-radius: 11px</code>, 11px, line-height 1.35,
+  colour <code>rgba(32,30,29,.72)</code>, <code>white-space: nowrap</code>, with
+  <code>ph-x</code> at 11px opacity .5</td></tr>
+<tr><td>On a card face</td>
+  <td><b>Loses the remove icon and tightens</b> — padding <code>2px 8px</code>, radius 10px,
+  10.5px</td></tr>
+<tr><td>Overflow chip</td>
+  <td><code>+4</code>, the same pill at opacity .55</td></tr>
+</tbody>
+</table>
+<p><b>One chip style for genre, sub-genre, tropes and themes alike.</b> The face is not the place to
+teach the difference between them (§9.27).</p>
+
+<h4>The chip adder</h4>
+<p>A 26px-tall combo: the <code>.input</code> at 11.5px with
+<code>border-radius: 2px 0 0 2px; border-right: none</code>, then a 26px caret button — transparent,
+1px <code>--color-divider</code>, <code>ph-caret-down</code> at 12px. Placeholder
+<code>Add a trope…</code> / <code>Add a theme…</code>, named for the field it feeds.</p>
+
+<h4>The Scale slider</h4>
+<table>
+<thead><tr><th>Piece</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Rail</td><td>2px <code>--color-divider</code>, inside a 16px row</td></tr>
+<tr><td>Notches</td>
+  <td>Seven 3px <code>rgba(32,30,29,.3)</code> dots, <code>space-between</code> along the rail</td></tr>
+<tr><td>Knob</td>
+  <td>12px, <code>--color-accent</code>, with a 2px ring <b>in the ground colour</b> —
+  <code>--color-surface</code> in the panel or on a sheet band,
+  <code>--color-bg</code> on a full-screen ground</td></tr>
+<tr><td>Positions</td>
+  <td><code>left: 0 / 16.66 / 33.33 / 50 / 66.66 / 83.33 / 100%</code> with
+  <code>translateX(-50%)</code></td></tr>
+<tr><td>End words</td>
+  <td>The blueprint's two words at 10px opacity .42, <code>space-between</code>, under the rail</td></tr>
+<tr><td>Value</td>
+  <td>Right-aligned above the rail, 11px weight 600, opacity .65,
+  <code>font-variant-numeric: tabular-nums</code>, <b>signed</b> — <code>+2</code>,
+  <code>0</code>, <code>−2</code>. A <b>true minus sign</b> (U+2212), never a hyphen</td></tr>
+</tbody>
+</table>
+<p><b>All zero is a real answer</b>, meaning "unremarkable, like most people". It is not an empty
+state and must never be drawn as one.</p>
+
+<h3>9.26 The combo, four states <span class="frames">frame <code>26b</code></span> <span class="tag new">new 2026-09-08</span></h3>
+<p>The one control the Writing Pack adds. Two rulings are drawn here and both are firm: <b>a typed
+value is always accepted</b>, and <b>filtering sorts, it never hides</b>.</p>
+<table>
+<thead><tr><th>State</th><th>What is drawn</th></tr></thead>
+<tbody>
+<tr><td>1. At rest</td>
+  <td>A text box with a list button. <b>It is a text box first; the list is an offer, not a
+  gate</b></td></tr>
+<tr><td>2. Typing</td>
+  <td>The input takes <code>outline: 2px solid var(--color-accent); outline-offset: -1px</code> and
+  the caret flips to <code>ph-caret-up</code>. The list drops 3px below: 1px
+  <code>--color-divider</code>, radius 2px, <code>--color-surface</code>, shadow
+  <code>0 6px 18px rgba(45,43,43,.16)</code>. Rows padding <code>5px 9px</code>, 11.5px, the matched
+  substring in <code>&lt;b&gt;</code>; the highlighted row is <code>--color-accent-100</code> on
+  <code>--color-accent-800</code></td></tr>
+<tr><td>3. The list, sorted by Genre</td>
+  <td>Group headers at 9.5px, letter-spacing .09em, uppercase, opacity .45, on
+  <code>--color-neutral-100</code>: <b>the card's own genre first</b>, then
+  <code>Everything else</code> with a 1px top border, whose rows sit at opacity .72</td></tr>
+<tr><td>4. A value of your own</td>
+  <td>The list collapses to <b>one accent-tinted row</b>: <code>ph-plus</code> at 12px +
+  <code>Use “Ark ship, becalmed”</code>, over <code>Nothing in the list matches</code> at 10.5px
+  opacity .5</td></tr>
+</tbody>
+</table>
+<div class="note">
+<b>The one-hop filter sorts. Nothing is removed.</b> An untagged entry is never hidden. A list that
+hides things teaches the user to distrust it, and they then type the value they already know is
+there — which is worse than showing it low down.
+</div>
+<p><b>A typed value carries no id, and that is what marks it as yours.</b> It is saved to the
+project's own vocabulary and offered again next time. A library entry has an id and a source; a
+typed one has neither, permanently. See <code>docs/feature-writing-pack.html</code> §5.</p>
+
+<h3>9.27 The card faces <span class="frames">frame <code>23a</code></span> <span class="tag new">new 2026-09-08</span></h3>
+<p>Seven faces at 100% on the canvas ground. Every face is the blueprint's
+<code>show_on_face</code> fields, and <b>three rules hold across all of them</b>.</p>
+<ol>
+  <li><b>A small type kicker</b>, so a mixed canvas reads at a glance.</li>
+  <li><b>No Long Text ever on a face.</b> The Chapter shows its summary, never its prose.</li>
+  <li><b>Chips are plain outlined pills</b> — one style for genre, sub-genre, tropes and themes
+    alike, because the face is not the place to teach the difference.</li>
+</ol>
+<h4>The kicker</h4>
+<p>A row at 9.5px, letter-spacing .11em, uppercase, opacity .45, gap 5px, with a 12px icon (Beat
+takes 13px): Book <code>ph-book</code> · Chapter <code>ph-file-text</code> · Scene
+<code>ph-film-slate</code> · Beat <code>ph-dot-outline</code> · Character
+<code>ph-user-circle</code> · Location <code>ph-map-pin</code>.</p>
+<p><b>A card that has been expanded into a canvas of its own</b> carries
+<code>ph-square-half</code> at 12px, opacity .85, right-aligned on the kicker row. That is the only
+mark of it on the face.</p>
+<h4>The seven faces</h4>
+<table>
+<thead><tr><th>Type</th><th><code>default_size</code></th><th>The face</th></tr></thead>
+<tbody>
+<tr><td>Book</td><td>300 × auto</td>
+  <td>Name 14px / 600, logline, then <b>two</b> chip rows — genre + sub-genre, then tropes with a
+  <code>+n</code> overflow chip</td></tr>
+<tr><td>Chapter</td><td>264 × auto</td>
+  <td><code>4 · The archivist's shift</code> at 13.5px / 600, summary, theme chips.
+  <b>Prose never shown</b></td></tr>
+<tr><td>Scene</td><td>240 × auto</td><td>Name 13.5px / 600, summary</td></tr>
+<tr><td>Beat</td><td>200 × auto</td>
+  <td>Name 12.5px / 600, text. Padding tightens to <code>10px 12px 11px</code>, gap 6px</td></tr>
+<tr><td>Character</td><td>220 × auto</td>
+  <td>A 104px <code>--color-neutral-200</code> picture band, then name 13.5px / 600 and role at
+  11.5px opacity .6 — <b>drawn sparse</b></td></tr>
+<tr><td>Location</td><td>220 × auto</td>
+  <td>A 92px picture band (<code>ph-image</code> at 22px), name, description</td></tr>
+<tr><td>Note</td><td>236 × auto</td><td>Unchanged from §9.3, and <b>carries no kicker</b></td></tr>
+</tbody>
+</table>
+<p><b>Text cards</b> — padding <code>11px 13px 12px</code>, gap 7px, body at 11.5px line-height 1.5
+opacity .78. <b>Picture cards</b> — <code>overflow: hidden</code>, the band flush to the card edge,
+the text block at <code>9px 12px 11px</code>, gap 5px.</p>
+<div class="note">
+<b>Character is deliberately sparse, and it is the one face to watch.</b>
+<code>docs/feature-writing-pack.html</code> lists picture, name, role, one-liner and trope chips;
+the drawn face shows picture, name and role only. <b>The one-liner and the chips are the first
+things to add back if the card reads too thin.</b> Decide it against a real canvas, not against
+this table.
+</div>
+<p><b>Why the note carries no kicker.</b> A note is the default card, so labelling it says nothing.
+The kicker exists to distinguish the six authored types from each other and from the plain cards
+around them.</p>
+
+<h3>9.28 Scene, Beat and Location — the panel types <span class="frames">frames <code>24a</code>, <code>24b</code></span> <span class="tag new">new 2026-09-08</span></h3>
+<p><b>Small types stay in the panel.</b> A Beat has two fields (Name, Text), a Scene three (Name,
+Summary, Point of view — a combo) and a Location four (Name, Picture, Summary, Notes). Selecting one
+fills the 177px panel and <b>opens nothing</b>.</p>
+<p>The panel draws the blueprint's fields in blueprint order (§9.25), then <b>two generated
+groups</b>, then the footer.</p>
+<h4>Placed on</h4>
+<p>One row per placement: <code>ph-square-half</code> at 13px opacity .55, the canvas name
+ellipsized, and the coordinates right-aligned at 10px opacity .4 with
+<code>font-variant-numeric: tabular-nums</code>. Under it, a helper <b>states the count in
+words</b>: <code>One record, three places. Editing here changes all three.</code></p>
+<p><b>That sentence is the placement model, said out loud.</b> A card on a canvas is a placement
+pointing at an item; the item holds the content. Most items have one placement. When one has three,
+the user has to know that editing is not local — and a count in words does that better than a
+number.</p>
+<h4>Joined to</h4>
+<p>One row per connection: a 15px bordered icon disc (the role glyph, §9.13) plus the far card's
+name, with <b>the role on its own line beneath</b>, indented <code>padding-left: 22px</code> at 10px
+opacity .45 with <code>margin-top: -3px</code>. <b>Several connections of one role collapse to a
+count</b> — <code>2 beats</code> over <code>Feed</code>.</p>
+<h4>The footer's Card group</h4>
+<p><code>Expand into a canvas</code> (<code>ph-square-half</code>), then
+<code>Delete beat</code> / <code>Delete scene</code> / <code>Delete location</code>. <b>The delete
+is named for the type, not generic.</b> The user is deleting a beat, and the button should say so.</p>
+<p>The duplicate / delete pair from §8.5 is <b>replaced</b> by this group for the writing types, not
+drawn twice.</p>
+<div class="callout">
+<b>Location joined this list on 2026-09-08.</b> The bundle drew Location's face (<code>23a</code>)
+and listed a Location <i>sheet</i> as the one Writing Pack form still undrawn. The owner decided
+Location is a panel type, so <b>there is no Location sheet</b> and the gap is closed. Its Image
+field draws as the 52px square in §9.25, not as a sheet's 150px identity picture.
+</div>
+
+<h3>9.29 The Writing Pack on the canvas <span class="frames">frames <code>24a</code>, <code>24b</code></span> <span class="tag new">new 2026-09-08</span></h3>
+<p><b>The structure of one chapter is four connections and one selection:</b> two Beats feed a Scene
+(<code>Feeds</code>), the Scene feeds the Chapter (<code>Feeds</code>), and the Character joins the
+Scene as <code>Appears In</code>. <i>The frames label the first two <code>Leads to</code>; the
+role's name is <code>Feeds</code> — see §9.13.</i></p>
+<p>Lines carry the three weights §9.13 already specifies —
+<code>rgba(32,30,29,.4)</code> at 1.5 at rest, <code>rgba(32,30,29,.62)</code> at 1.75 hovered, and
+<code>--color-accent</code> at 1.75 when either end is selected. <b>Roles are drawn per §9.13's
+Role block.</b></p>
+<p><b>Nothing else about the canvas changes.</b> A writing card is a card: it drags, resizes,
+selects, marquees, culls, z-orders and connects exactly like a note. That is the point of putting
+the type inside the payload rather than beside it.</p>
+
+<h3>9.30 The full-screen sheet — the shared shell <span class="frames">frames <code>25a</code>, <code>27a</code>, <code>28a</code></span> <span class="tag new">new 2026-09-08</span></h3>
+<div class="callout">
+<b>Three types get a screen of their own</b> — <b>Book</b>, <b>Chapter</b> and <b>Character</b>.
+Scene, Beat and Location stay in the panel (§9.28). <i>Owner, 2026-09-08.</i>
+</div>
+<p><b>The sheet replaces the canvas.</b> The title bar, the rail and the properties panel all stay
+exactly where they are, and <code>Back to canvas</code> in the sheet header is the way out — the
+same shape as Settings (§9.11), and the reason a sheet takes no stacking rung (§8.6).</p>
+<div class="note">
+<b>A sheet is a view of one card, not a mode.</b> Edits land in the same payload the panel writes,
+through the same commands, with the same undo entries. Nothing is saved differently and nothing is
+committed on leaving. The user can be on a sheet or on the canvas and it is the same card either
+way.
+</div>
+<h4>Sheet header</h4>
+<p><code>flex: none</code>, padding <code>11px 28px</code>, gap 12px, 1px
+<code>--color-divider</code> bottom border. Left to right: <code>Back to canvas</code>
+(<code>ph-arrow-left</code> at 13px, label 11.5px, padding <code>3px 9px</code>, radius 2px, 1px
+<code>--color-divider</code> border), then the <b>card name at 14px weight 600</b>, then the
+<b>type</b> at 9.5px, letter-spacing .11em, uppercase, opacity .45, on the same baseline.</p>
+<h4>Body</h4>
+<p>Padding <code>22px 28px</code>, a column, gap 20px, in <b>two bands</b>.</p>
+<ol>
+  <li><b>Identity</b> — the picture at a size worth looking at, <code>--color-neutral-200</code>,
+    radius 3px, with <code>Replace</code> / <code>Remove</code> beneath at 11px and the file name at
+    10px opacity .45; then the identity fields in a <code>flex: 1</code> column, gap 11px. Fields
+    are 26px tall (<code>padding: 2px 8px; min-height: 26px</code>); labels at 10px, letter-spacing
+    .1em, uppercase, opacity .45.</li>
+  <li><b>Two columns</b> — <code>grid-template-columns: 1fr 1fr</code>, gap 24px,
+    <code>align-items: start</code>.</li>
+</ol>
+<p><b>The 177px panel stays drawn beside the sheet</b>, and it is not empty: it holds the type name,
+the card id, and the same <b>Placed on</b> / <b>Joined to</b> groups the panel types get (§9.28) —
+except on Chapter, where those move into the sheet's own context line (§9.33).</p>
+
+<h3>9.31 Character, full screen <span class="frames">frame <code>25a</code></span> <span class="tag new">new 2026-09-08</span></h3>
+<p><b>Identity</b> — a <b>150 × 150px</b> picture, then Name + Role side by side, One-liner, and
+Description.</p>
+<p><b>Left column: Personality.</b> Five Scale sliders stacked at gap 7px, <b>so all five are
+visible with no scrolling</b> — that is the constraint the gap is set by. The <b>dice button</b> is
+right-aligned on the group label: 26 × 22px, radius 2px, transparent, 1px
+<code>--color-accent</code>, <code>ph-dice-five</code> at 14px in
+<code>--color-accent-700</code>.</p>
+<p><b>Right column</b> — Character tropes, then <b>Placed on</b> and <b>Joined to</b> side by side,
+then the Card actions.</p>
+<div class="note">
+<b>The randomize guarantee is stated in plain words on the screen, not hidden in the roll:</b>
+<i>Randomize rolls a bell curve, then guarantees at least one slider reaches ±2 — a mostly ordinary
+person with one clear edge. Undo restores all five in one step.</i><br><br>
+The weights (1, 3, 6, 8, 6, 3, 1) and the reroll rule belong to
+<code>docs/feature-writing-pack.html</code> §5 and are not re-decided here. What this document owns
+is that <b>the promise is printed where the button is</b>. A dice button with no stated rule looks
+like a gimmick; with the rule beside it, it is a tool.
+</div>
+<p>The roll is <b>local random numbers only</b> — no network call, no AI, permanently. Contract 18.</p>
+
+<h3>9.32 Book, full screen <span class="frames">frame <code>27a</code></span> <span class="tag new">new 2026-09-08</span></h3>
+<p><b>Deliberately the same shape as Character.</b> One sheet pattern, two types.</p>
+<p><b>Identity</b> — a <b>132 × 190px</b> cover, then Name, then Genre + Sub-genre as two combos,
+then Logline (<code>The one sentence the card face shows.</code>) and Synopsis.</p>
+<p><b>Book has no sliders</b>, so the left column carries <b>Tropes</b> and <b>Themes</b> — one chip
+style for both, as on the face (§9.27). <b>Synopsis is the Long Text</b> and never reaches the
+card.</p>
+<p><b>Joined to reads downward here</b> (<code>Contains</code>) where Character's reads upward
+(<code>Appears In</code>). <b>One group carries both directions with no second pattern</b> — and
+<code>Contains</code> is not a seventh role: it is <b>Part Of</b> read from the other end (§9.13).
+Which word is printed depends on which card the panel is showing, and nothing else.</p>
+<h4>Where the chip sets live — settled per type</h4>
+<table>
+<thead><tr><th>Chip set</th><th>Owned by</th></tr></thead>
+<tbody>
+<tr><td>Genre, Sub-genre</td><td><b>Book</b> only</td></tr>
+<tr><td>Tropes</td><td><b>Book</b> and <b>Character</b></td></tr>
+<tr><td>Themes</td><td><b>Book</b> and <b>Chapter</b></td></tr>
+</tbody>
+</table>
+<p><b>Whether Chapter should also carry tropes is still open</b> — see §15.4. Today it does not.</p>
+
+<h3>9.33 Chapter, the writing surface <span class="frames">frame <code>28a</code></span> <span class="tag new">new 2026-09-08</span></h3>
+<div class="callout">
+<b>Chapter is the one type the field stack cannot hold</b>, because its Long Text <b>is the work</b>
+rather than a description of it. So the screen inverts: the identity fields compress into a strip at
+the top, and everything below is the writing surface.
+</div>
+<h4>The strip</h4>
+<p>Number (66px, right-aligned), Title (<code>flex: 1</code>) and Word target (120px, right-aligned)
+on one <code>align-items: flex-end</code> row. Then Summary (<code>flex: 1</code>, a 46px textarea)
+beside Themes (300px, chips and the adder wrapping inline).</p>
+<h4>One context line</h4>
+<p>Where the chapter sits and what it is joined to read as <b>a single 10.5px opacity .5 row</b>,
+not a column of their own: <code>ph-square-half</code> Placed on The book <code>300, 210</code> ·
+<code>ph-book</code> Part of The Long Fall of the Ostrava · <code>ph-film-slate</code> Contains 1
+scene. <i>Both words are the same role, <b>Part Of</b>, read from each end (§9.13).</i></p>
+<p><b>This is the one place Placed on and Joined to collapse to a line.</b> The strip has no room
+for two stacked groups, and the writing surface must start high on the screen.</p>
+<h4>The writing surface</h4>
+<ul>
+  <li><code>flex: 1</code>, <code>--color-surface</code>,
+    <code>border-radius: 3px 3px 0 0</code>,
+    <code>box-shadow: 0 -1px 0 var(--color-divider) inset</code>, <b>running off the bottom of the
+    window</b> — the page does not end, because the writing does not.</li>
+  <li>Inside, one centred <b>560px measure</b> at 13px, line-height 1.85, paragraphs
+    <code>gap: 14px</code>, with the accent caret (1.5 × 15px) at the insertion point.</li>
+</ul>
+<h4>The foot</h4>
+<p>Padding <code>9px 22px</code>, 1px top border, 10.5px opacity .5, gap 14px:
+<code>Prose · Long Text</code>, then <code>1,204 of 3,200 words</code>, then a 120 × 3px
+<code>--color-neutral-200</code> progress rail with a <code>--color-accent</code> fill, then
+<code>Never shown on the card face</code> pushed right.</p>
+<h4>Two differences from the other sheets</h4>
+<ul>
+  <li><b>The header carries the Card actions</b> — <code>Expand into a canvas</code> and
+    <code>Delete</code>, right-aligned — because the strip has no room for a Card group.</li>
+  <li><b>The 177px panel is reserved.</b> It holds the type name, the card id and
+    <code>Reserved for AI options</code>. Nothing else. It is the only reserved space in the
+    interface, and §7 still holds: <b>there is no AI glyph and none is held back.</b></li>
+</ul>
+<div class="note">
+<b>The prose and the card face sit at opposite ends of the same screen on purpose.</b> The face
+shows the summary, so <b>nothing the writer types can change what the board looks like</b>. That is
+also why Long Text never reaches a face (§9.27): one Chapter card is a small tile on a book canvas
+and the same card on its own canvas — if the face carried prose, the two would need per-placement
+display rules, and the 250-card gate would pay for it.
+</div>
+
 <h2>10. Cross-cutting interaction contracts</h2>
 
 <p>These hold on every screen. They are numbered so a phase doc or a review can cite them.</p>
@@ -1686,8 +2820,14 @@ full-width <b>Straighten Line</b> button, disabled while there is no bend.</p>
     see happening.</li>
   <li><b>The accent means "selected" or "active", and nothing else.</b> Connection lines, dividers
     and card chrome never take it.</li>
-  <li><b>The second accent means "destructive", and nothing else.</b> It appears in exactly two
-    places: the panel's Delete button and destructive menu rows.</li>
+  <li><b>The second accent means "destructive <i>or</i> damage", and nothing else.</b> Never
+    decorative. It appears in the panel's Delete button, destructive menu rows, the delete-confirm
+    warning block and its primary button (§9.20), the canvas missing-file bar and the panel's
+    File-group warning row (§9.4), and the damaged-database message and card (§9.23). <i>Widened
+    from "destructive" on 2026-09-08 — a lost file and an unreadable database are damage, not
+    destruction, and both needed the same colour.</i> <b>It is never on a card face:</b> the damage
+    colour goes on the chrome around a card, so a broken card still looks like the user's
+    work.</li>
   <li><b>No route is the only route.</b> Every action in a context menu is also reachable from the
     left column or the properties panel.</li>
   <li><b>Canvas names always rank above cards in search.</b> A requirement, not a preference — it is
@@ -1697,6 +2837,28 @@ full-width <b>Straighten Line</b> button, disabled while there is no bend.</p>
   <li><b>Only the view position and zoom persist per canvas</b> (<code>view_x</code>,
     <code>view_y</code>, <code>view_zoom</code>). Selection, active tool and search state do
     not.</li>
+  <li><b>A card type is a data file, never a component.</b> The panel and the face are generated
+    from the blueprint's field list, and the panel knows only the seven field kinds in §9.25. A new
+    card type must cost <b>no new UI</b>. If a type needs a control the seven kinds cannot draw,
+    that is an eighth field kind and a design decision — not a special case inside one type.
+    <i>Added 2026-09-08.</i></li>
+  <li><b>A typed value is always accepted.</b> Every combo (§9.26) takes words that are not in its
+    list, saves them to the project's own vocabulary, and offers them again. A value with no id is
+    the user's own, permanently. <i>Added 2026-09-08.</i></li>
+  <li><b>Filtering sorts. It never hides.</b> The one-hop genre filter reorders a list and puts
+    <code>Everything else</code> below; nothing is removed and an untagged entry is never dropped.
+    <i>Added 2026-09-08.</i></li>
+  <li><b>Randomize is local, and it says what it does.</b> Plain local random numbers — no network
+    call, no AI, permanently — and the guarantee is printed beside the button (§9.31), never left
+    inside the roll. <i>Added 2026-09-08.</i></li>
+  <li><b>Long Text never reaches a card face.</b> Not for Chapter, not for any later type. The face
+    shows the summary; the prose lives on the sheet. This keeps one card looking the same on every
+    canvas it is placed on, and it is what protects the 250-card gate. <i>Added
+    2026-09-08.</i></li>
+  <li><b>Turning a pack off is a menu filter and nothing more.</b> It never touches placed cards,
+    their payloads or their connections. A card already on a canvas still draws, edits, searches
+    and connects (§9.11). A toggle that hid work would look exactly like data loss, which
+    contract 3 forbids. <i>Added 2026-09-08.</i></li>
 </ol>
 
 <h2>11. Motion and interaction states</h2>
@@ -1754,11 +2916,11 @@ percentage.</p>
   <td>Fill <code>--color-accent-600</code> (dark: <code>--color-accent-300</code>)</td>
   <td>Fill <code>--color-accent-700</code> (dark: <code>--color-accent-200</code>)</td></tr>
 <tr><td>Context-menu row</td>
-  <td>The drawn highlight: fill <code>--color-accent</code>, text <code>--color-bg</code> (dark:
+  <td>The drawn highlight: fill <code>--color-accent</code>, text <code>--color-on-accent</code> (dark:
   fill <code>--color-accent-400</code>, text #151312)</td>
   <td>Fill <code>--color-accent-600</code> (dark: <code>--color-accent-300</code>)</td></tr>
 <tr><td>Context-menu row, destructive</td>
-  <td>Fill <code>--color-accent-2</code>, text <code>--color-bg</code> (dark: fill
+  <td>Fill <code>--color-accent-2</code>, text <code>--color-on-accent</code> (dark: fill
   <code>--color-accent-2-400</code>, text #151312)</td>
   <td>Fill <code>--color-accent-2-700</code> (dark: <code>--color-accent-2-300</code>)</td></tr>
 <tr><td>Search result row</td>
@@ -1788,7 +2950,7 @@ percentage.</p>
   <td>Fill <code>--tint-neutral-hover</code>; opacity .55 → 1</td>
   <td>Fill <code>--tint-neutral-press</code></td></tr>
 <tr><td>Window close control</td>
-  <td>Fill <code>--color-accent-2</code>, glyph <code>--color-bg</code> (dark: fill
+  <td>Fill <code>--color-accent-2</code>, glyph <code>--color-on-accent</code> (dark: fill
   <code>--color-accent-2-400</code>, glyph #151312)</td>
   <td>Fill <code>--color-accent-2-700</code> (dark: <code>--color-accent-2-300</code>)</td></tr>
 <tr><td>Zoom-bar buttons</td><td>Opacity .7 → 1; fill <code>--tint-accent-hover</code></td>
@@ -1881,10 +3043,16 @@ by colour, which is why they do not collide.</p>
 <tbody>
 <tr><td><code>N</code></td><td>New note at the pointer</td><td>Empty state; background menu</td></tr>
 <tr><td><code>I</code></td><td>Add image</td><td>Empty state; background menu</td></tr>
+<tr><td><code>2</code>…<code>7</code> <span class="tag new">new</span></td>
+  <td>New Book, Chapter, Scene, Beat, Character, Location at the pointer, in that order</td>
+  <td>The Cards · Writing Pack submenu (§8.3)</td></tr>
 <tr><td><code>C</code></td><td>Connect from here</td><td>Element menu</td></tr>
 <tr><td><code>Enter</code></td><td>Edit text (a card) / open (a search result)</td>
   <td>Element menu; search footer</td></tr>
-<tr><td><code>Esc</code></td><td>Clear the selection / close search</td><td>Search footer</td></tr>
+<tr><td><code>Esc</code></td>
+  <td>Clear the selection / close search / cancel an in-flight line / finish a note edit / cancel a
+  dialog / leave a canvas rename</td>
+  <td>Search footer; the Connect hint bar; the note caption; the rename caption</td></tr>
 <tr><td><code>Del</code></td><td>Delete the selection</td><td>Element menu</td></tr>
 <tr><td><code>↑</code> <code>↓</code></td><td>Move through search results</td><td>Search footer</td></tr>
 <tr><td><code>Ctrl+D</code></td><td>Duplicate</td><td>Element menu</td></tr>
@@ -1898,6 +3066,10 @@ by colour, which is why they do not collide.</p>
 <tr><td>Undo / redo</td>
   <td colspan="2"><span class="tag gap">not drawn</span> The left column has Undo and Redo rows but
   shows no shortcut. Use the Windows convention: <code>Ctrl+Z</code> and <code>Ctrl+Y</code>.</td></tr>
+<tr><td>Leaving a sheet</td>
+  <td colspan="2"><span class="tag gap">not drawn</span> No frame draws a shortcut for
+  <code>Back to canvas</code>. <code>Esc</code> is the obvious fit and matches Settings, but it
+  must not fire while a text field on the sheet has focus. Listed in §15.4.</td></tr>
 </tbody>
 </table>
 
@@ -1995,6 +3167,42 @@ saveState      { status: 'saved' | 'saving', lastSavedAt }</code></pre>
 <tr><td>Settings <code>16a</code></td>
   <td><code>settings</code>, <code>project.folderPath</code></td><td>—</td></tr>
 <tr><td>Link and video cards</td><td><code>fetchStatus</code> for that item</td><td>—</td></tr>
+<tr><td>Drawing a line <code>21a</code></td>
+  <td><code>activeTool</code>, the in-flight connection (source placement + anchor edge)</td>
+  <td>The pointer position; the card under the pointer</td></tr>
+<tr><td>Connection selected <code>21b</code></td>
+  <td>The selected <code>connection</code> — <code>role</code>, <code>label</code>,
+  <code>direction</code>, <code>route</code>, <code>bend</code>, <code>from_anchor</code>,
+  <code>to_anchor</code>, and both far-card names</td>
+  <td>Which endpoint handle is being dragged</td></tr>
+<tr><td>Multi-selection <code>21c</code></td>
+  <td><code>selection</code> (many), and which fields are mixed across it</td>
+  <td>The marquee rectangle</td></tr>
+<tr><td>Note mid-edit <code>21d</code></td><td><code>saveState</code>, the item payload</td>
+  <td>The draft text and the caret; which format buttons are active</td></tr>
+<tr><td>Image mid-drop <code>21e</code></td><td>—</td>
+  <td>The dragged file list, the pointer position, the queued count</td></tr>
+<tr><td>Dialogs <code>21f</code> <code>21g</code></td>
+  <td>For the delete confirm: the count of items whose <i>only</i> placement is on this canvas —
+  computed, never cached</td>
+  <td>Which dialog is open; the draft name and location; the resolved path</td></tr>
+<tr><td>Missing assets <code>22a</code></td>
+  <td><code>assetStatus</code> per asset, and the project-wide count of missing files</td>
+  <td>—</td></tr>
+<tr><td>Damaged database <code>22b</code></td>
+  <td>Per recent project: whether it opened, and the error path</td><td>—</td></tr>
+<tr><td>A writing card selected <code>24a</code> <code>24b</code></td>
+  <td>The <code>blueprint</code> for its type, the item payload keyed by field, that item's
+  placements, and its connections with their roles</td>
+  <td>Field draft values; which chip is being dragged to reorder</td></tr>
+<tr><td>A combo <code>26b</code></td>
+  <td>The library list for that field, the project's own added values, and the card's genre for the
+  one-hop sort</td>
+  <td>The query, whether the list is open, the highlighted row</td></tr>
+<tr><td>A sheet <code>25a</code> <code>27a</code> <code>28a</code></td>
+  <td>The same item payload the panel writes — <b>a sheet holds no state of its own</b>. Plus
+  <code>settings.show_writing_cards</code> for the rail</td>
+  <td>Which card the sheet is open on; the prose draft and its word count</td></tr>
 </tbody>
 </table>
 
@@ -2034,6 +3242,13 @@ saveState      { status: 'saved' | 'saving', lastSavedAt }</code></pre>
   image cards are neutral fills with an icon and a file name; link previews and video thumbnails are
   neutral bands; the link favicon is a 12px tinted square. Real content comes from
   <code>assets/</code> and from fetched metadata.</td></tr>
+<tr><td>The Writing Pack <span class="tag new">new</span></td><td>No new assets.</td>
+  <td><b>The 2026-09-08 bundle adds nothing to vendor.</b> Every glyph it needs is Phosphor regular,
+  already bundled; there is no new font (the monospace it draws was declined — see §3 and the
+  handoff log); the identity pictures and cover bands are <code>--color-neutral-200</code> fills
+  until the user adds a file, and that file goes through <code>assets/</code> under its content hash
+  like every other picture. <b>The blueprints are data files, not assets</b> — they ship inside the
+  application, and <code>docs/feature-writing-pack.html</code> owns their format.</td></tr>
 <tr><td>WebView2</td><td>The browser engine.</td>
   <td>A system resource on Windows 11. The installer ships the bootstrapper
   (<code>docs/architecture.html</code> §9).</td></tr>
@@ -2042,21 +3257,33 @@ saveState      { status: 'saved' | 'saving', lastSavedAt }</code></pre>
 
 <h2>15. Not yet designed</h2>
 
-<h3>15.1 The gap list</h3>
-<p>Named by the handoff as specified in the plan but not drawn. Each needs a design pass before the
-phase that builds it.</p>
-<ol>
-  <li>Drawing a line mid-drag.</li>
-  <li>A connection selected — the panel showing its label and direction.</li>
-  <li>Marquee multi-select, and the panel's multi-selection state.</li>
-  <li>A note mid-edit.</li>
-  <li>An image mid-drop from Explorer.</li>
-  <li>The New project dialog.</li>
-  <li>Inline canvas rename, and the canvas delete confirm.</li>
-  <li>The canvas zoomed out over 250 cards — the P1 performance gate.</li>
-</ol>
+<h3>15.1 The gap list — now empty</h3>
+<div class="note">
+<b>All eight items graduated on 2026-09-08.</b> The revised bundle drew every state this list was
+waiting for. They are kept here with their new homes rather than deleted, so the history travels
+with the answer.
+</div>
+<table>
+<thead><tr><th>Was on the gap list</th><th>Drawn as</th><th>Now in</th></tr></thead>
+<tbody>
+<tr><td>Drawing a line mid-drag</td><td><code>21a</code></td><td>§9.14</td></tr>
+<tr><td>A connection selected — its label and direction</td><td><code>21b</code></td><td>§9.15</td></tr>
+<tr><td>Marquee multi-select, and the panel's multi-selection state</td><td><code>21c</code></td><td>§9.16</td></tr>
+<tr><td>A note mid-edit</td><td><code>21d</code></td><td>§9.17</td></tr>
+<tr><td>An image mid-drop from Explorer</td><td><code>21e</code></td><td>§9.18</td></tr>
+<tr><td>The New project dialog</td><td><code>21f</code></td><td>§9.19</td></tr>
+<tr><td>Inline canvas rename, and the canvas delete confirm</td><td><code>21g</code></td><td>§9.20</td></tr>
+<tr><td>The canvas zoomed out over 250 cards</td><td><code>21h</code></td><td>§9.21</td></tr>
+</tbody>
+</table>
+<p><b>One Writing Pack gap the bundle named is closed rather than carried:</b> the Location sheet.
+Location is a panel type (§9.28), so there is no sheet to draw.</p>
 
 <h3>15.2 The six failure states</h3>
+<p><b>Four of the six are now drawn.</b> The three fetch failures remain the only states with no
+frame, and all three are compositions of parts already specified — the link card's "not fetched
+yet" and "no preview data" appearances (§9.5) and the disabled Refetch button (§9.7). Nothing new
+needs designing for them.</p>
 <p>All six are specified in <code>docs/mvp-plan.html</code> §7 and
 <code>docs/architecture.html</code> §6, and <b>none is drawn</b>. Build them in the visual language
 of this document, as normal UI, never as error dialogs (contract 3).</p>
@@ -2071,10 +3298,12 @@ of this document, as normal UI, never as error dialogs (contract 3).</p>
 <tr><td>The fetch is slower than 5s</td><td>Cut off, treated as a failed fetch</td><td>9.7</td></tr>
 <tr><td>An asset file is missing from the folder</td>
   <td>The card shows a clear missing-file marker. Nothing is deleted. Nothing crashes</td>
-  <td><b>Now specified — see 9.4</b></td></tr>
+  <td><b>Drawn — <code>22a</code>. The card stays as §9.4 authored and shipped it; the canvas
+  missing-file bar, the two buttons and the panel's warning row are adopted from the drawn
+  pass</b></td></tr>
 <tr><td>The database is locked or damaged</td>
   <td>The project does not open. A plain message names the file. Other projects are unaffected</td>
-  <td><span class="tag gap">nothing drawn</span> — it belongs on the project picker</td></tr>
+  <td><b>Drawn — <code>22b</code>. See §9.23</b></td></tr>
 <tr><td>Force-closed while editing</td><td>Everything is kept except the action in progress</td>
   <td>No UI needed</td></tr>
 </tbody>
@@ -2121,7 +3350,8 @@ question.</p>
 </table>
 
 <h3>15.4 Still open</h3>
-<p>Two. Both are measurement tasks, not design decisions, and neither blocks P1.</p>
+<p><b>Six.</b> The first two are measurement tasks from 2026-09-06. Four were added on 2026-09-08 by
+the revised bundle; none of the four blocks a phase before P6.</p>
 <ol>
   <li><b>Four dark-theme values were never drawn:</b> the context-menu shadow, the search-popover
     shadow, the toggle-knob shadow and the picker-card shadow. Also <b>unmeasured</b>:
@@ -2133,6 +3363,22 @@ question.</p>
     WebView2 default is heavy against this chrome; a thin overlay scrollbar in
     <code>--color-neutral-400</code> on a transparent track is the obvious fit, but it is not
     drawn.</li>
+  <li><b>Does Chapter carry tropes as well as themes?</b> Today tropes sit on Book and Character
+    only (§9.32), and the bundle names this as an open question for the owner. <i>Settle by:</i>
+    P6, before the Chapter blueprint is written — it is one line in a data file either way, which
+    is exactly why it can wait.</li>
+  <li><b>A role and a label on the same line.</b> No frame draws one. §9.13's Role block authors the
+    rule — the role owns the midpoint, the label moves to the midpoint of the longer half, and the
+    role wins when the line is too short for both. <i>Settle by:</i> P6, against a real wired
+    canvas. <b>Authored, not drawn.</b></li>
+  <li><b>Is Character's face too sparse?</b> It draws picture, name and role;
+    <code>docs/feature-writing-pack.html</code> also lists a one-liner and trope chips (§9.27).
+    <i>Settle by:</i> P6, on a real canvas of ten characters. The one-liner and the chips are the
+    first things to add back.</li>
+  <li><b>The shortcut for leaving a full-screen sheet.</b> Not drawn on <code>25a</code>,
+    <code>27a</code>, <code>28a</code> or on Settings. <code>Esc</code> is the obvious fit, but it
+    must not fire while a text field on the sheet has focus — and on Chapter almost the whole
+    screen is a text field. <i>Settle by:</i> P5 for Settings, P6 for the sheets.</li>
 </ol>
 
 <h2>16. Screen → phase map</h2>
@@ -2167,22 +3413,52 @@ directions: a phase that moves here moves there too.</p>
   <td>The Settings page, the segmented control, the toggle, and the working theme switch. The dark
   theme signed off end to end.</td>
   <td><code>16a</code> <code>18a</code> <code>18b</code></td></tr>
+<tr><td><b>P6 — The writing pack</b> <span class="tag new">new</span></td>
+  <td>The generated properties panel and all seven field kinds, measured for 177px. The combo in
+  all four states. The chip, the chip adder and the Scale slider. The seven card faces and the type
+  kicker. The <b>Placed on</b> and <b>Joined to</b> generated groups. Connection <b>roles</b> — the
+  rest glyph, the open chip and the Role combo. The shared full-screen sheet shell, and the three
+  sheets: Character, Book and Chapter with its writing surface. The rail's <code>Cards</code> group
+  and its two submenus, plus the <code>2</code>…<code>7</code> shortcuts. Settings' seventh row,
+  <code>Show Writing Cards</code>, in the new <b>Packs</b> group.</td>
+  <td><code>23a</code> <code>24a</code> <code>24b</code> <code>25a</code> <code>26a</code>
+  <code>26b</code> <code>27a</code> <code>28a</code></td></tr>
+<tr><td><b>Not phased — states inside earlier phases</b></td>
+  <td>The eleven states that graduated off the gap list belong to the phase that owns their screen,
+  not to a phase of their own: <b>P1</b> takes <code>21c</code> marquee, <code>21d</code> the note
+  text bar, <code>21f</code> the New project dialog and <code>21h</code> the performance gate;
+  <b>P2</b> takes <code>21a</code> drawing a line and <code>21b</code> the connection panel;
+  <b>P3</b> takes <code>21e</code> the image drop and <code>22a</code> the missing-file bar and its
+  buttons; <b>P4</b> takes <code>21g</code> canvas rename and delete confirm, and
+  <code>22b</code> the damaged database on the picker. <code>22c</code> is a reference sheet and
+  builds nothing.</td>
+  <td><code>21a</code>–<code>21h</code> <code>22a</code> <code>22b</code> <code>22c</code></td></tr>
 </tbody>
 </table>
 
 <div class="note">
-<b>Three notes on this map.</b><br>
+<b>Five notes on this map.</b><br>
 1. <b>P5 is new.</b> The plan has four milestones. Settings and the dark theme were accepted into
 scope on 2026-09-05 and need a home. P5 sits at the end so no existing phase is renumbered.<br>
 2. <b>The theme tokens are P1, not P5.</b> Building the shell twice is wasteful. Ship both palettes
 and the <code>data-theme</code> attribute in P1; ship the control that flips it in P5.<br>
 3. <b>The project picker is P4, but you need a way into a project at P1.</b> The plan puts the
 picker in P4 on purpose. Use a developer path — a fixed folder or a command-line argument — until
-P4. This is a sequencing observation, not a change.
+P4. This is a sequencing observation, not a change.<br>
+4. <b>P6 is new here, but not new to the plan.</b> <code>docs/prd.html</code> and
+<code>docs/mvp-plan.html</code> already carry Phase 6 — the writing pack — added by
+<code>dev-add-feature</code> on 2026-09-07. This map was simply behind them, and this row catches
+it up. <code>docs/feature-writing-pack.html</code> §10 owns P6's build order; this row owns only
+what has to look right.<br>
+5. <b>Eleven of the nineteen new screens are drawn against phases that are already complete.</b>
+P1–P4 shipped before their states were drawn. Each is a small addition to finished work rather than
+new scope, and the row above says which phase owns which. <b>None of them changes a token</b>, so
+none of them reopens the shell.
 </div>
 
-<p class="frames" style="margin-top:34px">End of document. Written 2026-09-05 by
-<code>dev-ui-update</code> from <code>docs/handoff/</code>.</p>
+<p class="frames" style="margin-top:34px">End of document. Written 2026-09-05 and last amended
+2026-09-08 by <code>dev-ui-update</code> from <code>docs/handoff/</code>. 33 screen sections, 31
+frames, 20 contracts, 61 glyphs, 11 elevations, 7 closed Broadsheet deviations.</p>
 
 </div>
 </body>

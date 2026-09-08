@@ -167,7 +167,9 @@ placed on a canvas and connected together to build a larger concept.</p>
     <div class="sent"><b>Sentiment:</b> Users expect a video to play in place. They dislike being
       sent out to another tab.</div>
     <div class="cov"><b>P3 Rich cards.</b> In: the card shows the video title and thumbnail, and
-      opens the video in the browser on click. <b>YouTube only</b> — Vimeo was removed on
+      opens the video in the browser from the YouTube mark on the thumbnail. Clicking the card body
+      selects it, like every other card kind &mdash; corrected 2026-09-07, see
+      <code>docs/design-system.html</code> &sect;9.6. <b>YouTube only</b> — Vimeo was removed on
       2026-09-06 and a Vimeo address becomes an ordinary link card. Left out: playing inside the
       card, Vimeo, local video files, and any player controls. This is an accepted gap against a table stake. It was raised in the
       interview and accepted, to be added after the rest is proved.</div>
@@ -206,9 +208,11 @@ placed on a canvas and connected together to build a larger concept.</p>
       Obsidian gives one canvas file per idea.</div>
     <div class="sent"><b>Sentiment:</b> Nested boards are a well-liked Milanote idea. Free-plan
       board caps are a top reason users leave Miro.</div>
-    <div class="cov"><b>P4 Library.</b> In: projects, and a flat list of canvases inside a project,
-      with create, rename, delete and switch. Left out: boards nested inside a canvas. There are no
-      caps of any kind, because there is no paid tier.</div>
+    <div class="cov"><b>P4 Library, widened by P6.</b> In: projects, and a flat list of canvases
+      inside a project, with create, rename, delete and switch. P6 adds Expand Into A Canvas, which
+      is nesting done as a link rather than as a tree: a card points at the canvas that details it,
+      to any depth, and the same card is placed on both canvases. Still left out: a canvas drawn
+      inside another canvas. There are no caps of any kind, because there is no paid tier.</div>
   </div>
 
   <div class="row" data-coverage="partial" data-phase="4">
@@ -376,29 +380,34 @@ to this project. This ranking records the market at research time. It is not re-
 <h2>Other <span class="tag">Recorded backlog · unranked</span></h2>
 <div class="card">
 
-  <div class="row" data-coverage="none">
+  <div class="row" data-coverage="in" data-phase="6">
     <div class="name">Reusable shaped items: characters, tropes, themes
-      <span class="badge b-no">Not in MVP</span>
+      <span class="badge b-in">In MVP &middot; P6</span>
       <span class="src">From interview</span></div>
     <div class="who">Heptabase and Scrintal support typed notes. No comparable ships story-specific
       item types.</div>
     <div class="sent"><b>Sentiment:</b> Not found in research. This came from the interview, where
       the user named characters, tropes and themes as a planned use, with one canvas per chapter.</div>
-    <div class="cov">Not in a phase. This row shaped the MVP data model even though it is not built.
-      A card is a placement pointing at a library item, so the same character can appear on many
-      chapter canvases. Adding this later is a new item kind with its own payload and editor, not a
-      rewrite.</div>
+    <div class="cov"><b>P6 The writing pack.</b> This row shaped the MVP data model before it was
+      built, and the bet held: a card is a placement pointing at a library item, so one Character
+      appears on many chapter canvases as one record. It cost exactly one new item kind and no
+      rewrite. In: seven typed card types generated from data blueprints, seven field kinds, chips on
+      the card face, connection roles, and a card that expands into its own canvas. See
+      <code>docs/feature-writing-pack.html</code>.</div>
   </div>
 
-  <div class="row" data-coverage="none">
-    <div class="name">A library screen <span class="badge b-no">Not in MVP</span>
+  <div class="row" data-coverage="partial" data-phase="6">
+    <div class="name">A library screen <span class="badge b-part">Partial &middot; P6</span>
       <span class="src">From interview</span></div>
     <div class="who">Milanote, Heptabase and Kosmik all show a list of everything in a workspace.</div>
     <div class="sent"><b>Sentiment:</b> Not found in research. Raised in the interview as the missing
       piece that makes reusable items usable.</div>
-    <div class="cov">Not in a phase. Because there is no library screen, the MVP deletes an item when
-      its last card is deleted. That rule stops items the user could never see or remove. The rule
-      changes when this screen is built.</div>
+    <div class="cov"><b>P6 The writing pack.</b> The rule this row predicted has now changed. The
+      MVP deleted an item when its last card was deleted, because an unplaced item could never be
+      seen. That would destroy a reused Character, so P6 exempts blueprint items and ships an
+      <b>Unplaced list</b> in the left column to keep the old rule's promise. The four original card
+      kinds keep the old behaviour exactly. Left out: the full screen showing every item in a
+      project.</div>
   </div>
 
   <div class="row" data-coverage="none">
@@ -417,7 +426,11 @@ to this project. This ranking records the market at research time. It is not re-
     <div class="who">Milanote, Miro, Mural and FigJam ship large template libraries.</div>
     <div class="sent"><b>Sentiment:</b> Templates are named as a reason new users get started fast.
       Milanote's steep learning curve is a repeated complaint that templates soften.</div>
-    <div class="cov">Not in a phase.</div>
+    <div class="cov">Not in a phase. Narrowed and kept on the backlog on 2026-09-07 as <b>book
+      templates</b>: pick a genre and a sub-genre, then fill a Book card's fields from a guide drawn
+      from a previous book. P6 builds the card and field machinery it needs, and its four rulings are
+      already recorded in <code>docs/feature-writing-pack.html</code> §3 and §5, so the later work
+      cannot contradict this one. A general starter-canvas library is not planned.</div>
   </div>
 
   <div class="row" data-coverage="never">
@@ -451,11 +464,50 @@ to this project. This ranking records the market at research time. It is not re-
     <div class="cov">Not in a phase. It would arrive as a new item kind.</div>
   </div>
 
-  <div class="row" data-coverage="none">
-    <div class="name">Tags, colours and card metadata <span class="badge b-no">Not in MVP</span></div>
+  <div class="row" data-coverage="partial" data-phase="6">
+    <div class="name">Tags, colours and card metadata <span class="badge b-part">Partial &middot; P6</span></div>
     <div class="who">Milanote, Kinopio and Kosmik colour and tag cards.</div>
     <div class="sent"><b>Sentiment:</b> No specific sentiment found.</div>
-    <div class="cov">Not in a phase.</div>
+    <div class="cov"><b>P6 The writing pack.</b> In: tags and metadata, as Pick and Pick Many fields
+      printed on the card face as chips, drawn from shipped lists the user can add to. Left out:
+      colouring a card, and clicking a chip to light up every card that carries it. That second one
+      is recorded as its own row below.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Highlight mode &mdash; light up every card carrying one tag
+      <span class="badge b-no">Not in MVP</span>
+      <span class="src">From interview</span></div>
+    <div class="who">Not found in any comparable. Miro and FigJam filter by tag, which hides the
+      rest of the board rather than dimming it.</div>
+    <div class="sent"><b>Sentiment:</b> Not found in research. Raised in the 2026-09-07 feature
+      interview, as the answer to "where is this trope actually doing work in my book".</div>
+    <div class="cov">Not in a phase. Deferred inside the writing pack. It needs the chips P6 builds
+      to exist first. See <code>docs/feature-writing-pack.html</code> §3.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">Board cards &mdash; a card whose content is computed
+      <span class="badge b-no">Not in MVP</span>
+      <span class="src">From interview</span></div>
+    <div class="who">Notion and Coda embed live views inside a page. No canvas comparable does it
+      on the canvas itself.</div>
+    <div class="sent"><b>Sentiment:</b> Not found in research. Raised in the 2026-09-07 feature
+      interview as a living summary poster &mdash; tropes in play, a cast list, the chapter spine.</div>
+    <div class="cov">Not in a phase. Deferred inside the writing pack. It needs a second card
+      concept and live refresh, and the chips ship first.</div>
+  </div>
+
+  <div class="row" data-coverage="none">
+    <div class="name">User-written card blueprints
+      <span class="badge b-no">Not in MVP</span>
+      <span class="src">From interview</span></div>
+    <div class="who">Notion, Coda and Obsidian let a user define their own record shape.</div>
+    <div class="sent"><b>Sentiment:</b> Not found in research. Raised in the 2026-09-07 feature
+      interview.</div>
+    <div class="cov">Not in a phase. Deferred inside the writing pack. P6 builds the same engine, so
+      the door stays open. What is deferred is the editor and the hard parts behind it: what happens
+      to existing cards when a field is removed, blueprint versioning, and a broken blueprint.</div>
   </div>
 
   <div class="row" data-coverage="none">
@@ -527,17 +579,26 @@ to this project. This ranking records the market at research time. It is not re-
 <table>
   <tr><th>Badge</th><th>Meaning</th><th>Rows</th></tr>
   <tr><td><span class="badge b-in">In MVP · P#</span></td>
-      <td>Built in the plan, at the scope the row describes</td><td>9</td></tr>
+      <td>Built in the plan, at the scope the row describes</td><td>10</td></tr>
   <tr><td><span class="badge b-part">Partial · P#</span></td>
-      <td>In the plan, at a narrower scope than the market version</td><td>5</td></tr>
+      <td>In the plan, at a narrower scope than the market version</td><td>7</td></tr>
   <tr><td><span class="badge b-no">Not in MVP</span></td>
       <td>In no phase. Still backlog for <code>dev-add-feature</code></td><td>18</td></tr>
   <tr><td><span class="badge b-never">Never</span></td>
       <td>Ruled out by the plan's "never" list. Off the backlog</td><td>6</td></tr>
 </table>
-<p class="sub">Total rows: 37. Required 12, Top 10 ten, Other 15.
-Three Other rows came from the interview, not from research. They carry a
+<p class="sub">Total rows: 41. Required 12, Top 10 ten, Other 19.
+Seven Other rows came from an interview, not from research. They carry a
 <span class="src">From interview</span> mark.</p>
+<p class="sub"><b>2026-09-07 &mdash; marking pass by <code>dev-add-feature</code>,</b> for the
+writing pack (<code>docs/feature-writing-pack.html</code>, phase P6). One row moved to
+<span class="badge b-in">In MVP &middot; P6</span>: reusable shaped items. Three moved to
+<span class="badge b-part">Partial &middot; P6</span>: multiple boards, tags and card metadata, and
+a library screen. Three rows were added from the interview and start at
+<span class="badge b-no">Not in MVP</span>: highlight mode, board cards and user-written
+blueprints. The templates row keeps <span class="badge b-no">Not in MVP</span> and was narrowed to
+book templates, with its rulings recorded. No row was deleted and the Top 10 ranking is unchanged.
+The research behind every row still dates from 2026-09-05.</p>
 
 <h3>Phase key</h3>
 <table>
@@ -546,6 +607,8 @@ Three Other rows came from the interview, not from research. They carry a
   <tr><td>P2</td><td>Connections</td><td>Completes the core loop</td></tr>
   <tr><td>P3</td><td>Rich cards</td><td>Pictures, web links, video</td></tr>
   <tr><td>P4</td><td>Library</td><td>Projects, canvas list, search</td></tr>
+  <tr><td>P5</td><td>Settings and appearance</td><td>The five settings, and the dark theme signed off</td></tr>
+  <tr><td>P6</td><td>The writing pack</td><td>Typed cards from data blueprints, connection roles, chips</td></tr>
 </table>
 
 <footer>

@@ -64,7 +64,7 @@ document alone.</p>
 <h2>1. Status and authority</h2>
 
 <div class="meta">
-  <b>Written:</b> 2026-09-05.<br>
+  <b>Written:</b> 2026-09-05. <b>Last amended:</b> 2026-09-06.<br>
   <b>Consolidates:</b> <code>docs/handoff/</code> (2026-09-05) — the IdeaScape desktop UI bundle,
   12 screens.<br>
   <b>Fidelity:</b> high. Colours, type sizes, spacing, radii, shadows and copy are final.<br>
@@ -160,12 +160,123 @@ appearing here first.</p>
     collapsed. Added to the plan's screen list. See section 8.5.</td>
 </tr>
 <tr>
+  <td>2026-09-06</td>
+  <td><span class="frames">open questions settled</span></td>
+  <td><b>Two states specified that the handoff never drew</b>, at the owner's instruction, and
+    authored by <code>dev-ui-update</code> rather than by the designer. <b>(a)</b> The full
+    hover / pressed / motion / cursor layer — two shared tints, a per-surface table, one easing
+    curve and nine durations, §11.1–11.3 and §11.5. <b>(b)</b> The missing-asset card, §9.4, which
+    adds one glyph (<code>ph-image-broken</code>, taking the set to 34) and the interface's only
+    dashed border. Both are buildable as written. A later drawn pass supersedes either and gets its
+    own row here.</td>
+  <td><b>Eight further answers, all from the owner.</b>
+    Tool row icons are <b>13px</b>.
+    Source Serif 4 <b>stands</b>; the small-size check is a build task, not a design question.
+    Selection, focus and hover <b>already differ by shape</b> (corner handles / offset ring /
+    shadow) and are correct as drawn.
+    The note keeps its <b>title</b>, and search matches <b>title and body</b>.
+    <b>Vimeo is removed from the MVP</b> — YouTube only; a Vimeo address becomes an ordinary link
+    card, and Vimeo moves to the deferred list in <code>docs/mvp-plan.html</code> §3. This is the
+    first scope <i>reduction</i> this document has caused.
+    Card minimum is <b>50px</b> in both axes, with no maximum.
+    A connection label is <b>not drawn below 50px</b> of line length, and is kept, not lost.
+    Minimum window width is <b>350px</b>, which forces the properties panel to collapse below about
+    420px.
+    §15.3 now records every settled question with its answer; §15.4 holds the two that remain.</td>
+</tr>
+<tr>
   <td>2026-09-05</td>
   <td><span class="frames">consolidation decision</span></td>
   <td>—</td>
   <td><b>Confirmed: all seven Broadsheet deviations stand.</b> Icons at regular weight, structural
     borders and boxes, the 3px radius, the tightened spacing scale, dark surfaces, both accents in
     the panel footer, and six ad-hoc elevations. The list in section 3 is closed.</td>
+</tr>
+<tr>
+  <td>2026-09-07</td>
+  <td><span class="frames">owner decision</span></td>
+  <td><b>Added: the elbow route.</b> A connection now carries a <code>route</code> of
+    <code>straight</code> or <code>elbow</code>, chosen per connection in a new <b>Route</b> group in
+    the properties panel. An elbow is horizontal and vertical segments only — three of them, with 2px
+    bends. The full geometry, endpoint, trim, chip, cull and control spec is in §9.13 under
+    <b>Route</b>. Not drawn by the designer: authored here at the owner's instruction, so a later
+    drawn pass supersedes it and gets its own row.</td>
+  <td><b>Amended: §9.13.</b> The property table gains a <code>Route</code> row; rule 4's 50px
+    measurement now names the longest segment on an elbow; rules 7, 8 and 9 are new. <b>Amended: the
+    data model.</b> <code>connection</code> gains a <code>route</code> column — a change to
+    <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4. <b>Amended: §16</b> — P2
+    now owns the Route control. <b>Recorded as a non-goal:</b> a line does not route around cards.
+    <i>Owner, 2026-09-07.</i></td>
+</tr>
+<tr>
+  <td>2026-09-07</td>
+  <td><span class="frames">owner decision</span></td>
+  <td><b>Added: a hand-placed bend.</b> A connection may carry one bend, placed by dragging a
+    hollow handle in the middle of a selected line. It is stored in the frame of the two card
+    centres, never as a canvas coordinate, so the shape survives a card being moved — the owner
+    chose this over a fixed canvas point precisely so that moving a card does not make the line
+    look broken. Both ends then aim at the bend. Enter on the handle, or <b>Straighten Line</b> in
+    the new Bend group in the properties panel, removes it. The full geometry, storage, handle and
+    control spec is in §9.13 under <b>Bend</b>. A bend is kept 8px clear of both cards, so its
+    handle is always on the drawn line. On a <b>straight</b> line the handle moves across the
+    line only, never along it; on an <b>elbow</b> it slides the crossing — the middle run — on
+    that run's own axis, and adds no corner. Not drawn by the designer: authored here at the
+    owner's instruction, so a later drawn pass supersedes it and gets its own row.</td>
+  <td><b>Amended: §9.13.</b> The property table gains a <code>Bend</code> row; rule 8 is rewritten
+    a second time, from "a bend is computed" to "a line's shape is derived until the user says
+    otherwise", and it now records what is authored, what is still derived, and that everything
+    authored is held relative to the cards. <b>Amended: the data model.</b> <code>connection</code>
+    gains a <code>bend</code> column — a change to <code>docs/mvp-plan.html</code> §4 and
+    <code>docs/prd.html</code> §4. <b>Still a non-goal:</b> more than one bend per line, and
+    routing around cards. <i>Owner, 2026-09-07.</i></td>
+</tr>
+<tr>
+  <td>2026-09-07</td>
+  <td><span class="frames">owner decision</span></td>
+  <td><b>Added: connection anchors.</b> Each END of a connection now carries an anchor —
+    <code>auto</code>, or one of the four card sides. It is set by <b>dragging that end's selection
+    handle</b> onto a side, and a pinned end always leaves that side's midpoint. Both ends default
+    to <code>auto</code>, so no existing canvas changes shape. The full endpoint, elbow-stub,
+    control and keyboard spec is in §9.13 under <b>Anchor</b>. Not drawn by the designer: authored
+    here at the owner's instruction, so a later drawn pass supersedes it and gets its own row.</td>
+  <td><b>Amended: §9.13.</b> The property table gains an <code>Anchor</code> row; rule 8 is
+    narrowed from "the route is computed" to "a BEND is computed", because the two ends can now be
+    authored and the middle still cannot; the Route table's selection-handles row records that the
+    endpoint squares are draggable. <b>Amended: the stacking ladder.</b> A new rung,
+    <code>--z-connection-handles: 25</code>, carries a selected connection's endpoint handles above
+    the cards — the one exception to "cards always paint over lines", and the only way a handle
+    sitting on a card border can be seen or grabbed. <b>Amended: the data model.</b>
+    <code>connection</code> gains <code>from_anchor</code> and <code>to_anchor</code> — a change to
+    <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4. <b>Still a non-goal:</b>
+    waypoints. There is no handle on the middle of a line and no way to drag a bend.
+    <i>Owner, 2026-09-07.</i></td>
+</tr>
+<tr>
+  <td>2026-09-07</td>
+  <td><span class="frames">owner decision</span></td>
+  <td><b>Added: the Font setting.</b> <b>Settings · Appearance · Font</b> offers
+    <code>Serif</code> (Source Serif 4, the default), <code>Sans</code> (Inter) and
+    <code>Marker</code> (Patrick Hand). It swaps the family tokens only; no size, weight or
+    spacing token moves, so a font change is a repaint and never a re-layout. The root carries
+    <code>data-font</code>. Both new faces are vendored, latin subset only. Not drawn by the
+    designer: authored here at the owner's instruction, so a later drawn pass supersedes it and
+    gets its own row.</td>
+  <td><b>Amended: §6</b> — the type table gains a <b>User choice</b> row. <b>Amended: §9.11</b> —
+    the Settings page has a sixth row, and Appearance now holds two. <b>Amended: §14</b> — Inter
+    and Patrick Hand join the vendored assets. <b>Amended: §9.13</b> — a label chip's border is
+    now its own connection's colour, not <code>--color-divider</code>, and the chip is recorded
+    as drawn at <b>full strength</b>, which is what shipped; the stale opacity .62 is removed from
+    §6. <b>Amended: §9.6</b> — the video card's provider moves to a corner mark on the thumbnail,
+    the provider name is no longer drawn as text, the mark is drawn in YouTube's brand red on no
+    ground (a new <code>--color-provider-youtube</code> token, identical in both themes), and the
+    "Click to open in your browser" line is removed. <b>Superseded: the video card's open
+    gesture.</b> The card body no longer opens the browser — it selects, like every other card
+    kind — and the YouTube mark became the open control. <b>Removed: the play badge</b>, with its
+    <code>ph-play</code> glyph and its <code>--color-play-badge</code> token — the glyph set drops
+    from 34 to <b>33</b>, and the 50% radius row now names only the Settings toggle knob. <b>Shortened:</b> the image group's two
+    checkbox labels, "Show Title On Card" and "Show Description On Card", are now
+    <b>Show Title</b> and <b>Show Description</b>. This document never named either, so no
+    section changes. <i>Owner, 2026-09-07.</i></td>
 </tr>
 </tbody>
 </table>
@@ -240,11 +351,17 @@ added to the project's own token layer.</p>
 <table>
 <thead><tr><th>Token</th><th>Value</th><th>Used for</th></tr></thead>
 <tbody>
-<tr><td><code>--color-bg</code></td><td><span class="sw" style="background:#f3f2f2"></span>#f3f2f2</td>
-  <td>The canvas ground. Also the text colour on any accent fill.</td></tr>
+<tr><td><code>--color-bg</code></td><td><span class="sw" style="background:#e6e5e5"></span>#e6e5e5</td>
+  <td>The canvas ground, a light grey.</td></tr>
+<tr><td><code>--color-on-accent</code></td><td><span class="sw" style="background:#f3f2f2"></span>#f3f2f2</td>
+  <td>The text colour on any accent fill. Pinned, so the grey ground does not follow it.</td></tr>
 <tr><td><code>--color-surface</code></td><td><span class="sw" style="background:#eae9e9"></span>#eae9e9</td>
-  <td>All chrome (title bar, left column, properties panel) and every card, menu, popover and zoom
+  <td>All chrome (title bar, left column, properties panel) and every menu, popover and zoom
   bar.</td></tr>
+<tr><td><code>--color-card</code></td><td><span class="sw" style="background:#ffffff"></span>#ffffff</td>
+  <td>Every card on the canvas — the shell and its contents alike.</td></tr>
+<tr><td><code>--color-title-bar</code></td><td><span class="sw" style="background:#f2f1f1"></span>#f2f1f1</td>
+  <td>The title bar only, one step lighter than the rest of the chrome.</td></tr>
 <tr><td><code>--color-text</code></td><td><span class="sw" style="background:#201e1d"></span>#201e1d</td>
   <td>All ink.</td></tr>
 <tr><td><code>--color-accent</code></td><td><span class="sw" style="background:#0088b0"></span>#0088b0</td>
@@ -333,11 +450,11 @@ control and position is identical to its light twin. Only the ground inverts.</p
 <table>
 <thead><tr><th>Role</th><th>Light</th><th>Dark</th></tr></thead>
 <tbody>
-<tr><td>Canvas ground</td><td><code>--color-bg</code> #f3f2f2</td>
+<tr><td>Canvas ground</td><td><code>--color-bg</code> #e6e5e5</td>
   <td><span class="sw" style="background:#1a1817"></span>#1a1817 <span class="tag gap">new</span></td></tr>
-<tr><td>Chrome and cards</td><td><code>--color-surface</code> #eae9e9</td>
+<tr><td>Chrome</td><td><code>--color-surface</code> #eae9e9</td>
   <td><span class="sw" style="background:#262322"></span>#262322 <span class="tag gap">new</span></td></tr>
-<tr><td>Raised fills (image placeholders, inputs)</td><td><code>--color-neutral-200</code> #eae7e7</td>
+<tr><td>Cards and raised fills (image placeholders, inputs)</td><td><code>--color-card</code> / <code>--color-raised</code> #ffffff</td>
   <td><span class="sw" style="background:#302d2b"></span>#302d2b <span class="tag gap">new</span></td></tr>
 <tr><td>Divider</td><td><code>--color-divider</code> (#201e1d at 16%)</td>
   <td><span class="sw" style="background:#3b3735"></span>#3b3735 <span class="tag gap">new</span></td></tr>
@@ -345,7 +462,7 @@ control and position is identical to its light twin. Only the ground inverts.</p
   <td><span class="sw" style="background:#ece9e6"></span>#ece9e6 <span class="tag gap">new</span></td></tr>
 <tr><td>Accent</td><td><code>--color-accent</code> #0088b0</td>
   <td><code>--color-accent-400</code> #62c5ee</td></tr>
-<tr><td>Text on the accent</td><td><code>--color-bg</code> #f3f2f2</td>
+<tr><td>Text on the accent</td><td><code>--color-on-accent</code> #f3f2f2</td>
   <td><span class="sw" style="background:#151312"></span>#151312 <span class="tag gap">new</span></td></tr>
 <tr><td>Accent tint (active pill, toolbar toggle)</td>
   <td><code>--color-accent-100</code> fill / <code>--color-accent-800</code> text</td>
@@ -423,7 +540,7 @@ large text and interface chrome — <b>not</b> for body copy. The rule:</p>
   <td>Page-level buttons — the picker's New project / Open folder, the empty state's New note / Add
   image, Settings' Back to canvas.</td></tr>
 <tr><td>10px</td><td>—</td><td>The Settings toggle track (34 × 19px).</td></tr>
-<tr><td>50%</td><td>—</td><td>The video play badge and the Settings toggle knob.</td></tr>
+<tr><td>50%</td><td>—</td><td>The Settings toggle knob.</td></tr>
 </tbody>
 </table>
 
@@ -465,6 +582,13 @@ large text and interface chrome — <b>not</b> for body copy. The rule:</p>
   <td>Google Fonts, imported at the top of Broadsheet's <code>styles.css</code>. <b>Vendor it</b> —
   see section 14.</td></tr>
 <tr><td>Fallback</td><td><code>system-ui, sans-serif</code> — Segoe UI Variable on Windows 11</td></tr>
+<tr><td>User choice</td>
+  <td><b>Settings · Appearance · Font</b> swaps the family for <code>Sans</code> (Inter) or
+  <code>Marker</code> (Patrick Hand). Only <code>--font-heading</code>, <code>--font-body</code>
+  and <code>--font-heading-weight</code> move; every size, weight and spacing token is shared, so
+  a font change is a repaint and never a re-layout. The root carries
+  <code>data-font="serif|sans|marker"</code>; Serif is the default and writes the attribute
+  rather than leaving it absent.</td></tr>
 </tbody>
 </table>
 
@@ -483,14 +607,14 @@ second family</b>. See open question 2.
 <tr><td>Collapsed panel label</td><td>9.5px / 400</td>
   <td><code>writing-mode: vertical-rl</code>, uppercase, letter-spacing .12em, opacity .38</td></tr>
 <tr><td>Section labels</td><td>10px / 400</td>
-  <td>Uppercase, letter-spacing .1em, opacity .45. Left-column groups, panel groups, search group
+  <td>Uppercase, letter-spacing .1em, opacity .65. Left-column groups, panel groups, search group
   headings</td></tr>
 <tr><td>Card kicker</td><td>10px / 400</td>
   <td>Uppercase, letter-spacing .06em, opacity .5. The link-card domain row, the video provider
   row</td></tr>
 <tr><td>Chips</td><td>10px / 400</td>
-  <td>Connection labels (opacity .62); the video duration chip; search group counts (opacity
-  .4)</td></tr>
+  <td>Connection labels (full strength — see §9.13); the video duration chip; search group
+  counts (opacity .4)</td></tr>
 <tr><td>Ids, hints, snippets</td><td>10.5px / 400</td>
   <td>Panel item id (opacity .45); undo depth (opacity .6); search sub-lines (opacity .5) and
   snippets (opacity .6, line-height 1.4); search keyboard hints (opacity .42)</td></tr>
@@ -544,11 +668,12 @@ opacity. The full ladder, brightest first:</p>
 <tr><td>.75</td><td>Panel field letters (X, Y, W, H); the image file path; the zoom percentage</td></tr>
 <tr><td>.72</td><td>Inactive canvas rows; the link-card description</td></tr>
 <tr><td>.7</td><td>Zoom-bar buttons; inactive text-format buttons; context-menu icons</td></tr>
-<tr><td>.62</td><td>Connection label chips</td></tr>
 <tr><td>.6</td><td>Inactive segmented options; undo depth; the picker sub-line and card meta; search snippets</td></tr>
 <tr><td>.55</td><td>Window controls; search row icons; "Fetching preview…"</td></tr>
 <tr><td>.5</td><td>The breadcrumb; section-label icons; the search box at rest; card kickers; the picker folder icon and path; Settings helper text; the collapsed-panel caret; placeholder ink on image cards</td></tr>
-<tr><td>.45</td><td>Save state and counts; section labels; the panel item id; file meta; menu shortcuts; the "no preview picture" line; the empty-state instruction; the disabled Refetch button</td></tr>
+<tr><td>.65</td><td>Every uppercase section and group label, and the title bar's save state and
+  counts. Raised from .45 so the labels read at a glance.</td></tr>
+<tr><td>.45</td><td>The panel item id; file meta; menu shortcuts; the "no preview picture" line; the empty-state instruction; the disabled Refetch button</td></tr>
 <tr><td>.42</td><td>The panel footer note; the picker footer; the picker's last-opened time; Settings' footer and read-only marker; search keyboard hints</td></tr>
 <tr><td>.4</td><td>The empty-state hint; search group counts; the "Pasted here" caption; the link preview band icon</td></tr>
 <tr><td>.38</td><td>The vertical collapsed-panel label</td></tr>
@@ -591,8 +716,8 @@ Use .35 — it is the drawn value. The one exception is the disabled Refetch but
   <code>ph-text-italic</code> <code>ph-list-bullets</code> <code>ph-list-numbers</code>
   <code>ph-folder-open</code> <code>ph-arrow-clockwise</code></td></tr>
 <tr><td>Cards</td>
-  <td><code>ph-image</code> <code>ph-link-simple</code> <code>ph-circle-dashed</code>
-  <code>ph-play</code> <code>ph-youtube-logo</code></td></tr>
+  <td><code>ph-image</code> <code>ph-image-broken</code> <code>ph-link-simple</code>
+  <code>ph-circle-dashed</code> <code>ph-youtube-logo</code></td></tr>
 <tr><td>Menus and pages</td>
   <td><code>ph-cursor</code> <code>ph-flow-arrow</code> <code>ph-arrow-line-up</code>
   <code>ph-arrow-line-down</code> <code>ph-folder-plus</code> <code>ph-folder</code>
@@ -613,10 +738,12 @@ Use .35 — it is the drawn value. The one exception is the disabled Refetch but
   <td>The title-bar save state; the text-format buttons; search result rows; the collapsed-panel
   caret</td></tr>
 <tr><td>15px</td><td>Context-menu rows</td></tr>
-<tr><td>16px</td><td>Picker card folder icons; the <code>ph-play</code> inside the video badge</td></tr>
+<tr><td>16px</td><td>Picker card folder icons</td></tr>
 <tr><td>20px</td><td>The <code>ph-image</code> placeholder on a small image card</td></tr>
 <tr><td>22px</td><td>The <code>ph-image</code> in a link card's preview band</td></tr>
 <tr><td>26px</td><td>The <code>ph-image</code> placeholder on a large image card</td></tr>
+<tr><td>20px / 26px</td><td><code>ph-image-broken</code> on a missing-file card, matching the
+  <code>ph-image</code> size it replaces (9.4)</td></tr>
 </tbody>
 </table>
 <p class="frames">Tool and action row icon size is not stated in the handoff. See open question 1.</p>
@@ -630,16 +757,21 @@ top, then a row holding the left column, the canvas and the properties panel.</p
 <ul>
   <li><b>Resizable.</b> The title bar, the left column and the properties panel are fixed width.
     The canvas takes the remainder.</li>
-  <li>Fixed chrome is <b>345px</b> wide (168 + 177) plus a 34px title bar. A minimum window size is
-    not specified — see open question 12.</li>
+  <li><b>Minimum window size: 350px wide.</b> <i>Set by the owner, 2026-09-06.</i></li>
 </ul>
+<p>The arithmetic matters. Fixed chrome is <b>345px</b> when the properties panel is expanded
+(168 + 177), leaving 5px of canvas at the 350px floor. With the panel collapsed it is <b>200px</b>
+(168 + 32), leaving 150px. So <b>the panel must collapse below about 420px of window width</b>,
+whatever the selection is, or the canvas disappears. Reopening it above that width is the user's
+choice again. A minimum height is not specified; use the title bar plus the left column's own
+content, about 300px.</p>
 
 <h3>8.2 Title bar — 34px</h3>
 <table>
 <thead><tr><th>Property</th><th>Value</th></tr></thead>
 <tbody>
 <tr><td>Height</td><td>34px, <code>flex: none</code></td></tr>
-<tr><td>Background</td><td><code>--color-surface</code> #eae9e9</td></tr>
+<tr><td>Background</td><td><code>--color-title-bar</code> #f2f1f1</td></tr>
 <tr><td>Bottom border</td><td>1px <code>--color-divider</code></td></tr>
 <tr><td>Padding</td><td><code>0 4px 0 14px</code></td></tr>
 <tr><td>Item gap</td><td>14px, <code>white-space: nowrap</code></td></tr>
@@ -688,7 +820,7 @@ opacity .45 pushed right.</p>
 
 <h4>Section labels</h4>
 <p>Four labels — <code>Canvases</code>, <code>Tools</code>, <code>Add</code>, <code>History</code> —
-at 10px, letter-spacing .1em, uppercase, opacity .45.</p>
+at 10px, letter-spacing .1em, uppercase, opacity .65.</p>
 <ul>
   <li><code>Canvases</code> — padding <code>0 12px 5px</code>, with a right-aligned
     <code>ph-plus</code> at 13px opacity .5.</li>
@@ -769,7 +901,7 @@ fit).</p>
 <ul>
   <li><b>Header</b> — the kind name at 13px weight 600, and the item id below at 10.5px opacity .45
     (<code>note-004</code>, <code>image-003</code>, <code>link-006</code>).</li>
-  <li><b>Group label</b> — 10px, .1em, uppercase, opacity .45, 6px above its content.</li>
+  <li><b>Group label</b> — 10px, .1em, uppercase, opacity .65, 6px above its content.</li>
   <li><b>Number pairs</b> (Position X/Y, Size W/H) — a 2-column grid, gap 5px. Each cell is a
     <code>&lt;label&gt;</code> at 11px opacity .75 holding the letter plus an <code>.input</code> at
     11px, padding <code>2px 4px</code>, radius 2px, <code>flex: 1; min-width: 0</code>.</li>
@@ -868,7 +1000,25 @@ are all at opacity .35 — there is nothing to connect. The properties panel is 
 <p><b>Selected</b> — the shadow deepens to <code>0 4px 14px rgba(45,43,43,.18)</code>, plus
 <code>outline: 2px solid var(--color-accent)</code> and four resize handles: 7 × 7px, background
 <code>--color-surface</code>, 2px <code>--color-accent</code> border, radius 1px, inset
-<code>-4px</code> at each corner.</p>
+<code>-4px</code> at each corner. <b>The four corner boxes are the signal</b> — nothing else in the
+interface draws them, which is how selection stays distinct from hover and from keyboard focus
+(§11.4).</p>
+
+<h4>Card size limits</h4>
+<table>
+<thead><tr><th>Limit</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Minimum width</td><td><b>50px</b></td></tr>
+<tr><td>Minimum height</td><td><b>50px</b></td></tr>
+<tr><td>Maximum</td><td>None</td></tr>
+</tbody>
+</table>
+<p><i>Set by the owner, 2026-09-06.</i> It applies to every kind, to handle resizing and to the
+panel's W and H fields alike — typing 20 clamps to 50. At 50px a note title ellipsizes after about
+three characters; that is accepted, the user chose that size. A card is never resized below its
+minimum by the application itself, because the application never moves or resizes a card for the
+user (contract 1).</p>
+<p>50px is also the threshold that hides a connection label — see 9.13.</p>
 
 <h4>Note card</h4>
 <p>Padding <code>11px 13px</code>. <b>Title</b> 13px weight 600, 5px below it. <b>Body</b> 12px,
@@ -917,6 +1067,51 @@ with gap 5px.</p>
 <code>assets/</code> and named by content hash, so a card cannot break when the user moves the
 original. Do not add an "original location" line.</p>
 
+<h4>Card — the file is missing <span class="tag warn">specified 2026-09-06</span></h4>
+<div class="callout">
+<b>Where this comes from.</b> This state was <b>authored by <code>dev-ui-update</code>, not drawn by
+the designer</b>, at the owner's instruction. It is built entirely from tokens and shapes already in
+this document. If it is later drawn, that pass supersedes this and gets a handoff-log row.
+</div>
+<p>The asset file named in the payload is not in <code>assets/</code>. Per
+<code>docs/mvp-plan.html</code> §7 nothing is deleted and nothing crashes — the item, the placement
+and the alt text all survive. This is a <b>normal state, not an error</b> (contract 3).</p>
+<p><b>The card keeps its authored width and height.</b> It must not resize, or the canvas rearranges
+itself around a problem the user has not seen yet.</p>
+<table>
+<thead><tr><th>Property</th><th>Light</th><th>Dark</th></tr></thead>
+<tbody>
+<tr><td>Ground</td><td><code>--color-neutral-300</code> #d7d3d3</td><td>#3b3735</td></tr>
+<tr><td>Inner border</td>
+  <td colspan="2">1px <b>dashed</b> <code>--color-divider</code>, inset 1px, radius 3px — the frame
+  is here, the picture is not. This is the only dashed border in the interface</td></tr>
+<tr><td>Glyph</td>
+  <td colspan="2"><code>ph-image-broken</code>, at the same sizes as <code>ph-image</code>: 20px on
+  a small card, 26px on a large one</td></tr>
+<tr><td>Glyph and text ink</td>
+  <td><code>rgba(32,30,29,.5)</code></td><td><code>rgba(236,233,230,.42)</code></td></tr>
+<tr><td>Stack</td>
+  <td colspan="2"><code>display: grid; place-items: center</code>, gap 5px — as the normal image
+  card</td></tr>
+<tr><td>Line 1</td><td colspan="2">The file name, 11px — as the normal image card</td></tr>
+<tr><td>Line 2</td>
+  <td colspan="2"><code>File not found in assets/</code>, 10.5px, opacity .6, 2px below</td></tr>
+</tbody>
+</table>
+<p><b>It does not use <code>--color-accent-2</code>.</b> A missing file is not destructive, and the
+second accent means destructive and nothing else (contract 10). The dashed border and the words
+carry the meaning.</p>
+<p><b>The panel's File group changes in two ways</b> when the selected card is in this state:</p>
+<ul>
+  <li>The dimensions line (<code>1920 × 1280 · 412 KB · copied in</code>) is replaced by
+    <code>Missing · the card is kept</code> at 11px opacity .45. Size and byte count are unknown —
+    do not print stale ones.</li>
+  <li><b>Replace stays enabled.</b> It is the fix. "Show in folder" also stays enabled; it opens
+    <code>assets/</code>, which is where the user will look.</li>
+</ul>
+<p>Everything else — Position, Size, Alt text, Order, Duplicate, Delete — behaves exactly as
+normal.</p>
+
 <h3>9.5 Link card selected <span class="frames">frame <code>19b</code></span></h3>
 <h4>Card — fetched</h4>
 <p><code>overflow: hidden</code>, no padding on the shell.</p>
@@ -954,21 +1149,50 @@ line-height 1.45; then <code>Refetch</code> with <code>ph-arrow-clockwise</code>
 <code>--color-accent-700</code> text.</p>
 
 <h3>9.6 Video card <span class="frames">frame <code>19b</code></span></h3>
-<p><code>overflow: hidden</code>.</p>
+<p><code>overflow: hidden</code>, and <code>border-radius: var(--radius-card)</code> repeated on
+the card's own content box: the thumbnail band starts at the top edge, so without it the band's
+square corners paint over the shell's rounded ones.</p>
 <ul>
-  <li><b>Thumbnail</b> — 153px tall (16:9 at 272px wide), <code>--color-neutral-300</code>,
-    <code>position: relative</code>. A centred play badge: 38 × 38px,
-    <code>border-radius: 50%</code>, background <code>rgba(243,242,242,.92)</code>,
-    <code>ph-play</code> at 16px in #201e1d. A duration chip: absolute
-    <code>right: 7px; bottom: 7px</code>, background <code>rgba(32,30,29,.82)</code>, colour
-    #f3f2f2, 10px, padding <code>1px 5px</code>, radius 2px.</li>
-  <li><b>Body</b> — padding <code>10px 13px 12px</code>. The provider row is the link card's domain
-    row but with <code>ph-youtube-logo</code> at 13px. Title 13px weight 600, line-height 1.35.
-    Then <code>Click to open in your browser</code> at 11px opacity .45, 6px down.</li>
+  <li><b>Thumbnail</b> — <code>aspect-ratio: 16 / 9</code>, so it is 153px tall at the authored
+    272px width and follows the card as it is resized, <code>--color-neutral-300</code>,
+    <code>position: relative</code>. <b>No play badge.</b> The mockups drew a centred 38 × 38px
+    badge and Phase 3 shipped it; <i>removed by the owner, 2026-09-07</i>, because the card does
+    not play a video and a badge that looks like a play control must not promise that it does. A
+    YouTube thumbnail carries its own. A <b>provider mark</b> in the bottom-right corner:
+    absolute <code>right: 7px; bottom: 7px</code>, <code>ph-youtube-logo</code> at 13px in
+    <code>--color-provider-youtube</code> (#ff0000), <b>no ground</b> — it sits straight on the
+    thumbnail, because it is a mark, not a chip. That red is a <b>brand</b> colour and is the same
+    in both themes: a logo does not re-tint. <b>The mark is also the card's open control</b> — a
+    real <code>&lt;button&gt;</code> labelled <code>Open In Your Browser</code>, cursor
+    <code>pointer</code>, carrying <code>data-owns-press</code>. It is the only control on the
+    card. <i>Revised by the owner, 2026-09-07: the provider moved out of the body and its
+    name is no longer drawn as text — the logo says YouTube on its own.</i> A duration chip would
+    take this same corner, and is not built (see below).</li>
+  <li><b>Body</b> — padding <code>10px 13px 12px</code>. Title only, 13px weight 600, line-height
+    1.35. There is <b>no</b> provider row, <b>no</b> "Click to open in your browser" line and
+    <b>no</b> separate open button — the YouTube mark on the thumbnail is the open control.
+    <i>Revised by the owner, 2026-09-07.</i></li>
 </ul>
-<p><b>Video never plays in place.</b> Clicking opens the address in the system browser. This is a
-deliberate, documented gap against competitors — see <code>docs/mvp-plan.html</code> §11.</p>
-<p class="frames">Vimeo's provider glyph is not specified. See open question 7.</p>
+<p><b>Video never plays in place.</b> Clicking the YouTube mark opens the address in the system
+browser.
+This is a deliberate, documented gap against competitors — see <code>docs/mvp-plan.html</code>
+§11.</p>
+
+<div class="callout">
+<b>The card body is not the open target.</b> <i>Decided by the owner, 2026-09-07.</i> Clicking a
+video card selects it, exactly as every other card kind does; only the YouTube mark leaves the
+application. Reason: a click that means "select this" must never be mistaken for one that means
+"open a browser window", and a card the user cannot click without leaving the app cannot be
+selected, dragged or connected comfortably.
+</div>
+<div class="callout">
+<b>YouTube only in the MVP.</b> <i>Decided by the owner, 2026-09-06: Vimeo is out.</i> That is why
+<code>ph-youtube-logo</code> is the only provider glyph and the card needs no provider switch. A
+Vimeo address pasted into the canvas becomes an ordinary <b>link card</b>, not a video card — it
+still works, it just gets the link treatment. Vimeo moves to the deferred list in
+<code>docs/mvp-plan.html</code> §3. When it returns, add <code>ph-vimeo-logo</code> and switch the
+glyph on the payload's <code>provider</code> field, which already exists.
+</div>
 
 <h3>9.7 Paste, not yet fetched <span class="frames">frame <code>20b</code></span></h3>
 <p>The link panel with the fetch pending. The source line reads
@@ -986,7 +1210,7 @@ so the wait never blocks the work. This is a hard rule — contract 2 in section
 absolute <code>left: 156px; top: 34px</code>, width 318px, <code>--color-surface</code>, radius 3px,
 shadow <code>0 12px 30px rgba(45,43,43,.3)</code>, padding <code>6px 0 4px</code>.</p>
 <p>The properties panel is collapsed, because searching selects nothing.</p>
-<p>Two groups, each headed by a baseline row (a 10px .1em uppercase opacity .45 label plus a count
+<p>Two groups, each headed by a baseline row (a 10px .1em uppercase opacity .65 label plus a count
 at 10px opacity .4), separated by a 1px <code>--color-divider</code> rule with 6px margins.</p>
 <ul>
   <li><b>Canvases first.</b> <i>This ranking is a requirement, not a preference.</i> Row:
@@ -1102,6 +1326,9 @@ cover the same ground.</p>
   <td>Ctrl+scroll leaves the plain wheel free to pan.</td></tr>
 <tr><td>Appearance</td><td>Theme</td>
   <td>Segmented <b><code>Light</code></b> / <code>Dark</code> / <code>System</code></td><td>—</td></tr>
+<tr><td>Appearance</td><td>Font</td>
+  <td>Segmented <b><code>Serif</code></b> / <code>Sans</code> / <code>Marker</code></td>
+  <td>Marker is a single-weight hand; sizes never change.</td></tr>
 </tbody>
 </table>
 
@@ -1154,8 +1381,24 @@ order</b>, so cards always paint over the lines.</p>
   <code>orient="auto-start-reverse"</code></td></tr>
 <tr><td>Label chip</td>
   <td colspan="2">Background <code>--color-surface</code>, radius 2px, padding
-  <code>1px 5px</code>, 10px, opacity .62, <code>white-space: nowrap</code>, on the line's
-  midpoint</td></tr>
+  <code>1px 5px</code>, 10px, <code>white-space: nowrap</code>, on the line's
+  midpoint — on an elbow route, the midpoint of its longest segment. Drawn at <b>full
+  strength</b>, not .62: the chip has to hide the line it sits on, and a see-through ground
+  let the stroke read straight through the text. <b>Border</b> 1px in <b>its own connection's
+  colour</b> — the same <code>--color-line-*</code> token the stroke uses — so a chip reads as
+  part of the line it names; a selected connection's chip borders
+  <code>--color-accent</code> instead</td></tr>
+<tr><td>Route</td>
+  <td colspan="2"><code>straight</code> (default) or <code>elbow</code>. Per connection, chosen in
+  the properties panel. Bend radius 2px. See <b>Route</b> below</td></tr>
+<tr><td>Anchor</td>
+  <td colspan="2">Per END. <code>auto</code> (default) or a card side — <code>top</code>,
+  <code>right</code>, <code>bottom</code>, <code>left</code>. Set by dragging that end's selection
+  handle. Stub 12px. See <b>Anchor</b> below</td></tr>
+<tr><td>Bend</td>
+  <td colspan="2">One per connection, or none (default). Placed by dragging the hollow handle in
+  the middle of a selected line. Held in the frame of the two card centres, never as a canvas
+  coordinate. See <b>Bend</b> below</td></tr>
 </tbody>
 </table>
 
@@ -1169,10 +1412,255 @@ order</b>, so cards always paint over the lines.</p>
   <li><b>Labels are HTML chips, not SVG text</b>, so they can sit on an opaque ground. A chip must
     clear both cards and anything drawn above it. An open menu will occlude one — that is correct
     behaviour, but allow for it.</li>
+  <li><b>Below 50px of line length, the chip is not drawn.</b> <i>Set by the owner,
+    2026-09-06.</i> Measure the straight distance between the two endpoints — on an elbow route,
+    the length of the longest segment, which is the only one the chip can sit on. Under 50px there is no
+    room for a 10px chip with <code>1px 5px</code> padding without covering both cards. The label is
+    <b>not lost</b> — it stays on the connection, it shows in the properties panel when the
+    connection is selected, and it reappears the moment the cards move apart or the canvas zooms in.
+    Do not truncate, do not shrink the chip, and do not offset it off the line: hide it, and bring it
+    back unchanged. 50px is the same threshold as the minimum card size (9.3).</li>
   <li><b>Lines are neutral ink, never the accent.</b> The accent means "selected".</li>
   <li><b>A connection joins two <i>placements</i> on one canvas.</b> Placing the same item on
     another canvas brings no lines with it.</li>
+  <li><b>A connection carries a route</b> — <code>straight</code> or <code>elbow</code> — the same
+    way it carries a colour, a width and a direction. It is a property of the one connection, never
+    an application-wide setting. <i>Set by the owner, 2026-09-07.</i> Reason: a diagram normally
+    mixes the two, and an app-wide switch would restyle every line on every canvas at once. New
+    connections start on <code>straight</code>, so no existing canvas changes shape.</li>
+  <li><b>A line's shape is derived until the user says otherwise.</b> A line with no anchor and
+    no bend is computed from the two rectangles alone, and every line starts that way — which is
+    what keeps contract 1 in section 10 true of the default. <i>Twice narrowed by the owner,
+    2026-09-07:</i> the rule first said the whole route was computed, then that only a bend was.
+    Both ENDS can now be pinned to a card side (see <b>Anchor</b>) and the MIDDLE can be bent by
+    hand (see <b>Bend</b>), because "which side does this come out of" and "go round that way" are
+    diagramming decisions the application cannot read off two rectangles. What is authored is held
+    <b>relative to the cards</b>, never as a canvas coordinate, so moving a card still re-forms
+    the line rather than breaking it. <b>Still a non-goal:</b> more than one bend per line.</li>
+  <li><b>An elbow does not go around cards.</b> It may cross one. Obstacle avoidance is a
+    <b>deliberate non-goal</b> — it is per-line path finding that has to re-run on every drag, and
+    it is the wrong thing to put in front of the 60 fps / 250 card gate. The seam is left open: the
+    geometry returns a <i>list</i> of points, so a future route can add points without touching the
+    stroke, the hit path, the chip or the cull.</li>
 </ol>
+
+<h4>Route — straight or elbow <span class="tag warn">new</span></h4>
+<p><i>Added by the owner, 2026-09-07.</i> An <b>elbow</b> route draws the connection with horizontal
+and vertical segments only, the way a right-angle connector reads in a boxes-and-lines diagram. The
+geometry is a pure function of the two placement rectangles, exactly as the straight route already
+is.</p>
+
+<table>
+<thead><tr><th>Step</th><th><code>straight</code></th><th><code>elbow</code></th></tr></thead>
+<tbody>
+<tr><td>Endpoints</td>
+  <td>The centre-ray clip: the ray from each centre toward the other centre, cut at that card's
+  border. Unchanged</td>
+  <td>The <b>midpoint of one side</b>. Compare the two centres: when the horizontal gap is the
+  larger, leave the right side of the left card and enter the left side of the right card;
+  otherwise leave the bottom and enter the top. A tie goes to horizontal</td></tr>
+<tr><td>Shape</td><td>One segment</td>
+  <td>Three segments — <b>out, across, in</b>. The across segment sits <b>halfway down the gap</b>
+  between the two facing sides. When the two endpoints already line up the middle pair coincide and
+  the path collapses to one segment: drop the duplicate points, do not draw a zero-length
+  bend</td></tr>
+<tr><td>Corners</td><td>—</td>
+  <td><b>2px radius</b> in world units — §5.2's smallest radius, so a bend matches the input and
+  chip corners. Clamp every corner to half the shorter of the two segments meeting at it, so a
+  tight elbow rounds off instead of overshooting into the next segment</td></tr>
+<tr><td>Arrowhead</td><td>Along the line</td>
+  <td>Nothing to change. <code>orient="auto-start-reverse"</code> already follows the <b>last</b>
+  segment, so a head always enters its card square-on. That squareness is the point of the route,
+  not a side effect</td></tr>
+<tr><td>Arrow inset</td><td>Both ends trimmed</td>
+  <td>Trim the <b>first and last segment only</b>, along that segment's own direction. A segment
+  shorter than its inset collapses to a point — a trim must never run backwards past a bend</td></tr>
+<tr><td>Label chip</td><td>The line's midpoint</td>
+  <td>The midpoint of the <b>longest</b> segment. It is the only one with room, and rule 4's 50px
+  threshold is measured on that same segment</td></tr>
+<tr><td>Selection handles</td>
+  <td colspan="2">The two 7 × 7 accent squares stay on the two <b>endpoints</b>. A bend carries no
+  handle — there is nothing to drag. <i>Amended 2026-09-07:</i> the endpoint squares are themselves
+  draggable, and a drag pins that end to a card side — see <b>Anchor</b> below</td></tr>
+<tr><td>Hit target</td>
+  <td colspan="2">The same 12px transparent <code>pointer-events: stroke</code> path, following the
+  whole route. Untrimmed, as it already is: the arrowhead is part of the line for pointing at</td></tr>
+<tr><td>Cull</td>
+  <td colspan="2">The bounding box of <b>every</b> point on the route, not of the two endpoints. An
+  elbow reaches outside the straight line's box</td></tr>
+<tr><td>Overlapping cards</td>
+  <td colspan="2">Unchanged. Two rectangles that intersect draw no line at all, on either
+  route</td></tr>
+</tbody>
+</table>
+
+<p><b>Storage.</b> One new column on <code>connection</code>: <code>route</code>, text, default
+<code>straight</code>, holding <code>straight</code> or <code>elbow</code>. It follows the colour
+rule — the row stores a <b>key</b> and the front end resolves the key to geometry, so the bend
+radius and the side rules can be retuned without a migration. This is an amendment to the data
+model in <code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4.</p>
+
+<p><b>The control.</b> A new <code>Route</code> group in the properties panel when a connection is
+selected, sitting <b>between Arrows and Color</b> — shape before colour. It takes the Width group's
+grammar exactly: two buttons on one row, <code>flex: 1</code>, 11px, padding <code>3px 4px</code>,
+radius 3px, transparent, 1px <code>--color-divider</code> border, the chosen one carrying the active
+fill. The labels are the words <code>Straight</code> and <code>Elbow</code>, in Title Case like every
+other control label. Two words fit the 177px panel, so no icon is needed and none is added —
+§7.1's glyph set is closed.</p>
+
+<h4>Anchor — which side a line uses <span class="tag warn">new</span></h4>
+<p><i>Added by the owner, 2026-09-07.</i> Each END of a connection carries an <b>anchor</b>:
+<code>auto</code>, or one of the four card sides. <code>auto</code> is what every line has always
+done — the geometry picks the side from where the two cards sit. A pinned end always leaves the
+<b>midpoint of that side</b>, whatever the cards do afterwards.</p>
+
+<table>
+<thead><tr><th>Step</th><th><code>auto</code> at both ends</th><th>An end pinned to a side</th></tr></thead>
+<tbody>
+<tr><td>Endpoints</td>
+  <td>Unchanged, on both routes. This is the whole reason both columns default to
+  <code>auto</code>: no existing canvas changes shape</td>
+  <td>The pinned end is that side's <b>midpoint</b>. An <code>auto</code> end opposite a pinned one
+  aims at <b>the pinned point</b>, not at the other card's centre — a line has to agree with itself
+  about where it is going</td></tr>
+<tr><td>Straight</td><td>The centre-ray clip</td>
+  <td>One segment between the two resolved points. It may meet a card at an angle: a pinned end
+  says which side, not which direction</td></tr>
+<tr><td>Elbow</td><td>Out, across, in</td>
+  <td>Each end runs <b>12px straight out of its side</b> before it may turn, so a corner never
+  lands on a border and two ends pinned to the same side still leave square-on. The two stubs are
+  then joined with horizontal and vertical segments. Where they cross: <b>halfway</b> when the
+  stubs point at each other, and <b>past the further of the two</b> when either points away —
+  halfway would sit behind a stub and double the line back through its own card. On an
+  <code>auto</code> end the side is worked out first, from the pinned point, and then this is the
+  same case</td></tr>
+<tr><td>Bend radius, arrowheads, trim, chip, hit target, cull</td>
+  <td colspan="2">All unchanged. Every one of them already reads the route as a <b>list of
+  points</b>, which is the seam rule 9 left open, so a pinned end adds points and touches nothing
+  else</td></tr>
+<tr><td>Overlapping cards</td>
+  <td colspan="2">Unchanged. Two rectangles that intersect draw no line, pinned or not</td></tr>
+</tbody>
+</table>
+
+<p><b>Storage.</b> Two new columns on <code>connection</code>: <code>from_anchor</code> and
+<code>to_anchor</code>, text, default <code>auto</code>. They follow the colour rule — the row
+stores a <b>key</b>, never a coordinate, so the stub length and the side rules can be retuned
+without a migration, and a card that moves or grows still writes nothing on the connection. This is
+an amendment to the data model in <code>docs/mvp-plan.html</code> §4 and
+<code>docs/prd.html</code> §4.</p>
+
+<p><b>The control is the handle, not a panel row.</b> A selected connection already shows a 7 × 7
+accent square on each endpoint. Dragging one now pins that end to the card side under the pointer,
+and the line follows the drag rather than jumping when it is let go. Nearest side is measured
+against the card's own half-width and half-height, so a point just above a wide card reads as
+<code>top</code>. A press that does not travel is only a selection.</p>
+
+<p><b>The handles are drawn above the cards</b>, on their own rung between cards and the marquee,
+and they are the one exception to "cards always paint over lines". An endpoint sits on a card's
+<i>border</i>, so on the connection rung a card covered half of every handle and left a 3px sliver
+that could be neither seen nor pointed at. The line itself still paints under every card. Only the
+selected connection has handles, so the layer holds at most two. The drawn square stays 7 × 7;
+the transparent <b>grab target</b> around it is 14 × 14, because a 7px square that shares its
+edge with a card is an unfair thing to ask anyone to hit. The handles and the hit path are the only
+parts of the overlay that take a pointer at all.</p>
+
+<p><b>Getting back to <code>auto</code>.</b> A drag always lands on a side, so it can never reach
+<code>auto</code>. Two things can: <b>Enter</b> or <b>Space</b> on a focused handle steps that end
+through Auto, Top, Right, Bottom, Left and round again; and a new <b>Anchor</b> group in the
+properties panel, sitting <b>between Route and Color</b>, reads
+<code>From&nbsp;… · To&nbsp;…</code> in 11px at .45 opacity and carries one full-width
+<b>Reset To Auto</b> button in the Width group's grammar, disabled while both ends are already
+automatic. No per-side buttons: ten of them would not earn their room in a 177px panel when the
+handle on the canvas is the direct gesture.</p>
+
+<h4>Bend — moving the middle of a line <span class="tag warn">new</span></h4>
+<p><i>Added by the owner, 2026-09-07.</i> A connection may carry <b>one</b> hand-placed bend. A
+selected line shows a <b>hollow</b> handle in the middle; dragging it bends the line, and the line
+follows the drag. Both ends then aim at the bend rather than at the other card, because that is
+where the line is actually going first.</p>
+
+<table>
+<thead><tr><th>Step</th><th>No bend</th><th>Bent by hand</th></tr></thead>
+<tbody>
+<tr><td>Endpoints</td><td>Unchanged</td>
+  <td>An <code>auto</code> end clips toward <b>the bend</b>. A pinned end still leaves its side's
+  midpoint — an anchor outranks a bend on the question of which side</td></tr>
+<tr><td>Straight</td><td>One segment</td>
+  <td>Two segments through the bend, with the same 2px rounding a bend on an elbow gets</td></tr>
+<tr><td>Elbow</td><td>Out, across, in</td>
+  <td>Still out, across, in — the bend moves <b>the crossing</b>, the middle run, and nothing
+  else. It never adds a corner: the two sides are still chosen from the gap or from an anchor,
+  and the route still has three runs. Dragging the middle of an elbow has to feel like moving
+  the line, not like grabbing a corner that was not there a moment ago</td></tr>
+<tr><td>What the handle does</td>
+  <td colspan="2"><b>Straight:</b> the handle is the bend, and it moves <b>across</b> the line
+  only — the along-the-line half is fixed when the press lands. <b>Elbow:</b> the handle sits in
+  the middle of the crossing and slides on the crossing's own one axis, carrying the whole run
+  with it</td></tr>
+<tr><td>When there is no handle</td>
+  <td colspan="2">An elbow whose crossing has <b>no length</b> — two cards level with each other
+  draw one straight run, and there is no middle section to slide — and an elbow that meets at a
+  <b>single corner</b>, where both runs are pinned by a card. Better no handle than a handle that
+  does nothing. A straight line always has one</td></tr>
+<tr><td>Where the bend may sit</td><td>—</td>
+  <td>Anywhere <b>8px clear of both cards</b>. One that lands inside a card is pushed out past its
+  nearest border, so the handle never leaves the drawn line. See below</td></tr>
+<tr><td>Arrowheads, trim, chip, hit target, cull</td>
+  <td colspan="2">All unchanged. Every one of them reads the route as a <b>list of points</b>,
+  which is the seam rule 9 left open</td></tr>
+</tbody>
+</table>
+
+<p><b>Storage, and why it is not a coordinate.</b> One new column, <code>bend</code>, text, default
+empty, holding <code>{"a":…,"b":…}</code>. The pair is a position in the frame of the two card
+<b>centres</b>: <code>a</code> runs along the line from one centre to the other, 0 at one end and 1
+at the other, and <code>b</code> runs at a right angle to it in the same units as that distance. So
+a bend <b>slides, stretches and turns with its two cards</b> — move a card and the shape the user
+drew is kept, which is the whole reason for the frame. The frame is the two centres and not the two
+endpoints on purpose: an endpoint depends on where the line is going, and the bend is what decides
+that, so measuring against endpoints would be circular. An unreadable value draws as a plain line
+rather than failing the overlay. This is an amendment to the data model in
+<code>docs/mvp-plan.html</code> §4 and <code>docs/prd.html</code> §4.</p>
+
+<p><b>What a drag may do depends on the route, and the geometry decides it — not the handle.</b>
+The same stored bend is read differently by the two routes, and each one reports back where its
+handle goes and the one direction it may travel.</p>
+<ul>
+  <li><b>Straight.</b> The handle IS the bend, and it moves <b>at a right angle to the line</b>:
+    drag the middle of a horizontal line and it moves up and down, and sideways travel is ignored.
+    Where along the line the bend sits is fixed when the press lands — the stored bend's own place,
+    or the midpoint the ghost handle sits on — so the handle never jumps as a gesture starts.
+    Sliding it along its own line changes no shape worth having, and it walks the handle off the
+    drawn line: a bend dragged out past a card sends the route back across that card to reach it.</li>
+  <li><b>Elbow.</b> The handle sits in the middle of the <b>crossing</b> — the middle run, the only
+    one whose position nothing but taste decides — and slides on that run's own single axis,
+    carrying the whole run with it. The route keeps its three runs and gains no corner. The
+    geometry reads only that one axis off the bend, so the other half of the stored pair is simply
+    not consulted while the line is an elbow.</li>
+</ul>
+
+<p><b>The bend is kept off both cards.</b> It is held 8px clear of either card's border, and it is
+pushed out of one it has landed inside — by a drag, or by a card later being moved over it. A bend
+under a card is a bend the line cannot show: the route is clipped at the border, so the drawn line
+stops there while the bend, and the handle on it, sit under the card with nothing reaching them.
+The route and the handle read the <b>same</b> pushed-out point, so the handle is always ON the
+drawn line and the two can never disagree.</p>
+
+<p><b>The handle.</b> 7 × 7 like the endpoint handles and on the same rung above the cards, but
+<b>hollow</b> — <code>--color-surface</code> fill, 1.5px <code>--color-accent</code> border, 1px
+radius — so it never reads as an endpoint. It is the same language a card's resize handle uses. On
+a line with no bend it sits on the midpoint of the route's <b>longest segment</b> — the same
+segment the label chip uses, the only one with room — and is drawn at <b>.55 opacity</b>: at that
+point it is an invitation, not a state. It goes to full strength once the line is bent. The
+transparent grab target is 14 × 14, as it is on an endpoint.</p>
+
+<p><b>Straightening.</b> A drag can only place a bend, never remove one. Two things remove it:
+<b>Enter</b> or <b>Space</b> on the focused middle handle, and a new <b>Bend</b> group in the
+properties panel, sitting <b>between Anchor and Color</b>, which reads
+<code>One hand-placed bend</code> or <code>No bend</code> in 11px at .45 opacity and carries one
+full-width <b>Straighten Line</b> button, disabled while there is no bend.</p>
+
 <p>Entry points: the <b>Connect</b> tool in the left column, or <b>Connect from here</b>
 (<code>ph-flow-arrow</code>, shortcut <code>C</code>) in a card's context menu.</p>
 
@@ -1214,32 +1702,180 @@ order</b>, so cards always paint over the lines.</p>
 <h2>11. Motion and interaction states</h2>
 
 <div class="callout">
-<b>Gap.</b> The handoff specifies <b>no durations, no easing curves, and no hover or pressed
-states</b>. Every mockup is a static rest state. What follows is the fallback: Broadsheet's own
-interaction rules, which the app inherits. Treat every value below as provisional until the designer
-confirms it. See open question 3.
+<b>Where these values come from.</b> The handoff drew every screen at rest and specified no hover,
+pressed or motion values at all. This section was <b>authored on 2026-09-06 by
+<code>dev-ui-update</code>, not drawn by the designer</b>, at the owner's instruction to settle them
+now rather than leave them open. Every value is built from tokens already in section 4 and from
+Broadsheet's stated interaction rules. It is buildable as written. If the designer later draws these
+states, that pass supersedes this section and gets a handoff-log row.
 </div>
 
-<h3>11.1 States, from Broadsheet</h3>
+<h3>11.1 The two shared tints</h3>
+<p>Almost every hover and pressed state is one of two tints. Define them once as project tokens and
+reuse them; do not invent a third.</p>
 <table>
-<thead><tr><th>State</th><th>Light</th><th>Dark</th></tr></thead>
+<thead><tr><th>Token</th><th>Light</th><th>Dark</th><th>Used for</th></tr></thead>
 <tbody>
-<tr><td>Hover</td><td>An accent tint on the row or control</td><td>The same, from the dark ramp</td></tr>
-<tr><td>Pressed</td><td><code>--color-accent-600</code> #1186ac</td>
-  <td><code>--color-accent-400</code> #62c5ee</td></tr>
-<tr><td>Focus (keyboard)</td>
-  <td colspan="2"><code>:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }</code>
-  — never the browser default</td></tr>
-<tr><td>Disabled</td>
-  <td colspan="2">Opacity <b>.35</b> (this design's value; Broadsheet's own is 45%)</td></tr>
-<tr><td>Text selection</td>
-  <td colspan="2">An accent tint, from Broadsheet's <code>::selection</code></td></tr>
+<tr><td><code>--tint-accent-hover</code></td>
+  <td><code>color-mix(in srgb, var(--color-accent) 8%, transparent)</code></td>
+  <td><code>color-mix(in srgb, var(--color-accent-400) 12%, transparent)</code></td>
+  <td>Hover on anything interactive that is not already filled</td></tr>
+<tr><td><code>--tint-accent-press</code></td>
+  <td><code>color-mix(in srgb, var(--color-accent) 14%, transparent)</code></td>
+  <td><code>color-mix(in srgb, var(--color-accent-400) 20%, transparent)</code></td>
+  <td>Pressed on the same</td></tr>
+<tr><td><code>--tint-neutral-hover</code></td>
+  <td><code>color-mix(in srgb, var(--color-text) 6%, transparent)</code></td>
+  <td><code>color-mix(in srgb, #ece9e6 8%, transparent)</code></td>
+  <td>Hover on a divider-bordered (secondary) control, and on window controls</td></tr>
+<tr><td><code>--tint-neutral-press</code></td>
+  <td><code>color-mix(in srgb, var(--color-text) 10%, transparent)</code></td>
+  <td><code>color-mix(in srgb, #ece9e6 13%, transparent)</code></td>
+  <td>Pressed on the same</td></tr>
 </tbody>
 </table>
-<p class="frames">The focus ring is 2px accent with a 2px offset. A selected card already carries a
-2px accent outline. The two must be told apart — see open question 4.</p>
+<p>The dark steps are larger because a tint over a dark ground reads weaker at the same
+percentage.</p>
 
-<h3>11.2 Keyboard map</h3>
+<h3>11.2 Hover and pressed, per surface</h3>
+<table>
+<thead><tr><th>Surface</th><th>Hover</th><th>Pressed</th></tr></thead>
+<tbody>
+<tr><td>Canvas row, inactive (8.3)</td>
+  <td>Fill <code>--tint-accent-hover</code>; opacity .72 → .9</td>
+  <td>Fill <code>--tint-accent-press</code></td></tr>
+<tr><td>Canvas row, active</td>
+  <td>Fill <code>--color-accent-200</code> (dark: <code>--color-accent-800</code>); text unchanged</td>
+  <td>Fill <code>--color-accent-300</code> (dark: <code>--color-accent-900</code>)</td></tr>
+<tr><td>Tool / action row, available</td>
+  <td>Fill <code>--tint-accent-hover</code>; opacity .85 → 1</td>
+  <td>Fill <code>--tint-accent-press</code></td></tr>
+<tr><td>Tool row, active (accent-filled)</td>
+  <td>Fill <code>--color-accent-600</code> (dark: <code>--color-accent-300</code>)</td>
+  <td>Fill <code>--color-accent-700</code> (dark: <code>--color-accent-200</code>)</td></tr>
+<tr><td>Context-menu row</td>
+  <td>The drawn highlight: fill <code>--color-accent</code>, text <code>--color-bg</code> (dark:
+  fill <code>--color-accent-400</code>, text #151312)</td>
+  <td>Fill <code>--color-accent-600</code> (dark: <code>--color-accent-300</code>)</td></tr>
+<tr><td>Context-menu row, destructive</td>
+  <td>Fill <code>--color-accent-2</code>, text <code>--color-bg</code> (dark: fill
+  <code>--color-accent-2-400</code>, text #151312)</td>
+  <td>Fill <code>--color-accent-2-700</code> (dark: <code>--color-accent-2-300</code>)</td></tr>
+<tr><td>Search result row</td>
+  <td>The drawn highlight: fill <code>--color-accent-100</code> (dark:
+  <code>--color-accent-900</code>)</td>
+  <td>Fill <code>--color-accent-200</code> (dark: <code>--color-accent-800</code>)</td></tr>
+<tr><td>Accent-bordered button — Duplicate, New note, Refetch, Back to canvas</td>
+  <td>Fill <code>--tint-accent-hover</code></td>
+  <td>Fill <code>--tint-accent-press</code>; border and text to
+  <code>--color-accent-600</code> / <code>-700</code></td></tr>
+<tr><td>Divider-bordered button — Add image, Open folder, Replace, Front, Back, Delete</td>
+  <td>Fill <code>--tint-neutral-hover</code>; border to
+  <code>color-mix(in srgb, var(--color-text) 28%, transparent)</code></td>
+  <td>Fill <code>--tint-neutral-press</code></td></tr>
+<tr><td>Primary filled button — New project…</td>
+  <td>Fill and border <code>--color-accent-600</code> (dark: <code>--color-accent-300</code>)</td>
+  <td>Fill and border <code>--color-accent-700</code> (dark: <code>--color-accent-200</code>)</td></tr>
+<tr><td>Card on the canvas</td>
+  <td><b>Shadow only</b> — lifts to the selected shadow
+  <code>0 4px 14px rgba(45,43,43,.18)</code> (dark: <code>0 4px 14px rgba(0,0,0,.5)</code>).
+  <b>No outline and no handles.</b> That is what separates hover from selected</td>
+  <td>No change. The press is the drag or the selection</td></tr>
+<tr><td>Picker card</td>
+  <td>Shadow to <code>0 4px 14px rgba(45,43,43,.18)</code></td>
+  <td>Same, plus fill <code>--tint-neutral-press</code></td></tr>
+<tr><td>Window controls</td>
+  <td>Fill <code>--tint-neutral-hover</code>; opacity .55 → 1</td>
+  <td>Fill <code>--tint-neutral-press</code></td></tr>
+<tr><td>Window close control</td>
+  <td>Fill <code>--color-accent-2</code>, glyph <code>--color-bg</code> (dark: fill
+  <code>--color-accent-2-400</code>, glyph #151312)</td>
+  <td>Fill <code>--color-accent-2-700</code> (dark: <code>--color-accent-2-300</code>)</td></tr>
+<tr><td>Zoom-bar buttons</td><td>Opacity .7 → 1; fill <code>--tint-accent-hover</code></td>
+  <td>Fill <code>--tint-accent-press</code></td></tr>
+<tr><td>Segmented option, inactive</td><td>Opacity .6 → .9; fill <code>--tint-accent-hover</code></td>
+  <td>Fill <code>--tint-accent-press</code></td></tr>
+<tr><td>Segmented option, active</td><td colspan="2">No response. It is already the answer</td></tr>
+<tr><td>Toggle</td><td>Track to <code>--color-neutral-400</code> when off, or
+  <code>--color-accent-600</code> when on</td><td>Knob narrows to 13px for the press duration</td></tr>
+<tr><td>Text-format button, inactive</td><td>Opacity .7 → 1; fill <code>--tint-accent-hover</code></td>
+  <td>Fill <code>--tint-accent-press</code></td></tr>
+<tr><td>Inputs (<code>.input</code>, alt-text textarea)</td>
+  <td>Border to <code>color-mix(in srgb, var(--color-text) 28%, transparent)</code></td>
+  <td>Focus takes over — see 11.4</td></tr>
+<tr><td>Search box at rest</td><td>Opacity .5 → .75; border as inputs</td>
+  <td>Focus takes over</td></tr>
+<tr><td><b>Anything disabled</b></td>
+  <td colspan="2"><b>No hover, no pressed, no cursor change.</b> Opacity stays .35 (or .45 on the
+  Refetch button, 9.7) and <code>cursor: default</code></td></tr>
+</tbody>
+</table>
+
+<h3>11.3 Motion</h3>
+<table>
+<thead><tr><th>What</th><th>Duration</th><th>Easing</th></tr></thead>
+<tbody>
+<tr><td>Hover and pressed tints, border and opacity changes</td><td>90ms</td>
+  <td><code>cubic-bezier(.2, 0, .2, 1)</code></td></tr>
+<tr><td>Card shadow lift on hover</td><td>90ms</td><td>the same</td></tr>
+<tr><td>Context menu and search popover opening</td>
+  <td>110ms — opacity 0→1 and <code>translateY(-3px)</code>→0</td><td>the same</td></tr>
+<tr><td>Menu and popover closing</td><td>0ms. It disappears. A closing animation delays the next
+  action</td><td>—</td></tr>
+<tr><td>Properties panel collapse and expand (177px ↔ 32px)</td><td>140ms</td><td>the same</td></tr>
+<tr><td>Toggle knob travel</td><td>110ms</td><td>the same</td></tr>
+<tr><td>Zoom by button, or Zoom to fit / Reset zoom</td><td>160ms</td><td>the same</td></tr>
+<tr><td>Theme change (light ↔ dark)</td><td>0ms. It is a repaint, not a transition. A cross-fade of
+  every surface at once looks broken</td><td>—</td></tr>
+<tr><td><b>Drag, pan, resize, and zoom by scroll</b></td>
+  <td colspan="2"><b>0ms, always.</b> These follow the pointer one-to-one. Any easing here reads as
+  lag and would fight the 60fps gate</td></tr>
+</tbody>
+</table>
+<p>One easing curve for everything: <code>cubic-bezier(.2, 0, .2, 1)</code>. It starts fast and
+settles — right for a tool. Do not add a second curve.</p>
+
+<h3>11.4 Focus, selection and hover — telling the three apart</h3>
+<p>All three can land on the same card at the same time. They are distinguished by <i>shape</i>, not
+by colour, which is why they do not collide.</p>
+<table>
+<thead><tr><th>State</th><th>What it draws</th></tr></thead>
+<tbody>
+<tr><td><b>Hover</b></td><td>A deeper shadow. Nothing else. No ring, no handles</td></tr>
+<tr><td><b>Selected</b></td>
+  <td><code>outline: 2px solid var(--color-accent)</code> <b>plus the four 7 × 7px corner
+  handles</b> (9.3). The handles are the signal — they are square boxes at the corners and nothing
+  else in the interface has them</td></tr>
+<tr><td><b>Focused (keyboard)</b></td>
+  <td><code>:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }</code>.
+  A ring only, sitting 2px further out. Never the browser default</td></tr>
+<tr><td><b>Selected and focused</b></td>
+  <td>Both: the tight outline with handles, and the offset ring around it. Correct as drawn —
+  <i>confirmed by the owner, 2026-09-06</i></td></tr>
+<tr><td>Text selection</td>
+  <td><code>::selection</code> takes <code>--color-accent-200</code> with
+  <code>--color-text</code> (dark: <code>--color-accent-900</code> with #ece9e6)</td></tr>
+<tr><td>Disabled</td><td>Opacity .35, and no focus ring — disabled controls are not focusable</td></tr>
+</tbody>
+</table>
+
+<h3>11.5 Cursors</h3>
+<table>
+<thead><tr><th>Cursor</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td><code>default</code></td><td>All chrome, and every disabled control</td></tr>
+<tr><td><code>pointer</code></td><td>Rows, buttons, menu items, canvas rows, search results</td></tr>
+<tr><td><code>grab</code> / <code>grabbing</code></td>
+  <td>The canvas background — <code>grab</code> at rest, <code>grabbing</code> while panning</td></tr>
+<tr><td><code>move</code></td><td>A card body, with the Select tool</td></tr>
+<tr><td><code>nwse-resize</code> / <code>nesw-resize</code></td>
+  <td>The four corner handles, matched to the corner</td></tr>
+<tr><td><code>crosshair</code></td><td>Everywhere on the canvas while the Connect tool is active</td></tr>
+<tr><td><code>text</code></td><td>Inputs, the alt-text box, and a note card while editing</td></tr>
+</tbody>
+</table>
+
+<h3>11.6 Keyboard map</h3>
 <table>
 <thead><tr><th>Key</th><th>Action</th><th>Where it is shown</th></tr></thead>
 <tbody>
@@ -1265,7 +1901,7 @@ confirms it. See open question 3.
 </tbody>
 </table>
 
-<h3>11.3 Pointer</h3>
+<h3>11.7 Pointer</h3>
 <ul>
   <li>Drag the background to pan.</li>
   <li>Scroll to zoom, or Ctrl+scroll — set by <b>Settings · Canvas · Zoom with</b>.</li>
@@ -1275,7 +1911,7 @@ confirms it. See open question 3.
     for the background menu.</li>
 </ul>
 
-<h3>11.4 Reduced motion</h3>
+<h3>11.8 Reduced motion</h3>
 <p>No animation is specified anywhere in this design, so
 <code>prefers-reduced-motion: reduce</code> currently changes nothing. If motion is added later — a
 panel collapse, a menu open, a zoom ease — it must be removable under that query, and the end state
@@ -1294,7 +1930,7 @@ must be identical with and without it.</p>
     <b>Measure all three before sign-off.</b></li>
   <li><b>Keyboard focus is a 2px accent ring with a 2px offset</b>, on every interactive element.
     Never the browser default.</li>
-  <li><b>Every action has a keyboard route.</b> The map in 11.2 is the contract.</li>
+  <li><b>Every action has a keyboard route.</b> The map in 11.6 is the contract.</li>
   <li><b>Image cards carry alt text</b>, edited in the panel's Alt text group. It is a real
     <code>alt</code> value, not a tooltip.</li>
   <li><b>Icon-only buttons need an accessible name.</b> Thirteen controls are icon-only: the three
@@ -1374,6 +2010,15 @@ saveState      { status: 'saved' | 'saving', lastSavedAt }</code></pre>
   the <code>@import</code> with a local <code>@font-face</code>. <b>Removing that
   <code>@import</code> is not optional.</b> Licence: SIL Open Font Licence 1.1 — free to
   embed.</td></tr>
+<tr><td>Inter</td><td>The <code>Sans</code> font choice. Weights 400 and 600, plus the true 400
+  italic — the same three roles as the serif.</td>
+  <td><b>Must be vendored</b>, for the same reason. Latin subset only, from
+  <code>@fontsource/inter</code>. Licence: SIL Open Font Licence 1.1.</td></tr>
+<tr><td>Patrick Hand</td><td>The <code>Marker</code> font choice. One face only — 400 upright.</td>
+  <td><b>Must be vendored</b>, for the same reason. Latin subset only, from
+  <code>@fontsource/patrick-hand</code>. Bold and italic are synthesised by WebView2, which is
+  why <code>--font-heading-weight</code> drops to 400 for this choice. Licence: SIL Open Font
+  Licence 1.1.</td></tr>
 <tr><td>Phosphor Icons, regular</td><td>33 glyphs (section 7.1).</td>
   <td><b>Must be vendored</b>, for the same reason. Take the regular-weight font file and its CSS
   from <code>@phosphor-icons/web@2.1.1</code>. Licence: MIT. Consider subsetting to the 33 glyphs —
@@ -1426,7 +2071,7 @@ of this document, as normal UI, never as error dialogs (contract 3).</p>
 <tr><td>The fetch is slower than 5s</td><td>Cut off, treated as a failed fetch</td><td>9.7</td></tr>
 <tr><td>An asset file is missing from the folder</td>
   <td>The card shows a clear missing-file marker. Nothing is deleted. Nothing crashes</td>
-  <td><span class="tag gap">nothing drawn</span></td></tr>
+  <td><b>Now specified — see 9.4</b></td></tr>
 <tr><td>The database is locked or damaged</td>
   <td>The project does not open. A plain message names the file. Other projects are unaffected</td>
   <td><span class="tag gap">nothing drawn</span> — it belongs on the project picker</td></tr>
@@ -1435,34 +2080,59 @@ of this document, as normal UI, never as error dialogs (contract 3).</p>
 </tbody>
 </table>
 
-<h3>15.3 Open questions for the implementer</h3>
+<h3>15.3 Settled open questions</h3>
+<p>Twelve questions were raised on 2026-09-05. <b>Ten were answered by the owner on
+2026-09-06.</b> They are recorded here rather than deleted, so the answer travels with the
+question.</p>
+<table>
+<thead><tr><th>#</th><th>Question</th><th>Answer</th><th>Now in</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Tool and action row icon size</td><td><b>13px</b>, matching the canvas rows</td>
+  <td>§7.2</td></tr>
+<tr><td>2</td><td>Source Serif 4 at 9.5px to 12.5px on Windows</td>
+  <td><b>Accepted.</b> The serif stands. The hardware check in §6.1 remains a build-time task, not a
+  design question — if a role fails, raise its size, never add a second family</td><td>§6.1</td></tr>
+<tr><td>3</td><td>No hover, pressed or transition values exist</td>
+  <td><b>Specified now.</b> Two shared tints, a per-surface table, one easing curve, and nine
+  durations. Authored by <code>dev-ui-update</code>, not drawn</td><td>§11.1–11.3</td></tr>
+<tr><td>4</td><td>The focus ring and the selection outline are both 2px accent</td>
+  <td><b>They already differ.</b> Selection draws the outline <i>plus four square corner
+  handles</i>; focus draws a ring only, offset 2px. Hover draws a shadow only. Confirmed as
+  correct</td><td>§9.3, §11.4</td></tr>
+<tr><td>5</td><td>The note title, and what search matches</td>
+  <td><b>Keep the title. Search both</b> the title and the body</td>
+  <td>§9.3; <code>mvp-plan</code> §4; <code>architecture</code> §3</td></tr>
+<tr><td>7</td><td>Vimeo's provider glyph</td>
+  <td><b>Vimeo is out of the MVP.</b> YouTube only. A Vimeo address becomes an ordinary link
+  card</td><td>§9.6; <code>mvp-plan</code> §3</td></tr>
+<tr><td>8</td><td>Card minimum and maximum size</td>
+  <td><b>50px minimum</b>, width and height. <b>No maximum</b></td><td>§9.3</td></tr>
+<tr><td>10</td><td>The missing-asset marker</td>
+  <td><b>Specified now.</b> A dashed inset border, a neutral-300 ground,
+  <code>ph-image-broken</code>, and the words. It does not use the destructive accent. Authored by
+  <code>dev-ui-update</code>, not drawn</td><td>§9.4</td></tr>
+<tr><td>11</td><td>Connection labels on a very short line</td>
+  <td><b>Under 50px of line length, do not draw the chip.</b> The label is kept, not lost, and comes
+  back unchanged when the cards move apart</td><td>§9.13</td></tr>
+<tr><td>12</td><td>Minimum window size</td>
+  <td><b>350px wide.</b> Which forces the properties panel to collapse below about 420px, or the
+  canvas has no room</td><td>§8.1</td></tr>
+</tbody>
+</table>
+
+<h3>15.4 Still open</h3>
+<p>Two. Both are measurement tasks, not design decisions, and neither blocks P1.</p>
 <ol>
-  <li><b>Tool and action row icon size.</b> The handoff gives the row padding, font size and gap but
-    not the icon size. Canvas rows are 13px. Use 13px unless the designer says otherwise.</li>
-  <li><b>Source Serif 4 at 9.5px to 12.5px on Windows.</b> The mockups were drawn in Verdana, which
-    is built for small sizes. Check every role at or under 12.5px on real hardware, at 100% and 150%
-    scaling, before the shell is signed off. See the caution in section 6.1.</li>
-  <li><b>No hover, pressed or transition values exist anywhere.</b> Section 11 falls back to
-    Broadsheet's rules. Confirm them, or have them drawn.</li>
-  <li><b>The focus ring and the selected-card outline are both 2px accent.</b> A focused, selected
-    card would show two nearly identical rings. Decide how they differ.</li>
-  <li><b>The note title is a new payload field.</b> Confirm the amendment to
-    <code>docs/mvp-plan.html</code> §4, and decide whether search matches the title, the body, or
-    both. This document assumes both.</li>
-  <li><b>Dark-theme values that are not drawn:</b> the context-menu shadow, the search-popover
-    shadow, the toggle-knob shadow, and the picker-card shadow. Also unmeasured:
-    <code>--color-accent-2-400</code> #ff90b1 on #262322.</li>
-  <li><b>Vimeo's provider glyph.</b> The video card shows <code>ph-youtube-logo</code>. The plan
-    supports Vimeo too. <code>ph-vimeo-logo</code> exists in Phosphor — confirm it.</li>
-  <li><b>Card minimum and maximum width.</b> Not stated. A note card resized to 40px would break its
-    13px title.</li>
+  <li><b>Four dark-theme values were never drawn:</b> the context-menu shadow, the search-popover
+    shadow, the toggle-knob shadow and the picker-card shadow. Also <b>unmeasured</b>:
+    <code>--color-accent-2-400</code> #ff90b1 on the #262322 surface. <i>Settle by:</i> P5, when the
+    dark theme is signed off end to end. Until then, scale each light shadow the way §4.5 scales the
+    three it does give — same offsets and blur, black ink, roughly triple the alpha.</li>
   <li><b>Scrollbar styling.</b> The left column, the properties panel and the Settings body all
-    scroll. No scrollbar is drawn.</li>
-  <li><b>The missing-asset marker</b> has no visual at all (see 15.2).</li>
-  <li><b>Connection label chips on a very short line.</b> Two cards 30px apart leave no room for a
-    chip. Collision and clipping behaviour is unstated.</li>
-  <li><b>Minimum window size.</b> Chrome is 345px wide before the canvas gets a pixel. Not
-    stated.</li>
+    scroll, and no scrollbar is drawn anywhere. <i>Settle by:</i> P1, when the shell is built. The
+    WebView2 default is heavy against this chrome; a thin overlay scrollbar in
+    <code>--color-neutral-400</code> on a transparent track is the obvious fit, but it is not
+    drawn.</li>
 </ol>
 
 <h2>16. Screen → phase map</h2>
@@ -1482,7 +2152,8 @@ directions: a phase that moves here moves there too.</p>
   <td><code>15a</code> <code>14b</code> <code>17a</code> <code>17b</code></td></tr>
 <tr><td><b>P2 — Connections</b></td>
   <td>The SVG overlay, the arrowhead marker, the label chip, and both themes' line colours. The
-  Connect tool's active and unavailable states.</td>
+  Connect tool's active and unavailable states. The <b>Route</b> group in the properties panel and
+  the elbow route (§9.13).</td>
   <td>(shown on <code>14b</code>, <code>18a</code>)</td></tr>
 <tr><td><b>P3 — Rich cards</b></td>
   <td>The image card and its File / Alt text panel groups. The link card in all three states, and

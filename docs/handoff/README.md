@@ -4,7 +4,7 @@
 
 IdeaScape is a single-user Windows desktop application. The user places cards — notes, images, web links, videos — on an infinite canvas and draws labelled arrows between them to build a larger concept. A project is one folder on disk holding a SQLite database and an `assets/` directory. No accounts, no sync, no server.
 
-This bundle documents the interface: the application shell, the canvas and its card kinds, connections, the properties panel, both context menus, search, the project picker, Settings, and the dark theme.
+This bundle documents the interface: the application shell, the canvas and its card kinds, connections, the properties panel, both context menus, search, the project picker, Settings, and the dark theme. It now also documents the **Writing Pack** — six authored card types (Book, Chapter, Scene, Beat, Character, Location), the seven field controls their panels are generated from, and the two full-screen sheets that the types too large for the 252px panel open into. `plan/feature-writing-pack.html` is that feature's own authority and is included here.
 
 The authority on scope, data model and architecture is `plan/mvp-plan.html` and `plan/architecture.html`, both included here. Where this document and the plan disagree, the plan wins — see **Alignment with the plan** at the end for the deviations that were agreed deliberately.
 
@@ -61,7 +61,7 @@ The empty-project screen replaces items 3–4 with a folder path (`ph-folder-ope
 
 **Search box** — wrapper padding `0 12px 9px`; the box itself is a flex row, gap 6px, padding `3px 8px`, 1px `--color-divider` border, radius 3px, 11.5px, opacity .5, with `ph-magnifying-glass` at 13px. When it holds a query: full opacity, border and a 1px outline in `--color-accent`, a 1 × 13px accent caret after the text, and `ph-x` at 12px opacity .45 pushed right.
 
-**Section labels** (`Canvases`, `Tools`, `Add`, `History`) — 10px, letter-spacing .1em, uppercase, opacity .45. `Canvases` sits at padding `0 12px 5px` with a right-aligned `ph-plus` at 13px opacity .5; the others at `14px 14px 8px` / `16px 14px 8px`.
+**Section labels** (`Canvases`, `Tools`, `Cards`, `History`) — 10px, letter-spacing .1em, uppercase, opacity .45. `Canvases` sits at padding `0 12px 5px` with a right-aligned `ph-plus` at 13px opacity .5; the others at `14px 14px 8px` / `16px 14px 8px`.
 
 **Canvas rows** — padding `5px 12px`, 12px, gap 8px, `ph-square-half` at 13px, name ellipsized. Inactive: opacity .72. **Active: background `--color-accent-100` #e9f8ff, colour `--color-accent-800` #004961, weight 600.**
 
@@ -72,7 +72,11 @@ The empty-project screen replaces items 3–4 with a folder path (`ph-folder-ope
 - Unavailable: opacity .35.
 - Undo carries its depth right-aligned at 10.5px opacity .6.
 
-Groups and their icons: **Tools** — Select `ph-cursor`, Pan `ph-hand`, Connect `ph-flow-arrow`. **Add** — Note `ph-note`, Image `ph-image`. **History** — Undo `ph-arrow-counter-clockwise`, Redo `ph-arrow-clockwise`. **Settings** `ph-gear`, pinned to the bottom with `margin-top: auto`.
+Groups and their icons: **Tools** — Select `ph-cursor`, Pan `ph-hand`, Connect `ph-flow-arrow`. **Cards** — General `ph-squares-four`, Writing Pack `ph-book-open`. **History** — Undo `ph-arrow-counter-clockwise`, Redo `ph-arrow-clockwise`. **Settings** `ph-gear`, pinned to the bottom with `margin-top: auto`.
+
+**The Cards group replaced the old `Add` group.** Both rows are submenu parents: `ph-caret-right` at 12px opacity .5, right-aligned. **General** holds Note and Image (the P1 kinds); **Writing Pack** holds the six authored types. An open parent takes the pressed appearance — background `--color-accent`, colour `--color-bg`, weight 600 — and its caret goes to opacity .8.
+
+**The submenu** (drawn open on `21a`) is the context-menu shell, flown out of the rail: absolute `left: 100%`, width 206px, `--color-surface`, radius 3px, shadow `0 10px 28px rgba(45,43,43,.3)`, padding `5px 0`, `z-index: 2`. Rows are padding `5px 12px`, gap 9px, 12px, with a 14px icon at opacity .7 and the number shortcut right-aligned in 10px monospace at opacity .45 — Book `ph-book` `2` · Chapter `ph-file-text` `3` · Scene `ph-film-slate` `4` · Beat `ph-dot-outline` `5` · Character `ph-user-circle` `6` · Location `ph-map-pin` `7`. Note and Image keep `N` and `I`.
 
 ### Canvas
 
@@ -143,6 +147,114 @@ Background `--color-neutral-200` #eae7e7, `display: grid; place-items: center`, 
 - **Body** — padding `10px 13px 12px`. Provider row as the link card's domain row but with `ph-youtube-logo` at 13px. Title 13px weight 600, line-height 1.35. Then `Click to open in your browser` at 11px opacity .45, 6px down.
 
 Video never plays in place — clicking opens the address in the system browser. This is a deliberate, documented gap against competitors (`plan/mvp-plan.html` §11).
+
+## The Writing Pack
+
+Six authored card types on top of the P1 kinds: **Book**, **Chapter**, **Scene**, **Beat**, **Character**, **Location**. Each is a data file (a *blueprint*), not a component. The properties panel and the card face are both **generated** from the blueprint's field list, so a new type is a new data file and never new UI. The panel knows the seven field kinds below and nothing else — it has never heard of a Character.
+
+See `plan/feature-writing-pack.html` for the blueprint format and the field semantics; this document covers only what is drawn.
+
+### The seven field kinds — `26a`
+
+One control per kind, at 1:1, on a 1064px sheet: a 2-column grid, `gap: 26px 44px`, padding `28px 30px 30px`. Each cell is the kind name at 12px weight 600 with what it stores beside it in 10px monospace at opacity .4, then the field label (10px, .1em, uppercase, opacity .45), then the control, then the field's `meaning` line at 10px opacity .45, line-height 1.4.
+
+| Kind | Stores | Control | The line under it |
+| --- | --- | --- | --- |
+| Short Text | a string | `.input`, 12.5px, padding `5px 8px`, radius 2px | — |
+| Long Text | markdown | `textarea.input`, `rows=3`, line-height 1.5, `resize: none` | Never shown on the card face. |
+| Pick | one pick entry | the combo (below) | Sorted by Genre. Stores an id, your words, and where it came from. |
+| Pick Many | an ordered list | chip row + the combo | Drag a chip to reorder. The order is yours and is kept. |
+| Image | an asset file name | a 52px `--color-neutral-200` square, file name at 11px opacity .6, Replace / Remove | Copied into `assets/` under its content hash. Never a path. |
+| Number | integer or decimal | 132px right-aligned `.input` with a 22px stepper column (`ph-caret-up` 12px tall, `ph-caret-down` 13px, 1px divider between) | Empty is not zero. An empty number field is simply unanswered. |
+| Scale | −3 to +3, default 0 | the slider (below) | Seven notches. The two end words live in the blueprint, never typed per card. |
+
+The `meaning` line is authored once in the data file: help text today, a field definition later.
+
+**The chip** — one style everywhere a Pick Many value appears in a form: `display: inline-flex`, gap 5px, padding `3px 6px 3px 10px`, 1px `--color-divider` border, `border-radius: 11px`, 11px, line-height 1.35, colour `rgba(32,30,29,.72)`, `white-space: nowrap`, with `ph-x` at 11px opacity .5. On a **card face** the chip loses its remove icon and tightens: padding `2px 8px`, radius 10px, 10.5px. An overflow chip (`+4`) is the same pill at opacity .55.
+
+**The chip adder** — a 26px-tall combo: the `.input` at 11.5px with `border-radius: 2px 0 0 2px; border-right: none`, then a 26px caret button (transparent, 1px `--color-divider`, `ph-caret-down` at 12px). Placeholder `Add a trope…` / `Add a theme…`.
+
+**The Scale slider** — a 2px `--color-divider` rail inside a 16px row, seven 3px `rgba(32,30,29,.3)` dots `space-between` along it, and a 12px `--color-accent` knob with a 2px ring in the ground colour (`--color-surface` on the sheet, `--color-bg` on a full screen), positioned at `left: 0 / 16.66 / 33.33 / 50 / 66.66 / 83.33 / 100%` with `translateX(-50%)`. Under it, the blueprint's two end words at 10px opacity .42, `space-between`. The value reads right-aligned above the rail in 11px monospace weight 600 at opacity .65, signed (`+2`, `0`, `−2` — a true minus sign, not a hyphen).
+
+### The combo, four states — `26b`
+
+Four 232px columns, gap 30px, each headed at 11.5px weight 600 with a 10.5px opacity .5 note beneath. Two rulings are visible here and both are firm: **a typed value is always accepted**, and **filtering sorts, it never hides**.
+
+1. **At rest** — a text box with a list button. It is a text box first; the list is an offer, not a gate.
+2. **Typing** — the input takes `outline: 2px solid var(--color-accent); outline-offset: -1px` and the caret button flips to `ph-caret-up`. The list drops 3px below: 1px `--color-divider`, radius 2px, `--color-surface`, shadow `0 6px 18px rgba(45,43,43,.16)`. Rows padding `5px 9px`, 11.5px, the matched substring in `<b>`; the highlighted row is `--color-accent-100` on `--color-accent-800`.
+3. **The list, sorted by Genre** — group headers at 9.5px, .09em, uppercase, opacity .45 on `--color-neutral-100`: the card's own genre first, then `Everything else` (with a 1px top border) whose rows sit at opacity .72. The one-hop filter sorts; nothing is removed, and an untagged entry is never hidden.
+4. **A value of your own** — the list collapses to one accent-tinted row, `ph-plus` at 12px + `Use “Ark ship, becalmed”`, over `Nothing in the list matches` at 10.5px opacity .5. The value is saved to the project's own vocabulary and offered again next time. **It carries no id, which is what marks it as yours.**
+
+### Card faces — `23a`
+
+Seven faces at 100% on the canvas ground. Every face is the blueprint's `show_on_face` fields, and three rules hold across all of them: a small **type kicker** so a mixed canvas reads at a glance; **no Long Text ever on the face** (the Chapter shows its summary, never its prose); and chips as plain outlined pills — one style for genre, sub-genre, tropes and themes alike, because the face is not the place to teach the difference.
+
+**The kicker** — a row at 9.5px, letter-spacing .11em, uppercase, opacity .45, gap 5px, with a 12px icon (Beat takes 13px): Book `ph-book` · Chapter `ph-file-text` · Scene `ph-film-slate` · Beat `ph-dot-outline` · Character `ph-user-circle` · Location `ph-map-pin`. A card that has been expanded into a canvas of its own carries `ph-square-half` at 12px, opacity .85, right-aligned on the kicker row.
+
+| Type | `default_size` | Face |
+| --- | --- | --- |
+| Book | 300 × auto | name 14px/600, logline, then **two** chip rows — genre + sub-genre, then tropes with a `+n` overflow |
+| Chapter | 264 × auto | `4 · The archivist's shift` at 13.5px/600, summary, theme chips. Prose never shown |
+| Scene | 240 × auto | name 13.5px/600, summary |
+| Beat | 200 × auto | name 12.5px/600, text. Padding tightens to `10px 12px 11px`, gap 6px |
+| Character | 220 × auto | a 104px `--color-neutral-200` picture band, then name 13.5px/600 and role at 11.5px opacity .6 — **drawn sparse** |
+| Location | 220 × auto | a 92px picture band (`ph-image` at 22px), name, description |
+| Note | 236 × auto | unchanged from P5, and **carries no kicker** |
+
+Text cards are padding `11px 13px 12px`, gap 7px, with the body at 11.5px line-height 1.5 opacity .78. Picture cards are `overflow: hidden` with the band flush to the card edge and the text block at `9px 12px 11px`, gap 5px.
+
+Character is sparse against the plan's fuller list (picture, name, role, one-liner, trope chips). **The one-liner and the chips are the first thing to add back if the card reads too thin.**
+
+### On the canvas — `24a`, `24b`
+
+The structure of one chapter is four connections and one selection: two Beats feed a Scene (`Leads to`), the Scene feeds the Chapter (`Part of`), and the Character joins the Scene as `Appears in`.
+
+**Connection roles** are a new line affordance and the one thing the Writing Pack adds to connections. At rest a role is a **glyph**: a 15px circle, `--color-surface`, 1px `--color-divider`, radius 50%, a 9px icon at opacity .75, centred on the line. On hover, or when either end is selected, it **opens to the word** — a chip at 10px, padding `2px 8px 2px 3px`, `border-radius: 9px`, holding a 13px icon disc and the role name. Neutral open chip: `--color-surface`, 1px `rgba(32,30,29,.32)`, shadow `0 1px 4px rgba(45,43,43,.14)`. Selected: `--color-accent` ground, `--color-bg` text, the icon disc at `rgba(255,255,255,.22)`.
+
+Role icons: `ph-arrow-right` Leads to · `ph-file-text` Part of / Contains · `ph-user` Appears in · `ph-eye` Told by.
+
+Lines carry three weights on these screens: `rgba(32,30,29,.4)` at 1.5 at rest, `rgba(32,30,29,.62)` at 1.75 when hovered, and `--color-accent` at 1.75 when either end is selected. Paths are **orthogonal** — `L` segments with `stroke-linejoin: miter`, no curves.
+
+**Small types stay in the panel.** A Beat has two fields (Name, Text) and a Scene three (Name, Summary, Point of view — a combo), so selecting one fills the 252px panel and opens nothing. The panel adds two generated groups under the fields:
+
+- **Placed on** — one row per placement: `ph-square-half` at 13px opacity .55, the canvas name ellipsized, and the coordinates right-aligned in 10px monospace at opacity .4. A helper states the count in words (`One record, three places. Editing here changes all three.`).
+- **Joined to** — one row per connection: a 15px bordered icon disc + the far card's name, with the **role on its own line beneath**, indented `padding-left: 22px` at 10px opacity .45 with `margin-top: -3px`. Several connections of one role collapse to a count (`2 beats` / `Lead to`).
+
+The footer's **Card** group carries `Expand into a canvas` (`ph-square-half`) and `Delete beat` / `Delete scene` — the delete is named for the type, not generic.
+
+### The full-screen sheet — `25a`, `27a`
+
+Character and Book outgrow the column, so they open a sheet **in place of the canvas**. The title bar, the rail and the 252px panel all stay exactly where they are, and `Back to canvas` in the sheet header is the way out — the same shape as Settings. **The sheet is a view of one card, not a mode:** edits land in the same payload the panel writes.
+
+**Sheet header** — `flex: none`, padding `11px 28px`, gap 12px, 1px `--color-divider` bottom border: `Back to canvas` (`ph-arrow-left` 13px, 11.5px, padding `3px 9px`, radius 2px, 1px `--color-divider`), then the card name at 14px weight 600, then the type at 9.5px, letter-spacing .11em, uppercase, opacity .45 on the same baseline.
+
+**Body** — padding `22px 28px`, column, gap 20px, in two bands:
+
+1. **Identity** — the picture at a size worth looking at (Character 150 × 150px, Book 132 × 190px for the cover), `--color-neutral-200`, radius 3px, with Replace / Remove beneath at 11px and the file name at 10px opacity .45; then the identity fields in a `flex: 1` column, gap 11px. Fields are 26px tall (`padding: 2px 8px`, `min-height: 26px`), labels at 10px .1em uppercase opacity .45.
+2. **Two columns**, `grid-template-columns: 1fr 1fr`, gap 24px, `align-items: start`.
+
+**Character** (`25a`) — identity is Name + Role side by side, One-liner, Description. Left column: **Personality**, five Scale sliders stacked at gap 7px so all five are visible with no scrolling, with the **dice button** right-aligned on the group label (26 × 22px, radius 2px, transparent, 1px `--color-accent`, `ph-dice-five` at 14px in `--color-accent-700`). Right column: Character tropes, then Placed on / Joined to side by side, then the Card actions. The guarantee is stated in plain words rather than hidden in the roll: **Randomize rolls a bell curve, then guarantees at least one slider reaches ±2 — a mostly ordinary person with one clear edge. Undo restores all five in one step.**
+
+**Book** (`27a`) — deliberately the same shape. Identity is Name, then Genre + Sub-genre as two combos, Logline (`The one sentence the card face shows.`) and Synopsis. Book has no sliders, so the left column carries **Tropes** and **Themes** — one chip style for both, as on the face — and **Synopsis is the Long Text** and never reaches the card. **Joined to reads downward** here (`Contains`) where Character's reads upward (`Appears in`), so one panel carries both directions with no second pattern.
+
+Where the two chip sets live is settled per type: **Book owns genre and sub-genre; Book and Character own tropes; Book and Chapter own themes.** Whether Chapter should also carry tropes is still open.
+
+### Chapter — `28a`
+
+Chapter is the one type the field stack cannot hold, because its Long Text **is the work** rather than a description of it. So the screen inverts: the identity fields compress into a strip at the top and everything below is the writing surface.
+
+- **The strip** — Number (66px, right-aligned), Title (`flex: 1`), Word target (120px, right-aligned) on one `align-items: flex-end` row; then Summary (`flex: 1`, 46px textarea) beside Themes (300px, chips + adder wrapping inline).
+- **One context line** — where the chapter sits and what it is joined to read as a single 10.5px opacity .5 row rather than a column of their own: `ph-square-half` Placed on The book `300, 210` · `ph-book` Part of The Long Fall of the Ostrava · `ph-film-slate` Contains 1 scene.
+- **The writing surface** — `flex: 1`, `--color-surface`, `border-radius: 3px 3px 0 0`, `box-shadow: 0 -1px 0 var(--color-divider) inset`, running off the bottom of the window. Inside, one centred **560px measure** at 13px, line-height 1.85, paragraphs `gap: 14px`, with the accent caret (1.5 × 15px) at the insertion point.
+- **The foot** — padding `9px 22px`, 1px top border, 10.5px opacity .5, gap 14px: `Prose · Long Text`, `1,204 of 3,200 words`, a 120 × 3px `--color-neutral-200` progress rail with a `--color-accent` fill, and `Never shown on the card face` pushed right.
+- The header carries `Expand into a canvas` and `Delete` right-aligned, because the strip has no room for a Card group.
+- The 252px panel stays reserved and holds the type name, the card id and `Reserved for AI options`.
+
+The prose and the card face live at opposite ends of the same screen on purpose: the face shows the summary, so nothing the writer types can change what the board looks like.
+
+### Not drawn yet
+
+**The Location sheet.** Location is Character's shape without the sliders — picture, name, description, tropes — so it is a composition of parts already specified above. Its card face is drawn on `23a`.
 
 ## Connections
 
@@ -345,6 +457,9 @@ Groups and rows:
 | Canvas | Snap to grid | toggle, **off** | Off keeps free placement to the pixel. |
 | Canvas | Zoom with | segmented **`Scroll`** / `Ctrl+scroll` | Ctrl+scroll leaves the plain wheel free to pan. |
 | Appearance | Theme | segmented **`Light`** / `Dark` / `System` | — |
+| Packs | Writing Pack | toggle, **on** | Off hides Book, Chapter, Scene, Beat, Character and Location from the Cards menu. Cards already on a canvas stay. |
+
+The **Packs** group is a full-width row under the two-column grid. The toggle is the same 34 × 19px control; on shows the knob right on `--color-accent` (`--color-accent-400` on dark). Turning a pack off is a menu filter and nothing more — it never touches placed cards, their payloads or their connections.
 
 **Segmented control** — `display: flex`, 11.5px, radius 3px, `overflow: hidden`, 1px `--color-divider` border. Options padding `4px 10px` (four-up) or `4px 12px` (two- and three-up); inactive opacity .6; active background `--color-accent`, colour `--color-bg`, weight 600.
 
@@ -550,7 +665,7 @@ These screens were reconciled against `plan/mvp-plan.html` and the following wer
 
 **Kept, knowingly ahead of the plan's letter** — the auto-save cadence row (with "Manual" removed, since automatic save is non-negotiable); snap to grid, off by default, so free placement still holds; the light/dark/system theme, which the dark screens depend on.
 
-**Not yet mocked** — three fetch failures: no internet when a link is pasted (with retry), a page with no preview data, and a fetch cut off at five seconds. The link card's "no preview data" and "not fetched yet" appearances are both specified above, so these three are compositions of parts that already exist. Everything else the plan specifies is drawn.
+**Not yet mocked** — three fetch failures: no internet when a link is pasted (with retry), a page with no preview data, and a fetch cut off at five seconds. The link card's "no preview data" and "not fetched yet" appearances are both specified above, so these three are compositions of parts that already exist. Everything else the plan specifies is drawn. From the Writing Pack, the **Location sheet** is the one form still undrawn (Character's shape without the sliders), and **whether Chapter carries tropes as well as themes is an open question for the owner** — today tropes sit on Book and Character only.
 
 ## Open against the design system
 
@@ -560,7 +675,7 @@ These screens were reconciled against `plan/mvp-plan.html` and the following wer
 
 **2. Four new elevations against a closed list.** Listed under Design tokens above. Either add them as project tokens or fold them into the existing seven.
 
-**3. Eleven screens the document has not seen.** Its handoff log records twelve screens as of 2026-09-05: `14b` `15a` `16a` `17a` `17b` `18a` `18b` `19a` `19b` `20a` `20b` `20c`. Turns 21 and 22 added `21a`–`21h`, `22a`, `22b` and `22c`, all specified above. They need folding in, along with the **Interaction states** and **Motion** sections, which the document has no equivalent of.
+**3. Screens the document has not seen.** Its handoff log records twelve screens as of 2026-09-05: `14b` `15a` `16a` `17a` `17b` `18a` `18b` `19a` `19b` `20a` `20b` `20c`. Turns 21 and 22 added `21a`–`21h`, `22a`, `22b` and `22c`; turns 23–28 added the Writing Pack — `23a`, `24a`, `24b`, `25a`, `26a`, `26b`, `27a` and `28a`. All are specified above. They need folding in, along with the **Interaction states**, **Motion** and **The Writing Pack** sections, which the document has no equivalent of. Note also that `16a` and `18b` have gained a **Packs** group since the document last saw them, and the rail's `Add` group is now `Cards` with two submenu parents.
 
 Already reconciled, and needing nothing from this bundle: the note card's `title` field (the document amends the plan's `note { text }` payload to `note { title, text }`, matching what the screens draw); Settings and the dark theme accepted into scope as a new **P5**; and the properties panel confirmed at 177px / 32px.
 
@@ -578,5 +693,72 @@ Already reconciled, and needing nothing from this bundle: the note card's `title
 | `plan/architecture.html` | **Technical authority.** Tauri + Rust + SQLite, Svelte 5, culling, undo model, module layout, deployment. |
 | `plan/design-system.html` | **Visual authority**, and newer than this document. The handoff log, the seven closed Broadsheet deviations, the full token and role tables. Read **Open against the design system** above first. |
 | `plan/competitive-scan.html` | Prior-art scan and the ranked backlog. |
+| `plan/feature-writing-pack.html` | **Writing Pack authority.** The six blueprints, the seven field kinds, the pick vocabulary and where each value is stored. Read it beside **The Writing Pack** above. |
 
-Screen ids in the design file, for cross-reference: `22a` missing asset · `22b` damaged database · `22c` states and motion · `21a` drawing a line · `21b` connection selected · `21c` marquee multi-select · `21d` note mid-edit · `21e` image mid-drop · `21f` New project dialog · `21g` rename and delete confirm · `21h` 254 cards at 24% · `20a` image selected · `20b` paste pending · `20c` search · `19a` project picker · `19b` link and video cards · `15a` empty project · `14b` canvas with a note selected · `17a` element menu · `17b` background menu · `16a` Settings · `18a` canvas, dark · `18b` Settings, dark.
+Screen ids in the design file, for cross-reference: `28a` Chapter, the writing surface · `27a` Book, full screen · `26a` the seven field kinds · `26b` the combo in four states · `25a` Character, full screen · `24a` a Beat selected · `24b` a Scene selected · `23a` seven card faces · `22a` missing asset · `22b` damaged database · `22c` states and motion · `21a` drawing a line · `21b` connection selected · `21c` marquee multi-select · `21d` note mid-edit · `21e` image mid-drop · `21f` New project dialog · `21g` rename and delete confirm · `21h` 254 cards at 24% · `20a` image selected · `20b` paste pending · `20c` search · `19a` project picker · `19b` link and video cards · `15a` empty project · `14b` canvas with a note selected · `17a` element menu · `17b` background menu · `16a` Settings · `18a` canvas, dark · `18b` Settings, dark.
+
+---
+
+## Consolidated — 2026-09-08
+
+**This bundle has been folded into `docs/design-system.html`.** That document is now
+authoritative for everything visual, and this file is the stale copy from here on.
+
+- The 19 new frames landed as **§9.14–§9.33** of the design system. All 31 frames in this bundle
+  now have a section, and each section names its frame ids.
+- The `plan/` copies in this bundle are a **frozen historical record** of what the designer worked
+  against. They are never edited and never treated as current. **`docs/` wins over
+  `docs/handoff/plan/`.**
+
+### Corrections to this document
+
+Six things above were drawn before the owner decisions of 2026-09-06 and 2026-09-07 reached the
+designer. **None of them was applied**, and each has a dated row in the design system's handoff log:
+
+1. **The chrome font.** Every frame sets `Verdana, Geneva, sans-serif`. The chrome font is
+   **Source Serif 4**, reverted on 2026-09-05. Settings also gained a **Font** row (Serif / Sans /
+   Marker) on 2026-09-07, which no frame draws.
+2. **The video card.** The play badge, the `ph-play` glyph and the "Click to open in your browser"
+   line were all removed on 2026-09-07. The provider is a YouTube mark in the thumbnail's corner,
+   and that mark — not the card body — is the open control.
+3. **The connection label chip.** It is drawn at **full strength**, with a border in its own
+   connection's colour. The `opacity: .62` above is stale.
+4. **Motion.** The table in **Motion** above gives two easings and four durations. The settled
+   values are **one** curve, `cubic-bezier(.2, 0, .2, 1)`, and nine durations — design system §11.3,
+   and what shipped as `--ease` in `src/lib/tokens.css`. `22c`'s state swatches are correct; its
+   durations are not.
+5. **The missing-asset card (`22a`).** The card face keeps the **shipped** treatment — a neutral
+   ground, a dashed inner border, and **no second accent**. `22a`'s canvas missing-file bar, its
+   `Locate file…` / `Replace` buttons and its panel warning row **were** adopted.
+6. **Connections gained three properties** on 2026-09-07 that no frame draws: a **route**
+   (straight or elbow), a hand-placed **bend**, and per-end **anchors**. The `Connections` section
+   above is otherwise correct.
+
+### Two things in this bundle were declined
+
+- **The 252px properties panel.** Every Writing Pack section above says 252px while **The shell**
+  says 177px — this document disagrees with itself. The panel is **177px**, which is what shipped.
+  Every field control was re-measured for 153px of content width in design system §9.25; only the
+  Number field moved, and it moved by one pixel.
+- **`monospace`.** Set in five small roles above. There is no mono family. Those roles keep the
+  chrome font with `font-variant-numeric: tabular-nums`.
+
+### Three things settled that this document left open
+
+- **Which types get a screen of their own:** **Book**, **Chapter** and **Character**. Scene, Beat
+  and **Location** stay in the properties panel — so **there is no Location sheet to draw**, and
+  the gap named under **Not drawn yet** is closed rather than carried.
+- **The role vocabulary is seven, and it uses the plan's words.** `plan/feature-writing-pack.html`
+  §5 owns the model and defines six roles; the four drawn above use different names. `Leads to` is
+  the role **Feeds**. `Follows`, `Set In` and `Relates To` are not drawn — and **`Relates To` is
+  what `role = NULL` reads as**, so it could not be dropped. `Part of / Contains` was the one role
+  this bundle genuinely added: it is **Part Of**, read as `Contains` from the other end.
+- **The elevation list grew from seven to eleven.** The four shadows named under **Design tokens**
+  were adopted as project tokens. That is still one deviation from Broadsheet, not an eighth.
+
+### One correction of fact
+
+**`plan/design-system.html` is no longer newer than this document, and it never was the live copy.**
+The live document is **`docs/design-system.html`**. **Open against the design system**, above, says
+that document "has no equivalent" of **Interaction states**, **Motion** and **The Writing Pack** —
+it had §11 for the first two on 2026-09-06, and it has §9.25–§9.33 for the third as of 2026-09-08.

@@ -123,7 +123,7 @@
     <li class="task" data-task="7" data-status="done">Task 7: The Connect tool — active, available and unavailable</li>
     <li class="task" data-task="8" data-status="done">Task 8: Drawing the line — the pending link and its commit</li>
     <li class="task" data-task="9" data-status="done">Task 9: Selecting a connection</li>
-    <li class="task" data-task="10" data-status="done">Task 10: The properties panel's Connection state</li>
+    <li class="task" data-task="10" data-status="done">Task 10: The properties panel&#x27;s Connection state</li>
     <li class="task" data-task="11" data-status="done">Task 11: Lines follow, and leave with, their cards</li>
     <li class="task" data-task="12" data-status="done">Task 12: Undo and redo for connections</li>
     <li class="task" data-task="13" data-status="done">Task 13: Run the phase gate and record it</li>
@@ -145,19 +145,18 @@
     <li class="task" data-task="5" data-status="done">Task 5: The asset URL helper and the status cache</li>
     <li class="task" data-task="6" data-status="done">Task 6: The image card, and the missing-file state</li>
     <li class="task" data-task="7" data-status="done">Task 7: The three image ingestion routes, and the mid-drop state</li>
-    <li class="task" data-task="8" data-status="done">Task 8: The panel's File and Alt text groups, and asset-aware undo</li>
+    <li class="task" data-task="8" data-status="done">Task 8: The panel&#x27;s File and Alt text groups, and asset-aware undo</li>
     <li class="task" data-task="9" data-status="done">Task 9: URL classification, as pure functions</li>
     <li class="task" data-task="10" data-status="done">Task 10: Open Graph extraction and oEmbed decoding, as pure functions</li>
     <li class="task" data-task="11" data-status="done">Task 11: The fetch commands, the five-second budget and thumbnail capture</li>
     <li class="task" data-task="12" data-status="done">Task 12: The link card, in all three states</li>
     <li class="task" data-task="13" data-status="done">Task 13: The video card, and opening it in the browser</li>
     <li class="task" data-task="14" data-status="done">Task 14: Paste routing — the card exists before the network</li>
-    <li class="task" data-task="15" data-status="done">Task 15: The panel's Source group, and Refetch</li>
+    <li class="task" data-task="15" data-status="done">Task 15: The panel&#x27;s Source group, and Refetch</li>
     <li class="task" data-task="16" data-status="done">Task 16: Prove the four failure states, in the running application</li>
     <li class="task" data-task="17" data-status="done">Task 17: Re-measure the frame gate on 250 mixed cards, and the installer budget</li>
     <li class="task" data-task="18" data-status="done">Task 18: Commit, push, and open PR</li>
   </ul>
-  <p class="meta"><strong>Recorded:</strong> <code>scripts/phase-3-session.md</code> — the six failure-state steps, the observed 5.00 s fetch cut-off, a 0.017 s project open on the mixed canvas, and 56.2 fps with at most one dropped frame in 1,664 at 25 of 250 cards drawn. The frame figure is the panel's own variable-refresh cadence, not a cost this phase added: a notes-only control run on the same machine in the same session measured the same 55.9–56.5 fps. Installer 2,900,575 bytes — 2.77 MB against a 20 MB cap.</p>
 </section>
 
 <section class="phase" data-phase="4" data-status="complete">
@@ -165,7 +164,7 @@
   <p class="meta"><strong>Branch:</strong> <code>phase-4-library</code></p>
   <p class="meta"><strong>Phase doc:</strong> <code>docs/phases/phase-4-library.html</code></p>
   <p class="meta"><strong>Depends on:</strong> Phase 1 (canvas core) — complete; Phase 2 (connections) — complete; Phase 3 (rich cards) — complete. No new npm package, no new Rust crate, no new migration, no new Tauri capability permission: <code>dialog:allow-open</code> already covers the directory selector, and the <code>item.payload</code> JSON column plus SQLite's built-in <code>json_extract</code> carry search with no schema change.</p>
-  <p class="meta"><strong>Summary:</strong> Phase 4 makes IdeaScape self-sufficient — the user creates, opens, organises and searches projects without touching a file path, and the Phase 1 developer path is retired.</p>
+  <p class="meta"><strong>Summary:</strong> Phase 4 makes IdeaScape self-sufficient.</p>
   <ul class="tasks">
     <li class="task" data-task="1" data-status="done">Task 1: The recent-projects store</li>
     <li class="task" data-task="2" data-status="done">Task 2: Create and close a project, and retire the developer path</li>
@@ -174,7 +173,7 @@
     <li class="task" data-task="5" data-status="done">Task 5: The dialog surface — two tokens and the shared shell</li>
     <li class="task" data-task="6" data-status="done">Task 6: The project picker screen</li>
     <li class="task" data-task="7" data-status="done">Task 7: The New project dialog</li>
-    <li class="task" data-task="8" data-status="done">Task 8: Boot, open, close — the shell's two states</li>
+    <li class="task" data-task="8" data-status="done">Task 8: Boot, open, close — the shell&#x27;s two states</li>
     <li class="task" data-task="9" data-status="done">Task 9: The canvas feature state and its three undo commands</li>
     <li class="task" data-task="10" data-status="done">Task 10: The canvas list — rows, create, inline rename, delete confirm</li>
     <li class="task" data-task="11" data-status="done">Task 11: Switching canvases, and what a switch owes the old one</li>
@@ -185,7 +184,6 @@
     <li class="task" data-task="16" data-status="done">Task 16: Re-measure the frame gate and the installer budget</li>
     <li class="task" data-task="17" data-status="done">Task 17: Commit, push, and open PR</li>
   </ul>
-  <p class="meta"><strong>Recorded:</strong> <code>scripts/phase-4-session.md</code> &mdash; all ten non-dark-theme PRD &sect;10.2 lines PASS, a 34&nbsp;ms project open measured from the picker against a 2,000&nbsp;ms budget, and 59.9&nbsp;fps with zero dropped frames in 1,786 at 25 of 250 cards drawn. That figure is the strongest control the Phase&nbsp;3 argument could have: the same machine, harness and workload that measured 56.2&nbsp;fps then measures 59.9&nbsp;fps now with no rendering change, confirming 56.2 was the variable-refresh panel's cadence and not a cost any phase added. Installer 2,931,992 bytes &mdash; 2.80&nbsp;MB against a 20&nbsp;MB cap, 31,417 bytes more than Phase&nbsp;3.</p>
 </section>
 
 <section class="phase" data-phase="5" data-status="complete">
@@ -193,7 +191,7 @@
   <p class="meta"><strong>Branch:</strong> <code>phase-5-settings</code></p>
   <p class="meta"><strong>Phase doc:</strong> <code>docs/phases/phase-5-settings.html</code></p>
   <p class="meta"><strong>Depends on:</strong> Phase 1 (canvas core) — complete: the token layer, both palettes, the two <code>data-theme</code> blocks and <code>src/lib/settings.ts</code>; Phase 2 (connections) — complete; Phase 3 (rich cards) — complete: the card kinds whose ramp-token styles the dark audit corrects; Phase 4 (library) — complete: <code>app_data_dir()</code>, the <code>recent.json</code> read/write template, the picker branch this phase adds a sibling to, and the <code>--shadow-dialog</code>/<code>--scrim</code> precedent for flagging a token addition. No new npm package, no new Rust crate, no new migration and no new Tauri capability permission.</p>
-  <p class="meta"><strong>Summary:</strong> Phase 5 is the last phase: it hands the user the four settings the application has been reading from hard-coded defaults since Phase 1, gives <code>settings.json</code> its real home under <code>%APPDATA%\IdeaScape</code>, and signs the dark theme off end to end across every screen Phases 1–4 built.</p>
+  <p class="meta"><strong>Summary:</strong> Phase 5 is the last phase: it hands the user the four settings the application has been reading from hard-coded defaults since Phase 1, gives settings.json its real home under %APPDATA%\IdeaScape, and signs the dark theme off end to end across every screen Phases 1–4 built.</p>
   <ul class="tasks">
     <li class="task" data-task="1" data-status="done">Task 1: The settings file, atomically written</li>
     <li class="task" data-task="2" data-status="done">Task 2: The reactive settings accessor</li>
@@ -209,6 +207,16 @@
     <li class="task" data-task="12" data-status="done">Task 12: Sign the dark theme off, and re-measure the gate</li>
     <li class="task" data-task="13" data-status="done">Task 13: Commit, push, and open PR</li>
   </ul>
+</section>
+
+<section class="phase" data-phase="6" data-status="not-planned">
+  <h2>Phase 6: The writing pack <span class="badge">not planned</span></h2>
+  <p class="meta"><strong>Branch:</strong> <em>to be determined by <code>/dev-plan-phase 6</code></em></p>
+  <p class="meta"><strong>Phase doc:</strong> <em>none yet — run <code>/dev-plan-phase 6</code></em></p>
+  <p class="meta"><strong>Feature plan:</strong> <a href="feature-writing-pack.html"><code>docs/feature-writing-pack.html</code></a> — the settled design this phase implements.</p>
+  <p class="meta"><strong>Visual design:</strong> <a href="design-system.html"><code>docs/design-system.html</code></a> §9.25–§9.33 — folded in 2026-09-08. This phase is <strong>no longer blocked</strong>.</p>
+  <p class="meta"><strong>Depends on:</strong> Phases 1–5 — all complete.</p>
+  <p class="meta"><strong>Summary:</strong> Phase 6 makes a card know what it is. Card types become data blueprints rather than code, so a writer records characters, chapters, scenes and beats in fields that suit them, and the lines between cards carry a meaning.</p>
 </section>
 
 </body>

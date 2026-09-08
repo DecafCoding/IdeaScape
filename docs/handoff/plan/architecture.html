@@ -72,7 +72,8 @@ This document is the technical authority. Downstream skills read it at this fixe
 <h2>1. Context</h2>
 
 <p>This design serves the MVP in <a href="mvp-plan.html">docs/mvp-plan.html</a>. That plan holds
-14 in-scope items. It was frozen on 2026-09-05.</p>
+<b>17 in-scope items</b>. It was frozen on 2026-09-05 and amended on 2026-09-05 and 2026-09-06 by
+<code>dev-ui-update</code>, which added four items and removed Vimeo.</p>
 
 <p>IdeaScape is a single-user Windows desktop application. The user places cards on a canvas and
 joins them with lines to build a concept.</p>
@@ -267,17 +268,17 @@ carried from the MVP plan, section 4.</p>
 <code>%APPDATA%\IdeaScape</code>. That is one file per machine, not one per project. The Settings
 screen names this path in its own footer, so it is user-visible.</p>
 
-<p>It holds the four values the Settings screen edits: the auto-save cadence, snap to grid, the
-zoom modifier, and the theme. The project folder path shown there is read-only and comes from the
+<p>It holds the five values the Settings screen edits: the auto-save cadence, snap to grid, the
+zoom modifier, the theme and the font. The project folder path shown there is read-only and comes from the
 open project, not from this file.</p>
 
 <p>It is deliberately <b>not</b> in the project folder. A project folder must stay portable &mdash;
 moved, zipped or backed up whole &mdash; and it would be wrong for a copied folder to carry another
-machine's theme choice. Nothing in this file is user data; losing it resets the four values to
+machine's theme choice. Nothing in this file is user data; losing it resets the five values to
 their defaults and nothing else.</p>
 
-<p>SQLite was considered for these four values and rejected. It would mean a second database with
-its own migrations for four scalars. Windows registry keys were rejected: the plan's privacy rule
+<p>SQLite was considered for these five values and rejected. It would mean a second database with
+its own migrations for five scalars. Windows registry keys were rejected: the plan's privacy rule
 favours a file the user can read and delete.</p>
 
 <p><i>Added 2026-09-05 by <code>dev-ui-update</code>. The Settings screen arrived with the design
@@ -373,8 +374,11 @@ network call.</p>
   <li>Link previews use <code>reqwest</code> to get the page and <code>scraper</code> to read the
       Open Graph tags. Open Graph tags are the standard page tags that carry a title, a
       description and a preview picture.</li>
-  <li>Video metadata uses the public oEmbed address for YouTube and Vimeo. oEmbed is a public
-      endpoint that returns a title and a thumbnail. It needs no key and no account.</li>
+  <li>Video metadata uses the public oEmbed address for YouTube. oEmbed is a public
+      endpoint that returns a title and a thumbnail. It needs no key and no account.
+      <i>Vimeo was removed from the MVP on 2026-09-06. A Vimeo address is treated as an ordinary
+      web link and takes the link-preview path above. Adding Vimeo back is one more oEmbed address
+      in the same module.</i></li>
   <li>Every fetch is cut off after 5 seconds, as the plan requires.</li>
 </ul>
 
@@ -399,7 +403,7 @@ pasted address to a server outside the user's machine. That breaks the plan's pr
     <td>The card shows a missing-file marker. The item is not deleted. The app does not crash</td></tr>
 <tr><td>Web page fetch</td><td>Wrapped in <code>fetch/</code></td>
     <td>The card is created at once, marked not fetched, with a retry button</td></tr>
-<tr><td>YouTube and Vimeo oEmbed</td><td>Wrapped in <code>fetch/</code></td>
+<tr><td>YouTube oEmbed</td><td>Wrapped in <code>fetch/</code></td>
     <td>The card falls back to the address. Clicking it still opens the browser</td></tr>
 <tr><td>Clipboard and file drop</td><td>Tauri calls, used directly</td>
     <td>Not applicable. These are local operating system calls</td></tr>
@@ -511,7 +515,7 @@ open transaction, which fights the automatic save above.</p>
 
 <h3 class="decision"
     data-decision="deployment-target"
-    data-status="settled"
+    data-status="amended"
     data-reversible="cheap">Windows NSIS installer, built locally, not signed</h3>
 <p class="badges"><span class="tag">settled</span><span class="tag">undo cost: cheap</span></p>
 
@@ -522,9 +526,17 @@ open transaction, which fights the automatic save above.</p>
   <li>Not code signed. Windows SmartScreen shows a warning on a machine that is not the
       developer's. This does not matter while the user is the only user.</li>
   <li>One environment. There is no staging and no production split.</li>
-  <li>No secrets. No API keys. Nothing the user must fill in to start. The one configuration file,
+  <li>Nothing the user must fill in to start. The one configuration file,
     <code>settings.json</code> (section 3), is written by the application, has working defaults, and
-    is never required to exist.</li>
+    is never required to exist. The MVP ships with no key configured and calls no service that needs
+    one.</li>
+  <li><b>A user-supplied API key is permitted.</b> An example is a YouTube data key, or the AI key
+    named in <a href="prd.html">docs/prd.html</a> section 13. Such a key would be held in
+    <code>settings.json</code>, entered by the user, and used only for a call the user started. The
+    application never ships a key of its own. The rule that is absolute is the privacy rule in
+    section 8: <b>no user information goes out over the network.</b> A key buys richer data about
+    something the user pasted. It never buys the right to send the user's notes or canvases
+    anywhere.</li>
   <li>No update service. This is required by the privacy rule.</li>
 </ul>
 
@@ -654,6 +666,34 @@ cost are unchanged.<br>
 must fill in to start", because <code>settings.json</code> now exists. It is written by the
 application, has working defaults, and is never required.<br>
 No stack, pattern, layout or boundary decision changed. Both house-default overrides stand.
+</p>
+
+<p class="meta">
+2026-09-06 &mdash; open design questions settled, by <code>dev-ui-update</code>. Ten of the twelve
+questions raised in <a href="design-system.html">docs/design-system.html</a> §15 were answered by
+the owner. One touches this document.<br>
+<b><code>network-boundary</code> narrowed:</b> video metadata now uses the YouTube oEmbed address
+only. <b>Vimeo was removed from the MVP</b>, so a Vimeo address takes the ordinary link-preview
+path in the same module. The boundary table row was renamed to match. The decision, its wrapper and
+its undo cost are unchanged &mdash; adding Vimeo back is one more oEmbed address in
+<code>src-tauri/src/fetch/</code>.<br>
+Nothing else here moved. Twenty decisions stand: four expensive, eight moderate, eight cheap.
+</p>
+
+<p class="meta">
+2026-09-06 &mdash; wording corrected on the owner's instruction. Direct request, with no feature
+interview paused.<br>
+<b><code>deployment-target</code> amended:</b> "No secrets. No API keys." was wrong. It contradicted
+<a href="prd.html">docs/prd.html</a> section 13, which already allows AI help as a call the user
+starts with their own key. The owner confirmed the real rule. A user-supplied API key is permitted
+and would live in <code>settings.json</code>. The absolute rule is the privacy rule: no user
+information goes out over the network. The rest of the decision is unchanged. The MVP still ships
+with no key configured and nothing to fill in to start.<br>
+<b>No capability was added.</b> The video card stays on the public YouTube oEmbed path, so
+<code>network-boundary</code>, <code>boundary-table</code> and <code>settings-storage</code> are
+untouched. <code>settings.json</code> still holds five values.<br>
+<a href="prd.html">docs/prd.html</a> section 8.2 and <code>CLAUDE.md</code> were corrected to match
+before this entry was written. Twenty decisions stand: four expensive, eight moderate, eight cheap.
 </p>
 
 </div>
