@@ -26,27 +26,32 @@ already on Windows 11 and ships at about 5 MB.
 
 ## Repository Location & Layout
 
-The repo lives at `C:\Repos\IdeaScape`. It currently holds `docs/` only — application code is
-not written yet, so the tree below is the agreed plan from `docs/architecture.html` §5.
+The repo lives at `C:\Repos\IdeaScape`. **Phases 1–5 have shipped**, so the tree below is the
+built layout, not a plan. It follows `docs/architecture.html` §5. Phase 6, the writing pack, is
+planned but not built — see `docs/progress.html`.
 
 ```
 IdeaScape/
 ├── src-tauri/
 │   ├── src/
-│   │   ├── main.rs          app start, command registration
+│   │   ├── main.rs          app start
+│   │   ├── lib.rs           command registration
 │   │   ├── db/              connection, migrations, schema
-│   │   ├── commands/        one file per area: project, canvas, item,
-│   │   │                    placement, connection, search
+│   │   ├── commands/        one file per area: project, canvas, item, placement,
+│   │   │                    connection, search, asset, fetch, settings
 │   │   ├── assets/          file copy, content hash, missing-file check
 │   │   ├── fetch/           link preview and video metadata
 │   │   └── error.rs         one error type returned to the front end
 │   └── migrations/          numbered .sql files
 ├── src/
-│   ├── features/            canvas, cards, connections, selection, undo,
-│   │                        projects, canvases, search
+│   ├── features/            canvas, canvases, cards, connections, projects,
+│   │                        search, selection, settings, shell, undo
 │   ├── stores/canvasStore.svelte.ts   the one shared canvas state
-│   ├── lib/                 ipc wrapper, markdown render, shared types
+│   ├── lib/                 ipc wrapper, markdown render, shared types, the
+│   │                        token and theme layer, culling and geometry maths
+│   ├── app.css
 │   └── app.svelte
+├── scripts/                 the performance-gate harness
 └── docs/
 ```
 

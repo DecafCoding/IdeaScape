@@ -104,8 +104,10 @@
 
 <h2>3. MVP Scope</h2>
 <p class="meta">
-  Scope authority: <a href="mvp-plan.html">docs/mvp-plan.html</a> §3 — 17 in-scope items,
-  20 deferred. This section restates it; it does not extend it.
+  Scope authority: <a href="mvp-plan.html">docs/mvp-plan.html</a> §3 — 18 in-scope items,
+  23 deferred. This section restates it; it does not extend it.<br>
+  Feature plan for the eighteenth item:
+  <a href="feature-writing-pack.html">docs/feature-writing-pack.html</a>.
 </p>
 
 <h3>3.1 In scope — core functionality</h3>
@@ -122,18 +124,19 @@
   <li data-checked="true">Projects, each holding many canvases</li>
   <li data-checked="true">A flat list of canvases inside a project, with create, rename and delete</li>
   <li data-checked="true">Text search over canvas names and card text, with canvas names ranked first</li>
+  <li data-checked="true">The writing pack (P6) — seven typed card types generated from data blueprints, connections that carry a role, list fields printed as chips on the card face, and a card that expands into its own canvas. See <a href="feature-writing-pack.html">feature-writing-pack.html</a></li>
 </ul>
 
 <h3>3.2 In scope — technical</h3>
 <ul class="checklist">
   <li data-checked="true">Automatic save after every change</li>
   <li data-checked="true">Works with no internet, except for link previews and video thumbnails</li>
-  <li data-checked="true">A keyboard shortcut set — the 14 keys printed on the context menus and the search footer (<a href="design-system.html">design-system.html</a> §11.6)</li>
+  <li data-checked="true">A keyboard shortcut set — the 14 keys printed on the context menus and the search footer, rising to 20 in Phase 6 (<a href="design-system.html">design-system.html</a> §11.6)</li>
 </ul>
 
 <h3>3.3 In scope — appearance and configuration</h3>
 <ul class="checklist">
-  <li data-checked="true">A Settings screen, applied as changes are made: project folder (read-only), auto-save cadence, snap to grid, zoom with, theme</li>
+  <li data-checked="true">A Settings screen, applied as changes are made: project folder (read-only), auto-save cadence, snap to grid, zoom with, theme, and — from P6 — show writing cards</li>
   <li data-checked="true">A light and a dark theme, chosen as Light, Dark or System</li>
 </ul>
 
@@ -143,17 +146,18 @@
   <li data-checked="false">Export a project to an open file format — a table stake the MVP knowingly does not meet (§13)</li>
   <li data-checked="false">Video that plays inside its card — a table stake the MVP meets only in part (§13)</li>
   <li data-checked="false">Vimeo video cards. A Vimeo address still works: it becomes an ordinary link card</li>
-  <li data-checked="false">A library screen, showing every item in a project and its unplaced items</li>
-  <li data-checked="false">Reusable shaped items — characters, tropes, themes — each with its own payload and editor</li>
+  <li data-checked="false">A library screen, showing every item in a project and its unplaced items — partly met by P6, which ships an Unplaced list only</li>
   <li data-checked="false">Relationships between library items, and a graph view of them</li>
-  <li data-checked="false">Boards nested inside a canvas</li>
   <li data-checked="false">A browser extension web clipper</li>
   <li data-checked="false">AI features, started by the user, using the user's own key</li>
   <li data-checked="false">Freehand drawing and an ink layer</li>
-  <li data-checked="false">Templates and starter canvases</li>
+  <li data-checked="false">Book templates — pick a genre and a sub-genre, then fill a Book card's fields from a guide drawn from a previous book. Deferred inside the writing pack, with its rulings already recorded (<a href="feature-writing-pack.html">feature-writing-pack.html</a> §3, §5)</li>
+  <li data-checked="false">Highlight mode — click a chip and every card carrying that value lights up. Deferred inside the writing pack</li>
+  <li data-checked="false">Board cards — a card whose content is computed rather than typed. Deferred inside the writing pack</li>
+  <li data-checked="false">User-written blueprints — a screen where the user builds their own card type. Deferred inside the writing pack</li>
   <li data-checked="false">Version history and restore</li>
   <li data-checked="false">PDF cards and PDF annotation</li>
-  <li data-checked="false">Tags, colours and card metadata</li>
+  <li data-checked="false">Colours on cards. Tags and card metadata are met by P6, as list fields printed on the card face as chips</li>
   <li data-checked="false">Task lists and column layouts</li>
   <li data-checked="false">Font and typography choice</li>
   <li data-checked="false">Import from other tools</li>
@@ -239,6 +243,27 @@ As the user, I want to choose Light, Dark or System, so that the application mat
 rest of my desktop.<br>
 <em>Example:</em> The user sets System. Windows switches to dark at sunset and IdeaScape follows,
 with nothing moving on screen between the two themes.</p>
+
+<p><strong>US-11 — Give a card the fields its subject needs.</strong><br>
+As the user, I want to add a card that already knows what a character is, so that I record a
+personality and a set of tropes instead of retyping the same headings on a note.<br>
+<em>Example:</em> The user adds a Character card, types a name, drags five sliders, and picks two
+tropes from a list. The card face shows the picture, the name, the one-liner and two chips. Nothing
+was required to save it.</p>
+
+<p><strong>US-12 — Outline a chapter by wiring it together.</strong><br>
+As the user, I want a line between two cards to say <em>why</em> they are joined, so that the canvas
+is an outline and not only a picture.<br>
+<em>Example:</em> The user wires four Beat cards into a Scene card, and the Scene into a Chapter
+card, each line reading "Feeds". The next day they wire a Beat straight into the Chapter instead,
+and the application accepts it without a warning.</p>
+
+<p><strong>US-13 — Zoom in on one card without leaving the outline.</strong><br>
+As the user, I want a card to expand into its own canvas, so that a book canvas stays readable while
+each chapter has room of its own.<br>
+<em>Example:</em> On the book canvas the user selects Chapter 7 and presses Expand Into A Canvas. A
+new canvas opens with the same Chapter card on it. They add beats and scenes around it and write the
+prose. Back on the book canvas, the card shows the summary they just typed.</p>
 
 <h3>4.2 Technical stories</h3>
 
@@ -413,7 +438,10 @@ rule is enforceable by reading one folder.</p>
 <h3>6.8 Keyboard</h3>
 <p>
   14 keys, each printed on a context menu or the search footer, so the application must honour them.
-  Full map in <a href="design-system.html">design-system.html</a> §11.6.
+  <strong>Phase 6 adds six more</strong> — <code>2</code> to <code>7</code>, which create a Book,
+  Chapter, Scene, Beat, Character or Location at the pointer, printed on the left column's
+  <strong>Cards · Writing Pack</strong> submenu. Full map in
+  <a href="design-system.html">design-system.html</a> §11.6.
 </p>
 <table>
   <tr><th>Key</th><th>Action</th></tr>
@@ -453,14 +481,23 @@ rule is enforceable by reading one folder.</p>
   <tr><th>Entity</th><th>Fields</th><th>Notes</th></tr>
   <tr><td><code>project</code></td><td>id, name, created_at, updated_at</td><td>One project is one folder on disk</td></tr>
   <tr><td><code>canvas</code></td><td>id, project_id, name, sort_order, view_x, view_y, view_zoom, created_at, updated_at</td><td>The view fields remember where the user was looking</td></tr>
-  <tr><td><code>item</code></td><td>id, project_id, kind, payload, created_at, updated_at</td><td><code>kind</code> is note, image, link or video; <code>payload</code> is typed per kind</td></tr>
+  <tr><td><code>item</code></td><td>id, project_id, kind, payload, created_at, updated_at</td><td><code>kind</code> is note, image, link, video or blueprint; <code>payload</code> is typed per kind. <code>blueprint</code> was added by migration 0007 in P6, which rebuilds the table because SQLite cannot change a CHECK constraint in place. It is the <em>only</em> kind the writing pack adds — the card type is a value inside the payload, so a later card type needs no migration</td></tr>
   <tr><td><code>placement</code></td><td>id, canvas_id, item_id, x, y, width, height, z_order</td><td>One card on one canvas</td></tr>
-  <tr><td><code>connection</code></td><td>id, canvas_id, from_placement_id, to_placement_id, label, directed, color, width, label_visible, route, from_anchor, to_anchor, bend</td><td>Joins two placements on the same canvas. <code>color</code>, <code>width</code>, <code>label_visible</code>, <code>route</code>, <code>from_anchor</code> and <code>to_anchor</code> are style keys resolved by the front end; <code>route</code> is <code>straight</code> or <code>elbow</code>, and each anchor is <code>auto</code> or a card side. <code>bend</code> is a hand-placed bend as JSON, held in the frame of the two card centres, or empty for none. No canvas coordinate is ever stored on a connection. See <code>docs/design-system.html</code> §9.13</td></tr>
+  <tr><td><code>connection</code></td><td>id, canvas_id, from_placement_id, to_placement_id, label, directed, color, width, label_visible, route, from_anchor, to_anchor, bend, role</td><td>Joins two placements on the same canvas. <code>role</code> was added by migration 0008 in P6. It is nullable, a null reads as "Relates To", and it never restricts which cards may be joined. <code>color</code>, <code>width</code>, <code>label_visible</code>, <code>route</code>, <code>from_anchor</code> and <code>to_anchor</code> are style keys resolved by the front end; <code>route</code> is <code>straight</code> or <code>elbow</code>, and each anchor is <code>auto</code> or a card side. <code>bend</code> is a hand-placed bend as JSON, held in the frame of the two card centres, or empty for none. No canvas coordinate is ever stored on a connection. See <code>docs/design-system.html</code> §9.13</td></tr>
 </table>
 <pre><code>note   { title, text }
 image  { asset, natural_width, natural_height, alt }
 link   { url, title, description, favicon_asset, thumbnail_asset, fetched_at }
-video  { url, provider, title, thumbnail_asset, fetched_at }</code></pre>
+video  { url, provider, title, thumbnail_asset, fetched_at }
+blueprint { blueprint, name, detail_canvas_id, fields }</code></pre>
+<p>
+  <code>blueprint</code> names the card type — <code>book</code>, <code>chapter</code>,
+  <code>scene</code>, <code>beat</code>, <code>character</code>, <code>location</code>. It refers to a
+  read-only data file that ships inside the application. <code>fields</code> is keyed by the field
+  keys that blueprint declares. <code>detail_canvas_id</code> is the canvas this card expands into,
+  or null. Added 2026-09-07 by <code>dev-add-feature</code>; the full shape is in
+  <a href="feature-writing-pack.html">docs/feature-writing-pack.html</a> §5.
+</p>
 <p>
   An <code>asset</code> value is always a file name inside the project's <code>assets/</code> folder.
   It is never an absolute path.
@@ -470,7 +507,8 @@ video  { url, provider, title, thumbnail_asset, fetched_at }</code></pre>
   <li>Deleting a project deletes its folder, its database and every asset file.</li>
   <li>Deleting a canvas deletes its placements and connections; items are then checked against the rule below.</li>
   <li>Deleting a placement deletes the connections attached to it.</li>
-  <li>Deleting the <em>last</em> placement of an item deletes the item and its asset files. This stops invisible junk, because the MVP has no library screen. Undo restores all of it together.</li>
+  <li>Deleting the <em>last</em> placement of a <strong>note, image, link or video</strong> item deletes the item and its asset files. This stops invisible junk, because the MVP has no library screen. Undo restores all of it together.</li>
+  <li>Deleting the <em>last</em> placement of a <strong>blueprint</strong> item keeps the item. It moves to the Unplaced list in the left column, where it can be placed again or deleted for good. Corrected 2026-09-07 by <code>dev-add-feature</code>: the single rule would have destroyed a reused Character when the user removed them from their only chapter.</li>
 </ul>
 
 <h2>7. Technology Stack</h2>
@@ -542,7 +580,7 @@ video  { url, provider, title, thumbnail_asset, fetched_at }</code></pre>
 <h3>7.1 Assets shipped with the application</h3>
 <ul>
   <li><strong>Source Serif 4</strong>, vendored locally. No network font fetch, ever.</li>
-  <li><strong>34 Phosphor icon glyphs</strong>, vendored locally. Details in <a href="design-system.html">design-system.html</a> §14.</li>
+  <li><strong>61 Phosphor icon glyphs</strong>, vendored locally — 33 for Phases 1–5 and 28 more for the canvas states and Phase 6. Details in <a href="design-system.html">design-system.html</a> §7.1 and §14.</li>
   <li>A small Markdown renderer with built-in cleaning (library not yet chosen — see §11 open questions in <a href="architecture.html">architecture.html</a>).</li>
 </ul>
 
@@ -810,6 +848,50 @@ const p = await invokeSafe&lt;Placement&gt;('create_placement', {
   <li data-checked="false">Every remaining line in §10.2 passes</li>
 </ul>
 
+<h3 class="phase" data-phase="6">Phase 6: The writing pack</h3>
+<p class="meta">Estimate: large. Added 2026-09-07 by <code>dev-add-feature</code>. It sits last so no earlier phase is renumbered. Planned in full in <a href="feature-writing-pack.html">docs/feature-writing-pack.html</a>, which this section summarises and does not replace.</p>
+<p class="meta"><strong>The design is done — this phase is ready to plan.</strong> <a href="design-system.html">docs/design-system.html</a> §9.25–§9.33 holds the generated properties panel measured for 177px, all seven field controls, the combo in four states, the chip, the slider and its dice button, the seven card faces, connection roles, and the three full-screen sheets. Folded in on 2026-09-08 by <code>dev-ui-update</code> from the revised handoff bundle. Read it before writing any component; do not invent a visual value.</p>
+<p><strong>Goal:</strong> make a card know what it is. Card types become data blueprints rather than code, so a writer records characters, chapters, scenes and beats in fields that suit them, and the lines between cards carry a meaning.</p>
+<p><strong>Deliverables:</strong></p>
+<ul class="checklist">
+  <li data-checked="false">Migration 0007 — rebuild the <code>item</code> table to widen its <code>kind</code> CHECK, adding one new kind, <code>blueprint</code>. First task: it rewrites a table holding the user's work</li>
+  <li data-checked="false">Migration 0008 — <code>connection.role TEXT NULL</code>. Migration 0009 — the per-project user list entry table</li>
+  <li data-checked="false">The blueprint engine — one properties-panel state generated from a field list, with the field's <code>meaning</code> line as help text</li>
+  <li data-checked="false">Seven field kinds: Short Text, Long Text, Pick, Pick Many, Image, Number, Scale</li>
+  <li data-checked="false">Seven shipped card types: Book, Chapter, Scene, Beat, Character, Location, and the existing Note</li>
+  <li data-checked="false">The combo control — a text box with a list button, where a typed value is always accepted and saved to the project's own list</li>
+  <li data-checked="false">The shipped lists — genres, sub-genres, story tropes, character tropes, themes — drawn from the Book Guides library, read-only, with one-hop filtering that sorts and never hides</li>
+  <li data-checked="false">The pick entry shape: an id, the user's own text, and a list of sources. Editing the text never changes the id</li>
+  <li data-checked="false">Chips on the card face, generated from each field's <code>show_on_face</code> flag. A Long Text field never prints on a face</li>
+  <li data-checked="false">The Scale control, the shaped Randomize roll (weights 1, 3, 6, 8, 6, 3, 1) and its guarantee that a spread is never flat</li>
+  <li data-checked="false">Connection roles — <strong>seven</strong>: Feeds, Follows, <strong>Part Of</strong>, Appears In, Told By, Set In, Relates To — suggested from the two card types, always editable, and never a rule. <code>Part Of</code> reads <code>Contains</code> from the other end, so one <strong>Joined to</strong> group shows both directions. <code>role = NULL</code> reads as <code>Relates To</code>, so a connection made before Phase 6 keeps looking exactly as it does today, with no glyph on the line</li>
+  <li data-checked="false">The role affordance on the canvas — a 15px glyph at rest, opening to a named chip on hover or when either end is selected, plus a <strong>Role</strong> combo in the properties panel above <strong>Label</strong> (<a href="design-system.html">design-system.html</a> §9.13)</li>
+  <li data-checked="false">Expand Into A Canvas — <code>payload.detail_canvas_id</code>, the create-and-place action, and the cleanup when a canvas is deleted</li>
+  <li data-checked="false">The corrected last-placement delete rule, and the Unplaced list in the left column that it needs</li>
+  <li data-checked="false">A fourth <code>LIKE</code> query, over blueprint card names and Long Text fields, with canvas names still ranked first</li>
+  <li data-checked="false">Undo for every new action: set a field, add a list entry, remove a list entry, Randomize, set a role</li>
+  <li data-checked="false">A Settings toggle, <strong>Show Writing Cards</strong>, default on — a sixth value in <code>settings.json</code>, the <strong>seventh</strong> row on the Settings screen (the Font row took the sixth) in a new full-width <strong>Packs</strong> group, using the P5 toggle control. It hides the left column's <code>Writing Pack</code> submenu parent only; a card already on a canvas is never affected, and a missing key reads as on</li>
+  <li data-checked="false">The left column's <code>Add</code> group becomes <strong>Cards</strong>, with a <code>General</code> submenu (Note, Image) and a <code>Writing Pack</code> submenu (the six types). The submenu reuses the context-menu shell, flown out of the rail at <code>left: 100%</code>, 206px wide</li>
+  <li data-checked="false">Six new keyboard shortcuts, <code>2</code> to <code>7</code>, creating a Book, Chapter, Scene, Beat, Character or Location at the pointer, printed on the submenu rows</li>
+  <li data-checked="false">Three full-screen sheets replacing the canvas, sharing one shell — <strong>Character</strong> (five Scale sliders and the dice button), <strong>Book</strong> (the same shape, with Tropes and Themes instead of sliders) and <strong>Chapter</strong> (the strip, the one context line, and a 560px prose measure running off the bottom of the window). Scene, Beat and Location stay in the properties panel</li>
+  <li data-checked="false">The panel's two generated groups for a writing card — <strong>Placed on</strong>, one row per placement with the count stated in words, and <strong>Joined to</strong>, one row per connection with the role on its own line beneath and several of one role collapsed to a count</li>
+</ul>
+<p><strong>Validation:</strong></p>
+<ul class="checklist">
+  <li data-checked="false"><strong>Gate:</strong> 250 blueprint cards carrying chips pan at 60&nbsp;fps</li>
+  <li data-checked="false"><strong>Gate:</strong> the installer stays under 20&nbsp;MB with the shipped lists inside it</li>
+  <li data-checked="false">A project made before P6 opens in a P6 build with every card intact</li>
+  <li data-checked="false">Deleting the last placement of a Character keeps the Character; deleting the last placement of an image still deletes its picture file, and undo still brings it back</li>
+  <li data-checked="false">Randomize never produces a flat spread over 10,000 runs, and undo restores all five sliders in one step</li>
+  <li data-checked="false">Any card type joins any other. No pair is refused and no validation error is shown</li>
+  <li data-checked="false">Show Writing Cards hides the left column's <code>Writing Pack</code> submenu parent, while a card already on a canvas still draws, edits, connects and is found by search</li>
+  <li data-checked="false"><strong>Gate:</strong> every writing-pack screen matches <a href="design-system.html">design-system.html</a> §9.25–§9.33 at its locked token values, in light and in dark</li>
+  <li data-checked="false">Every field control fits the 177px properties panel with no horizontal scroll and no clipped chip, at the 350px minimum window width</li>
+  <li data-checked="false">A connection made before Phase 6 draws with no role glyph and looks byte-for-byte as it did, because <code>role = NULL</code></li>
+  <li data-checked="false">Editing a card on its sheet and editing it in the panel produce the same payload and the same single undo entry</li>
+  <li data-checked="false">A network monitor records zero traffic for a session that creates every card type</li>
+</ul>
+
 <h2>12. Future Considerations</h2>
 <p class="meta">
   Ranked backlog in <a href="competitive-scan.html">docs/competitive-scan.html</a>. Recorded here, not
@@ -828,13 +910,15 @@ const p = await invokeSafe&lt;Placement&gt;('create_placement', {
     IdeaScape shows title, thumbnail and link — a visible gap next to Milanote.
   </li>
   <li>
-    <strong>A library screen.</strong> Shows every item in a project and its unplaced items. This is
-    the precondition for relaxing the "delete the last placement deletes the item" rule.
+    <strong>A library screen.</strong> Shows every item in a project and its unplaced items.
+    <em>Partly met by P6</em>, which ships an Unplaced list holding blueprint items only. The full
+    screen is still wanted.
   </li>
   <li>
     <strong>Reusable shaped items</strong> — characters, tropes, themes — each with its own payload and
-    editor. The placement/item split in §6.9 exists specifically so this costs a new <code>kind</code>
-    and not a data-model rewrite.
+    editor. <em>Built in P6 as the writing pack.</em> The placement/item split in §6.9 was made for
+    this, and it held: it cost one new <code>kind</code> and no data-model rewrite. See
+    <a href="feature-writing-pack.html">feature-writing-pack.html</a>.
   </li>
   <li>
     <strong>Relationships between items, and a graph view.</strong> Different from canvas connections,
@@ -892,7 +976,7 @@ const p = await invokeSafe&lt;Placement&gt;('create_placement', {
   <tr>
     <td><strong>The library has no screen in the MVP</strong></td>
     <td>Reusable items cannot be seen or managed, and orphan items would be invisible junk</td>
-    <td>The lifecycle rule in §6.9 — deleting the last placement deletes the item and its assets — stops junk accumulating until the library screen exists. Undo restores all of it together</td>
+    <td>The lifecycle rule in §6.9 — deleting the last placement deletes the item and its assets — stops junk accumulating until the library screen exists. Undo restores all of it together. From P6 that rule covers the four original kinds only; a blueprint item survives and appears in the Unplaced list instead</td>
   </tr>
   <tr>
     <td><strong><code>dev-claud-md</code> overwrites the stack override</strong></td>
@@ -924,7 +1008,8 @@ const p = await invokeSafe&lt;Placement&gt;('create_placement', {
   <tr><td><a href="architecture.html">docs/architecture.html</a></td><td>Stack, storage, pattern, module layout, boundaries, state and failure, non-functional, deployment — 20 settled decisions</td><td><code>dev-architecture</code>, amended by <code>dev-ui-update</code></td></tr>
   <tr><td><a href="design-system.html">docs/design-system.html</a></td><td>Every colour, size, spacing, screen layout, interaction state and on-screen state</td><td><code>dev-ui-update</code> from <code>docs/handoff/</code></td></tr>
   <tr><td><a href="competitive-scan.html">docs/competitive-scan.html</a></td><td>10 comparable applications, 37 capability rows, the ranked backlog</td><td><code>dev-initial-interview</code></td></tr>
-  <tr><td><code>docs/handoff/</code></td><td>The original 12-screen high-fidelity UI bundle</td><td>The designer</td></tr>
+  <tr><td><code>docs/handoff/</code></td><td>The high-fidelity UI bundle — 12 screens on 2026-09-05, revised to <strong>31</strong> on 2026-09-08 with the canvas states, two failure screens and the writing pack</td><td>The designer</td></tr>
+  <tr><td><a href="feature-writing-pack.html">docs/feature-writing-pack.html</a></td><td>The writing pack — the blueprint format, the seven field kinds, the seven connection roles, the pick vocabulary and where each value is stored</td><td><code>dev-add-feature</code>, amended by <code>dev-ui-update</code></td></tr>
 </table>
 
 <h3>14.2 Key external dependencies</h3>
@@ -935,7 +1020,7 @@ const p = await invokeSafe&lt;Placement&gt;('create_placement', {
   <li><strong>reqwest</strong> + <strong>scraper</strong> — link preview fetching and Open Graph parsing</li>
   <li><strong>Microsoft Edge WebView2</strong> — the browser engine, shipping with Windows 11, bootstrapper bundled in the installer</li>
   <li><strong>YouTube public oEmbed endpoint</strong> — video title and thumbnail; no key, no account</li>
-  <li><strong>Source Serif 4</strong> and <strong>Phosphor Icons</strong> (34 glyphs) — both vendored locally</li>
+  <li><strong>Source Serif 4</strong>, <strong>Inter</strong> and <strong>Patrick Hand</strong> (the three Font choices) and <strong>Phosphor Icons</strong> (61 glyphs) — all vendored locally</li>
   <li>A small Markdown renderer with built-in cleaning — not yet chosen; settles in Phase 1</li>
 </ul>
 
@@ -957,12 +1042,17 @@ const p = await invokeSafe&lt;Placement&gt;('create_placement', {
   <tr><td>Scrollbar styling</td><td>A thin overlay scrollbar in <code>--color-neutral-400</code> on a transparent track is the obvious fit, but it is not drawn</td><td>Phase 1</td></tr>
   <tr><td>The content hash algorithm for asset file names</td><td>BLAKE3 or SHA-256; speed matters more than cryptographic strength</td><td>Phase 3</td></tr>
   <tr><td>Four undrawn dark-theme shadows, and the accent-2-400 value on the dark surface</td><td>Measure when the dark theme is signed off end to end</td><td>Phase 5</td></tr>
-  <tr><td>Eight undrawn screens and six undrawn failure states</td><td>A design pass before the phase that builds each (<a href="design-system.html">design-system.html</a> §15.1, §15.2)</td><td>Per phase</td></tr>
+  <tr><td>Three undrawn fetch-failure states — no internet, no preview data, and a fetch cut off at five seconds</td><td>Each is a composition of parts already specified: the link card's "not fetched yet" and "no preview data" appearances and the disabled Refetch button. Nothing new needs designing (<a href="design-system.html">design-system.html</a> §15.2)</td><td>Phase 3</td></tr>
+  <tr><td>Does Chapter carry tropes as well as themes?</td><td>One line in a data file either way. Decide before the Chapter blueprint is written (<a href="design-system.html">design-system.html</a> §15.4)</td><td>Phase 6</td></tr>
+  <tr><td>A connection carrying a role <em>and</em> a free label on the same line</td><td>The rule is authored — the role owns the midpoint, the label moves to the midpoint of the longer half, the role wins when the line is too short for both. Confirm against a real wired canvas</td><td>Phase 6</td></tr>
+  <tr><td>Is the Character card face too sparse? It draws picture, name and role only</td><td>Judge on a real canvas of ten characters. The one-liner and the trope chips are the first things to add back</td><td>Phase 6</td></tr>
+  <tr><td>The keyboard shortcut for leaving a full-screen sheet or Settings</td><td><code>Esc</code> is the obvious fit, but it must not fire while a text field has focus — and on the Chapter sheet almost the whole screen is a text field</td><td>Phase 5 for Settings, Phase 6 for the sheets</td></tr>
 </table>
 
 <h3>14.5 Document history</h3>
 <ul>
   <li><strong>2026-09-06</strong> — created from <code>docs/mvp-plan.html</code>, <code>docs/architecture.html</code>, <code>docs/design-system.html</code> and <code>docs/competitive-scan.html</code>. No conflicts were found between the four sources.</li>
+  <li><strong>2026-09-08</strong> — the revised design handoff folded in by <code>dev-ui-update</code>, from <code>docs/handoff/</code> at 31 screens. <strong>Phase 6 is unblocked</strong>: the "blocked until the design pass runs" note is removed and its deliverables now cite <a href="design-system.html">design-system.html</a> §9.25–§9.33. Phase 6 gained four deliverables — three full-screen sheets, the left column's <code>Cards</code> group and its two submenus, the <code>2</code>–<code>7</code> shortcuts, and a seventh connection role, <code>Part Of</code>. §3.2 and §6.8 record the shortcut set rising to 20 keys; §7.1 and §14.2 the glyph set rising to 61; §14.1 the bundle's new size and the writing-pack brief; §14.4 five open questions replacing the "eight undrawn screens" row, which is now empty. <strong>No phase was renumbered, no phase before 6 gained a deliverable, and the data model did not change.</strong> Two things in the bundle were declined and are logged in the design system: a 252px properties panel (it stays at 177px) and a monospace family (there is none).</li>
 </ul>
 
 </body>
