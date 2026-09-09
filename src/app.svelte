@@ -434,8 +434,13 @@
     const canvasId = canvasStore.activeCanvasId;
     if (canvasId === null) return;
 
+    // Phase 6's mode: 250 WRITING cards carrying chips, rather than the mixed set. The two
+    // passes, the sweep and the dropped-frame definition are unchanged, so this phase's
+    // number is directly comparable with Phase 1's.
+    const writing = await invokeSafe<boolean>('perf_gate_writing').catch(() => false);
     if (canvasStore.cardCount < 250) {
-      await invokeSafe('seed_mixed_cards', { canvasId, count: 250 - canvasStore.cardCount });
+      const count = 250 - canvasStore.cardCount;
+      await invokeSafe(writing ? 'seed_blueprint_cards' : 'seed_mixed_cards', { canvasId, count });
       await canvasStore.loadCanvas(canvasId);
     }
 
@@ -462,10 +467,17 @@
 
     const path = await invokeSafe<string>('record_perf_result', {
       json: JSON.stringify(
-        { startedAt: new Date().toISOString(), openMs, pickerOpenMs, passes },
+        {
+          startedAt: new Date().toISOString(),
+          mode: writing ? 'writing' : 'mixed',
+          openMs,
+          pickerOpenMs,
+          passes,
+        },
         null,
         2,
       ),
+      fileName: writing ? 'perf-gate-writing-result.json' : 'perf-gate-result.json',
     });
     logInfo(`the performance gate result was written to ${path}`);
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -2033,6 +2045,7 @@
           onNoteTitleChange={(title) => void commitNoteTitle(title)}
           onReplaceImage={() => void replaceImage()}
           {itemContext}
+          reserved={sheetBlueprint()?.id === 'chapter'}
           onFieldChange={(key, value, added) => {
             const item = selectedItem();
             if (item) void changeField(item.id, key, value, added);

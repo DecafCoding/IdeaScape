@@ -27,6 +27,7 @@
   import Icon from '../../lib/Icon.svelte';
   import { getSettings } from '../../lib/settings.svelte';
   import { parseBlueprintPayload } from '../../lib/blueprints.svelte';
+  import { renderMarkdown } from '../../lib/markdown';
   import { roleLabel } from '../../lib/roles';
   import type { Blueprint, FieldValue } from '../../lib/blueprints.svelte';
   import type { Item, ItemContext } from '../../lib/types';
@@ -68,6 +69,13 @@
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const shown = $derived(editing ? draft : stored);
+  /**
+   * The prose RENDERED, for the resting view. It goes through the same sanitised path a note
+   * body does — `renderMarkdown` strips every tag outside its allow-list — so a `<script>`
+   * in the prose is text and can never run.
+   */
+  const rendered = $derived(renderMarkdown(stored));
+  let surface = $state<HTMLTextAreaElement | null>(null);
 
   const wordCount = $derived(shown.trim() === '' ? 0 : shown.trim().split(/\s+/).length);
   const target = $derived(
@@ -93,6 +101,14 @@
     }
     return parts;
   });
+
+  /** Swap the text box in over the source, and put the caret in it. */
+  function beginEditing() {
+    if (editing) return;
+    draft = stored;
+    editing = true;
+    queueMicrotask(() => surface?.focus());
+  }
 
   function commitProse() {
     if (timer) {
@@ -191,21 +207,41 @@
     {/if}
 
     {#if proseField}
+      <!-- At rest the prose is the RENDERED Markdown; editing swaps a plain text box over
+           the source, exactly as a note card does. There is no editor library. -->
       <div class="surface" data-testid="writing-surface">
-        <textarea
-          class="measure"
-          aria-label={proseField.label}
-          value={shown}
-          onfocus={() => {
-            draft = stored;
-            editing = true;
-          }}
-          oninput={(event) => {
-            draft = event.currentTarget.value;
-            scheduleCommit();
-          }}
-          onblur={commitProse}
-        ></textarea>
+        {#if editing}
+          <textarea
+            bind:this={surface}
+            class="measure"
+            aria-label={proseField.label}
+            value={shown}
+            oninput={(event) => {
+              draft = event.currentTarget.value;
+              scheduleCommit();
+            }}
+            onblur={commitProse}
+          ></textarea>
+        {:else}
+          <div
+            class="measure prose"
+            role="button"
+            tabindex="0"
+            aria-label={proseField.label}
+            data-testid="writing-prose"
+            onfocus={beginEditing}
+            onclick={beginEditing}
+            onkeydown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                beginEditing();
+              }
+            }}
+          >
+            <!-- Sanitised Markdown only. `renderMarkdown` is the one path this is allowed on. -->
+            {@html rendered}
+          </div>
+        {/if}
       </div>
 
       <footer class="foot" data-testid="chapter-foot">

@@ -9,10 +9,9 @@
   - `face`: on a card face — loses the remove icon and tightens
   - `overflow`: the `+n` pill, the same shape at opacity .55
 
-  This lives in `lib/fields/` rather than in a feature because the panel
-  (`features/shell`), the card face (`features/cards`) and the sheets (`features/writing`)
-  all draw it, and a feature may not import another feature. `lib/Icon.svelte` is the
-  precedent for a shared component in `lib/`.
+  This lives in `lib/fields/` rather than in a feature because the panel, the card face and
+  the sheets all draw it, and the import-direction rule forbids one feature importing
+  another. `lib/Icon.svelte` is the precedent for a shared component in `lib/`.
 -->
 <script lang="ts">
   import Icon from '../Icon.svelte';

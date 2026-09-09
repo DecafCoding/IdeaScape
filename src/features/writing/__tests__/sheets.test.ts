@@ -436,6 +436,22 @@ describe('Chapter, the writing surface', () => {
     view.destroy();
   });
 
+  it('chapterSheet_atRest_drawsTheRenderedProseAndSwapsInATextBoxToEdit', () => {
+    const view = render(ChapterSheet, props({ prose: 'She woke in the **hull**.' }));
+    const prose = view.host.querySelector('[data-testid="writing-prose"]') as HTMLElement;
+    expect(prose).not.toBeNull();
+    // Rendered Markdown, not the source.
+    expect(prose.querySelector('strong')?.textContent).toBe('hull');
+    expect(view.host.querySelector('textarea')).toBeNull();
+
+    prose.click();
+    flushSync();
+    // Editing swaps a plain text box over the source. There is no editor library.
+    expect(view.host.querySelector('textarea')).not.toBeNull();
+    expect(view.host.querySelector('[data-testid="writing-prose"]')).toBeNull();
+    view.destroy();
+  });
+
   it('chapterSheet_theWritingSurfaceIsA560pxMeasure', async () => {
     const view = render(ChapterSheet, props());
     expect(view.host.querySelector('[data-testid="writing-surface"]')).not.toBeNull();
@@ -476,9 +492,10 @@ describe('Chapter, the writing surface', () => {
   it('chapterSheet_aBurstOfTypingCommitsOnceOnBlur', () => {
     const onFieldChange = vi.fn();
     const view = render(ChapterSheet, { ...props(), onFieldChange });
-    const textarea = view.host.querySelector('.measure') as HTMLTextAreaElement;
+    (view.host.querySelector('[data-testid="writing-prose"]') as HTMLElement).click();
+    flushSync();
+    const textarea = view.host.querySelector('textarea') as HTMLTextAreaElement;
 
-    textarea.dispatchEvent(new FocusEvent('focus'));
     for (const text of ['S', 'Sh', 'She', 'She w', 'She wo']) {
       textarea.value = text;
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -494,12 +511,26 @@ describe('Chapter, the writing surface', () => {
     view.destroy();
   });
 
-  it('chapterSheet_scriptInTheProse_isNeverRenderedAsMarkup', () => {
+  it('chapterSheet_scriptInTheProse_isSanitisedAndNeverRuns', () => {
     const view = render(ChapterSheet, props({ prose: '<script>alert(1)</' + 'script>' }));
-    const textarea = view.host.querySelector('.measure') as HTMLTextAreaElement;
-    // The prose is a textarea value — a text node, never markup — so it cannot run.
-    expect(textarea.value).toContain('<script>');
+    // The rendered view goes through the same sanitised Markdown path a note body does.
     expect(view.host.querySelector('script')).toBeNull();
+    expect(view.host.querySelector('[data-testid="writing-prose"]')?.innerHTML).not.toContain(
+      '<script',
+    );
+
+    // And the source is still there, unchanged, in the text box.
+    (view.host.querySelector('[data-testid="writing-prose"]') as HTMLElement).click();
+    flushSync();
+    expect((view.host.querySelector('textarea') as HTMLTextAreaElement).value).toContain(
+      '<script>',
+    );
     view.destroy();
+  });
+
+  it('chapterSheet_proseNeverAppearsOnTheCardFace', () => {
+    // The blueprint bars it, and the face component refuses to render a long-text field
+    // besides — so a hand-edited data file cannot put prose on a 264px tile either.
+    expect(CHAPTER.fields.find((f) => f.key === 'prose')?.show_on_face).toBe(false);
   });
 });

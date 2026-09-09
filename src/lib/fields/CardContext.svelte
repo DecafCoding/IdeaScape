@@ -3,8 +3,8 @@
   reused card legible: where else this record is, and what it is wired to. Both are the
   visible proof that one item can have many placements.
 
-  It lives in `lib/` because the properties panel (`features/shell`) and all three sheets
-  (`features/writing`) draw it, and a feature may not import another feature.
+  It lives in `lib/` because the properties panel and all three sheets draw it, and the
+  import-direction rule forbids one feature importing another.
 
   Two rules are carried here rather than in either caller:
   - the *Placed on* count is stated IN WORDS — "One record, three places" — because it is

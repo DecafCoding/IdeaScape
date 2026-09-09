@@ -73,7 +73,9 @@ pub fn run() {
         commands::placement::delete_placements,
         commands::placement::seed_note_cards,
         commands::placement::seed_mixed_cards,
+        commands::placement::seed_blueprint_cards,
         commands::project::perf_gate_requested,
+        commands::project::perf_gate_writing,
         commands::project::perf_gate_project_path,
         commands::project::record_perf_result,
     ]);

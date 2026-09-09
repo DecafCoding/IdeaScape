@@ -401,12 +401,28 @@ pub fn perf_gate_requested() -> AppResult<bool> {
     Ok(std::env::args().any(|a| a == "--perf-gate"))
 }
 
+/// Whether the Phase 6 gate was asked for: 250 WRITING cards rather than the mixed set.
+///
+/// A second mode beside the first rather than a replacement, so Phase 1's and Phase 3's
+/// numbers stay reproducible and this phase's is measured the same way.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn perf_gate_writing() -> AppResult<bool> {
+    Ok(std::env::args().any(|a| a == "--perf-gate-writing"))
+}
+
 /// Write the finished gate measurement beside the binary's working directory, so the
 /// recorded artefact the PR body cites comes from the running application.
 #[cfg(debug_assertions)]
 #[tauri::command]
-pub fn record_perf_result(json: String) -> AppResult<String> {
-    let path = std::env::current_dir()?.join("perf-gate-result.json");
+pub fn record_perf_result(json: String, file_name: Option<String>) -> AppResult<String> {
+    let name = file_name.unwrap_or_else(|| String::from("perf-gate-result.json"));
+    // A bare file name and nothing else: the harness names its own artefact, and a name
+    // carrying a separator would let it write outside the working directory.
+    if !crate::commands::item::is_bare_file_name(&name) {
+        return Err(AppError::Invalid(format!("result file name {name}")));
+    }
+    let path = std::env::current_dir()?.join(name);
     std::fs::write(&path, json)?;
     Ok(path.to_string_lossy().to_string())
 }

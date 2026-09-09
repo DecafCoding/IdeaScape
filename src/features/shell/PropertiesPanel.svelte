@@ -67,6 +67,11 @@
     onReplaceImage?: () => void;
     /** Where else the selected writing card is, and what it is wired to (§9.28). */
     itemContext?: ItemContext | null;
+    /**
+     * §9.33: while the Chapter sheet is open the panel is RESERVED — the type name, the card
+     * id and one line, and nothing else. There is no AI glyph and none is held back.
+     */
+    reserved?: boolean;
     /** Write one field of the selected writing card. The root pushes the undo command. */
     onFieldChange?: (key: string, value: FieldValue, listAdded?: boolean) => void;
     /** A Scale reports where the change started, so a whole drag is one undo entry. */
@@ -99,6 +104,7 @@
     onImageTitleVisibleChange,
     onReplaceImage,
     itemContext = null,
+    reserved = false,
     onFieldChange,
     onScaleChange,
     onReplaceFieldImage,
@@ -341,7 +347,13 @@
 
 {#if expanded}
   <aside class="panel scroll-thin" data-testid="properties-panel" aria-label="Properties">
-    {#if connection}
+    {#if reserved}
+      <header class="header">
+        <span class="kind">{headerKind}</span>
+        <span class="item-id">{headerId}</span>
+      </header>
+      <p class="footer-note" data-testid="panel-reserved">Reserved for AI options</p>
+    {:else if connection}
       <header class="header">
         <span class="kind">Connection</span>
       </header>
@@ -562,9 +574,9 @@
 
       {#if soleBlueprint && blueprintPayload}
         <!-- ONE CONTROL PER FIELD, IN BLUEPRINT ORDER. There is no per-card-type branch
-             here and there must never be one: if `if (blueprint.id === 'character')` is
-             ever needed, the blueprint format is missing a member and the fix belongs in
-             the data file, not in this component. -->
+             here and there must never be one: if a branch on one card type's id is ever
+             needed, the blueprint format is missing a member and the fix belongs in the
+             data file, not in this component. -->
         <section class="group" data-testid="panel-blueprint-fields">
           {#each panelFields as field (field.key)}
             <FieldControl

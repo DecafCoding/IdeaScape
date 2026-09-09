@@ -128,9 +128,11 @@ work only — so feature folders there would be near-empty.
 ## Configuration
 
 `settings.json` under `%APPDATA%\IdeaScape` — one file per machine, deliberately outside every
-project folder so a copied project does not carry another machine's theme. It holds five values:
-auto-save cadence, snap to grid, zoom modifier, theme, font. The app writes it, it has working
-defaults, and it is never required to exist. The Settings screen shows the path.
+project folder so a copied project does not carry another machine's theme. It holds six values:
+auto-save cadence, snap to grid, zoom modifier, theme, font, show writing cards. The app writes
+it, it has working defaults, and it is never required to exist. A key that is missing falls back
+to its default — a file written before a value existed must never read as "off". The Settings
+screen shows the path.
 
 **The MVP ships with no keys configured, and nothing must be filled in to start.** API keys are
 not banned, though. A user-supplied key for a service the user chooses (a YouTube data key, an AI
