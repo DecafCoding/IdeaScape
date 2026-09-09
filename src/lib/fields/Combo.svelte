@@ -328,7 +328,8 @@
   .group-heading {
     margin: 0;
     padding: 4px var(--space-9);
-    background: var(--color-neutral-100);
+    /* A wash of the ink rather than a ramp step, so the band follows the theme. */
+    background: var(--tint-neutral-hover);
     font-size: var(--text-9-5);
     letter-spacing: var(--tracking-9);
     text-transform: uppercase;

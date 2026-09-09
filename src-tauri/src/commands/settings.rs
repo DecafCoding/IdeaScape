@@ -18,7 +18,7 @@ use std::path::Path;
 const SETTINGS_FILE_NAME: &str = "settings.json";
 const SETTINGS_TEMP_FILE_NAME: &str = "settings.json.tmp";
 
-/// The five values, camelCase on the wire because the TypeScript `Settings` interface
+/// The six values, camelCase on the wire because the TypeScript `Settings` interface
 /// shipped in Phase 1 already is. `RecentProject` is snake_case on both sides; this struct
 /// deliberately is not.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -29,9 +29,16 @@ pub struct StoredSettings {
     pub zoom_with: String,
     pub theme: String,
     pub font: String,
+    /// Whether the writing pack's card types appear in the Cards menu.
+    ///
+    /// `#[serde(default)]` is on the container, so a settings.json written before Phase 6 —
+    /// which has no such key — falls back to this struct's `Default`, which is `true`. That
+    /// is the whole mechanism: reading a missing key as `false` would silently empty the
+    /// Cards menu in every existing project.
+    pub show_writing_cards: bool,
 }
 
-/// Design-system §9.11's drawn defaults — the same five `DEFAULT_SETTINGS` carries in
+/// Design-system §9.11's drawn defaults — the same six `DEFAULT_SETTINGS` carries in
 /// `src/lib/settings.svelte.ts`.
 impl Default for StoredSettings {
     fn default() -> Self {
@@ -41,6 +48,7 @@ impl Default for StoredSettings {
             zoom_with: "scroll".into(),
             theme: "light".into(),
             font: "serif".into(),
+            show_writing_cards: true,
         }
     }
 }
@@ -51,8 +59,8 @@ const THEME_OPTIONS: [&str; 3] = ["light", "dark", "system"];
 const FONT_OPTIONS: [&str; 3] = ["serif", "sans", "marker"];
 
 /// Replace any field outside its allowed set with that field's default, and only that
-/// field. A user who hand-edits one line does not lose the other four (PRD §8.2:
-/// "deleting it resets those five values and nothing else").
+/// field. A user who hand-edits one line does not lose the other five (PRD §8.2:
+/// "deleting it resets those values and nothing else").
 fn sanitize(mut s: StoredSettings) -> StoredSettings {
     let d = StoredSettings::default();
     if !AUTO_SAVE_OPTIONS.contains(&s.auto_save_ms) {
@@ -67,11 +75,11 @@ fn sanitize(mut s: StoredSettings) -> StoredSettings {
     if !FONT_OPTIONS.contains(&s.font.as_str()) {
         s.font = d.font;
     }
-    // snap_to_grid is a bool and cannot be out of range.
+    // snap_to_grid and show_writing_cards are bools and cannot be out of range.
     s
 }
 
-/// The five values, sanitized. Never an error.
+/// The six values, sanitized. Never an error.
 pub fn read_settings_at(dir: &Path) -> StoredSettings {
     let Ok(text) = std::fs::read_to_string(dir.join(SETTINGS_FILE_NAME)) else {
         return StoredSettings::default();

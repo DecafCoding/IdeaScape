@@ -1,5 +1,5 @@
 /**
- * The typed settings module — the one place the five values in
+ * The typed settings module — the one place the six values in
  * `%APPDATA%\IdeaScape\settings.json` are read and written. CLAUDE.md requires settings be
  * read once through one typed module, so nothing else in the front end may hold them.
  *
@@ -27,6 +27,12 @@ export interface Settings {
   zoomWith: ZoomModifier;
   theme: Theme;
   font: FontChoice;
+  /**
+   * Whether the writing pack's card types appear in the Cards menu. A MENU FILTER AND
+   * NOTHING MORE: a card already on a canvas still draws, edits, connects and is found by
+   * search. A toggle that hid cards on the canvas would look exactly like data loss.
+   */
+  showWritingCards: boolean;
 }
 
 /** The Settings screen's own drawn defaults (design-system §9.11). */
@@ -36,6 +42,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   zoomWith: 'scroll',
   theme: 'light',
   font: 'serif',
+  showWritingCards: true,
 });
 
 /** The three cadences the Auto-save segmented control offers. */
@@ -81,7 +88,11 @@ export function sanitizeSettings(raw: unknown): Settings {
     : DEFAULT_SETTINGS.font;
   const snapToGrid =
     typeof source.snapToGrid === 'boolean' ? source.snapToGrid : DEFAULT_SETTINGS.snapToGrid;
-  return { autoSaveMs, snapToGrid, zoomWith, theme, font };
+  // A `=== false` check, not a boolean check: a settings.json written before Phase 6 has no
+  // such key at all, and anything that is not literally `false` must read as on. Reading a
+  // missing key as off would silently empty the Cards menu in every existing project.
+  const showWritingCards = source.showWritingCards !== false;
+  return { autoSaveMs, snapToGrid, zoomWith, theme, font, showWritingCards };
 }
 
 /** Read the file. Never throws: a failure is the defaults plus a warning in the log. */

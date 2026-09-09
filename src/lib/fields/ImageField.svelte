@@ -77,13 +77,13 @@
     flex: none;
     overflow: hidden;
     border-radius: var(--radius-md);
-    background: var(--color-neutral-200);
+    background: var(--color-inset);
   }
 
   /* §9.22: a dashed inset border on a neutral ground. The item is never deleted for it. */
   .box.missing {
     border: 1px dashed var(--color-divider);
-    background: var(--color-neutral-100);
+    background: var(--color-inset);
   }
 
   .box img {

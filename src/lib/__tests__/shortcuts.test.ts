@@ -110,11 +110,42 @@ describe('registerShortcuts', () => {
   });
 });
 
+describe('the writing pack keys', () => {
+  it('matchAction_theKey6_returnsNewCharacter', () => {
+    expect(matchAction(key({ key: '6' }))).toBe('new-character');
+  });
+
+  it('matchAction_theKeys2To7_returnTheSixWritingActions', () => {
+    expect(['2', '3', '4', '5', '6', '7'].map((k) => matchAction(key({ key: k })))).toEqual([
+      'new-book',
+      'new-chapter',
+      'new-scene',
+      'new-beat',
+      'new-character',
+      'new-location',
+    ]);
+  });
+
+  it('matchAction_theKey4_insideATextBox_returnsNull', () => {
+    // The 2–7 switch sits AFTER the `inText` bail, so typing a 4 into a field never makes a
+    // Scene.
+    expect(matchAction(key({ key: '4' }, textBox()))).toBeNull();
+    expect(matchAction(key({ key: '6' }, textBox('input')))).toBeNull();
+  });
+
+  it('matchAction_theKeys1And8_areNotWritingActions', () => {
+    expect(matchAction(key({ key: '1' }))).toBeNull();
+    expect(matchAction(key({ key: '8' }))).toBeNull();
+  });
+});
+
 describe('SHORTCUT_LABELS', () => {
   it('shortcutLabels_everyAction_printsALabelTheMenusCanReuse', () => {
     expect(SHORTCUT_LABELS['bring-forward']).toBe('Ctrl+]');
     expect(SHORTCUT_LABELS['send-back']).toBe('Ctrl+[');
     expect(SHORTCUT_LABELS.delete).toBe('Del');
+    expect(SHORTCUT_LABELS['new-book']).toBe('2');
+    expect(SHORTCUT_LABELS['new-location']).toBe('7');
     expect(Object.values(SHORTCUT_LABELS).every((l) => l.length > 0)).toBe(true);
   });
 });

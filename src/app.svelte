@@ -84,6 +84,7 @@
   import { defaultSizeForItem } from './lib/cardKinds';
   import {
     blueprintForPayload,
+    getBlueprint,
     parseBlueprintPayload,
     type BlueprintField,
     type FieldValue,
@@ -1126,6 +1127,44 @@
     });
   }
 
+  /**
+   * Make one writing card AT THE POINTER, at its blueprint's own default size.
+   *
+   * "At the pointer" is the last known canvas pointer position, exactly as `new-note`
+   * already uses: §10 contract 1 forbids the application choosing a position, so the card is
+   * never centred in the view.
+   *
+   * The rail rows call this too, so the key route and the menu route are one code path.
+   */
+  async function createWritingCard(blueprint: string) {
+    const canvasId = canvasStore.activeCanvasId;
+    if (canvasId === null) return;
+    // Off, the 2–7 keys do nothing — a key printed on a menu row that is not there has
+    // nothing to be printed on.
+    if (!getSettings().showWritingCards) return;
+    const found = getBlueprint(blueprint);
+    if (!found) return;
+
+    await guard(async () => {
+      const card = await writeNow(
+        () =>
+          invokeSafe<PlacementWithItem>('create_blueprint_card', {
+            canvasId,
+            x: pointerWorld.x,
+            y: pointerWorld.y,
+            width: found.default_size.width,
+            height: found.default_size.height,
+            blueprint,
+          }),
+        saveHooks,
+      );
+      canvasStore.upsertCard(card);
+      canvasStore.setSelection([card.placement.id]);
+      undoStack.push(createCardCommand(card));
+      await refreshUnplaced();
+    });
+  }
+
   // --- writing cards: the generated panel and the sheets ------------------
 
   /**
@@ -1358,6 +1397,14 @@
   const shellShortcuts = $derived({
     'new-note': () => void createNote(pointerWorld),
     'new-image': () => void addFromPicker(),
+    // The writing pack's 2–7. Each key and the matching rail row call the SAME function, so
+    // the two routes are one code path.
+    'new-book': () => void createWritingCard('book'),
+    'new-chapter': () => void createWritingCard('chapter'),
+    'new-scene': () => void createWritingCard('scene'),
+    'new-beat': () => void createWritingCard('beat'),
+    'new-character': () => void createWritingCard('character'),
+    'new-location': () => void createWritingCard('location'),
     edit: () => cards?.editSelected(),
     connect: startLinkFromSelection,
     cancel: () => {
@@ -1697,6 +1744,8 @@
         redoDepth={undoStack.redoDepth}
         onNewNote={() => void createNote(pointerWorld)}
         onNewImage={() => void addFromPicker()}
+        onNewWritingCard={(blueprint) => void createWritingCard(blueprint)}
+        showWritingCards={getSettings().showWritingCards}
         onUndo={() =>
           void guard(async () => {
             await undoStack.undo();

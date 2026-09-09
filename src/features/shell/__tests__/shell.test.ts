@@ -81,11 +81,15 @@ describe('the shell measurements', () => {
     expect(getByTestId('left-column').textContent).not.toContain('Search');
   });
 
-  it('leftColumn_imageRow_isAvailable', () => {
+  it('leftColumn_imageRow_isAvailable', async () => {
     // Drawn disabled since Phase 1 even though `pickImages` shipped in Phase 3; enabling it
     // here is one line of wiring to behaviour that already exists.
     let picked = 0;
-    const { getByText } = render(LeftColumn, { props: { onNewImage: () => (picked += 1) } });
+    const { getByText, getByTestId } = render(LeftColumn, {
+      props: { onNewImage: () => (picked += 1) },
+    });
+    // The Cards group's General submenu holds the Note and Image rows now (§8.3).
+    await fireEvent.click(getByTestId('cards-parent-general'));
     const row = getByText('Image').closest('button') as HTMLButtonElement;
     expect(row.disabled).toBe(false);
     expect(row.className).not.toContain('is-unavailable');
