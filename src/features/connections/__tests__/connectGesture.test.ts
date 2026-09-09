@@ -124,6 +124,7 @@ beforeEach(() => {
           from_anchor: 'auto',
           to_anchor: 'auto',
           bend: '',
+          role: null,
         };
         connections.push(row);
         return Promise.resolve(row);

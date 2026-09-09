@@ -18,7 +18,7 @@ use std::path::Path;
 const SETTINGS_FILE_NAME: &str = "settings.json";
 const SETTINGS_TEMP_FILE_NAME: &str = "settings.json.tmp";
 
-/// The five values, camelCase on the wire because the TypeScript `Settings` interface
+/// The six values, camelCase on the wire because the TypeScript `Settings` interface
 /// shipped in Phase 1 already is. `RecentProject` is snake_case on both sides; this struct
 /// deliberately is not.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -29,9 +29,16 @@ pub struct StoredSettings {
     pub zoom_with: String,
     pub theme: String,
     pub font: String,
+    /// Whether the writing pack's card types appear in the Cards menu.
+    ///
+    /// `#[serde(default)]` is on the container, so a settings.json written before Phase 6 —
+    /// which has no such key — falls back to this struct's `Default`, which is `true`. That
+    /// is the whole mechanism: reading a missing key as `false` would silently empty the
+    /// Cards menu in every existing project.
+    pub show_writing_cards: bool,
 }
 
-/// Design-system §9.11's drawn defaults — the same five `DEFAULT_SETTINGS` carries in
+/// Design-system §9.11's drawn defaults — the same six `DEFAULT_SETTINGS` carries in
 /// `src/lib/settings.svelte.ts`.
 impl Default for StoredSettings {
     fn default() -> Self {
@@ -41,6 +48,7 @@ impl Default for StoredSettings {
             zoom_with: "scroll".into(),
             theme: "light".into(),
             font: "serif".into(),
+            show_writing_cards: true,
         }
     }
 }
@@ -51,8 +59,8 @@ const THEME_OPTIONS: [&str; 3] = ["light", "dark", "system"];
 const FONT_OPTIONS: [&str; 3] = ["serif", "sans", "marker"];
 
 /// Replace any field outside its allowed set with that field's default, and only that
-/// field. A user who hand-edits one line does not lose the other four (PRD §8.2:
-/// "deleting it resets those five values and nothing else").
+/// field. A user who hand-edits one line does not lose the other five (PRD §8.2:
+/// "deleting it resets those values and nothing else").
 fn sanitize(mut s: StoredSettings) -> StoredSettings {
     let d = StoredSettings::default();
     if !AUTO_SAVE_OPTIONS.contains(&s.auto_save_ms) {
@@ -67,11 +75,11 @@ fn sanitize(mut s: StoredSettings) -> StoredSettings {
     if !FONT_OPTIONS.contains(&s.font.as_str()) {
         s.font = d.font;
     }
-    // snap_to_grid is a bool and cannot be out of range.
+    // snap_to_grid and show_writing_cards are bools and cannot be out of range.
     s
 }
 
-/// The five values, sanitized. Never an error.
+/// The six values, sanitized. Never an error.
 pub fn read_settings_at(dir: &Path) -> StoredSettings {
     let Ok(text) = std::fs::read_to_string(dir.join(SETTINGS_FILE_NAME)) else {
         return StoredSettings::default();
@@ -129,6 +137,7 @@ mod tests {
             zoom_with: "ctrl-scroll".into(),
             theme: "dark".into(),
             font: "marker".into(),
+            show_writing_cards: false,
         }
     }
 
@@ -208,15 +217,16 @@ mod tests {
         assert_eq!(read_settings_at(dir.path()), non_default());
 
         let text = std::fs::read_to_string(dir.path().join("settings.json")).unwrap();
-        // Pretty-printed camelCase, exactly five keys.
+        // Pretty-printed camelCase, exactly six keys.
         assert!(text.contains("\n"));
         assert!(text.contains("\"autoSaveMs\""));
         assert!(text.contains("\"snapToGrid\""));
         assert!(text.contains("\"zoomWith\""));
         assert!(text.contains("\"theme\""));
         assert!(text.contains("\"font\""));
+        assert!(text.contains("\"showWritingCards\""));
         let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(parsed.as_object().unwrap().len(), 5);
+        assert_eq!(parsed.as_object().unwrap().len(), 6);
     }
 
     #[test]
@@ -280,5 +290,57 @@ mod tests {
         assert_eq!(read.auto_save_ms, 10000);
         assert!(read.snap_to_grid);
         assert_eq!(read.theme, "dark");
+    }
+
+    #[test]
+    fn read_settings_at_a_phase_five_file_with_no_show_writing_cards_key_reads_as_on() {
+        // A settings.json written before Phase 6 has five keys and no sixth. Reading the
+        // missing key as `false` would silently empty the Cards menu in every existing
+        // project, so `#[serde(default)]` on the container must fall back to Default's `true`.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"autoSaveMs":10000,"snapToGrid":true,"zoomWith":"ctrl-scroll",
+                "theme":"dark","font":"marker"}"#,
+        )
+        .unwrap();
+
+        let read = read_settings_at(dir.path());
+        assert!(read.show_writing_cards, "a missing key reads as on");
+        // And the five it does carry are untouched.
+        assert_eq!(read.auto_save_ms, 10000);
+        assert_eq!(read.theme, "dark");
+        assert_eq!(read.font, "marker");
+    }
+
+    #[test]
+    fn read_settings_at_show_writing_cards_false_reads_as_off() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"showWritingCards":false}"#,
+        )
+        .unwrap();
+        assert!(!read_settings_at(dir.path()).show_writing_cards);
+    }
+
+    #[test]
+    fn write_settings_writes_six_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        write_settings_at(dir.path(), &non_default()).unwrap();
+        let text = std::fs::read_to_string(dir.path().join("settings.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let object = value.as_object().expect("an object");
+        assert_eq!(object.len(), 6);
+        for key in [
+            "autoSaveMs",
+            "snapToGrid",
+            "zoomWith",
+            "theme",
+            "font",
+            "showWritingCards",
+        ] {
+            assert!(object.contains_key(key), "missing {key}");
+        }
     }
 }

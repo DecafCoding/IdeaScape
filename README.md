@@ -170,6 +170,65 @@ line's midpoint, and is hidden below 50 screen pixels of line length; the label 
 kept and reappears when the cards move apart or you zoom in. A connection is also reachable
 with `Tab`, and `Enter` or `Space` selects the focused one.
 
+## The Writing Pack
+
+Eight card kinds do not fit as flat rows in the 168 px rail, so **Cards** holds two submenus:
+_General_ (Note, Image) and _Writing Pack_. The writing pack adds six card types, each with a
+key:
+
+| Type          | Key | On its face                                     | Opens        |
+| ------------- | --- | ----------------------------------------------- | ------------ |
+| **Book**      | `2` | Name, logline, genre and sub-genre, tropes      | A full sheet |
+| **Chapter**   | `3` | Number, name, summary, themes — never the prose | A full sheet |
+| **Scene**     | `4` | Name, summary                                   | The panel    |
+| **Beat**      | `5` | Name, text                                      | The panel    |
+| **Character** | `6` | Picture, name, role                             | A full sheet |
+| **Location**  | `7` | Picture, name, summary                          | The panel    |
+
+A card type is a **data file**, not a component: `src-tauri/data/blueprints/*.json` lists the
+fields, and the properties panel, the card face and the sheets all generate themselves from
+that list. Adding a seventh type is a data file and no migration — the card type lives inside
+the item payload.
+
+A field is one of **seven kinds**: Short Text, Long Text, Pick, Pick Many, Image, Number and
+Scale. Two rules hold across all of them. **Nothing is ever required** — a card with only its
+default name is a complete card. And **a value you type is always accepted**: it is saved to
+the project's own vocabulary and offered again next time, carrying no library id, which is
+what marks it as yours. A filtered list **sorts, it never hides**; every entry stays reachable.
+
+The shipped vocabulary — 259 story tropes, 151 character tropes, 45 sub-genres in 8 genres, 41
+themes and 5 points of view — is embedded in the binary. Nothing about it touches the network.
+
+### Sheets, Sliders And Roles
+
+Book, Chapter and Character each open a **full-screen sheet** in place of the canvas. A sheet
+is a view of one card, not a mode: edits land in the same payload with the same undo entries,
+and leaving one commits nothing extra and returns you to exactly the canvas you left. `Esc`
+leaves a sheet — and inside a text field it blurs the field first, so on the Chapter's writing
+surface the first press gets you out of the prose and the second out of the sheet.
+
+A Character carries five personality sliders, −3 to +3, all at 0 by default — which is a real
+answer meaning "unremarkable, like most people", never an empty state. **Randomize** rolls a
+bell curve and then guarantees at least one slider reaches ±2, so you get a mostly ordinary
+person with one clear edge. It is local random numbers: no network call and no AI. One
+`Ctrl+Z` puts all five back.
+
+A line between two cards can carry a **role** — _Feeds_, _Follows_, _Part Of_, _Appears In_,
+_Told By_, _Set In_ or _Relates To_. The role is suggested from the two card types and is
+always editable, including to a role you type. **It is never a rule**: no pair is refused and
+no validation error exists. A line drawn before roles existed still draws with no glyph.
+
+### Records That Outlive A Canvas
+
+A writing card is a **record**, so it survives being taken off a canvas: removing the last
+placement of a Character keeps the Character, and it appears in an **Unplaced** section in the
+left column, where it can be placed again or deleted for good. The four original kinds are
+unchanged — deleting the last card of an image still removes the item and its picture file.
+
+**Expand into a canvas** gives a card a canvas of its own holding **the same item**, so editing
+it in either place changes both. Deleting that canvas leaves the card intact and clears its
+pointer.
+
 ## Settings
 
 The **gear** at the bottom of the left column opens Settings, a full-screen page in place of
@@ -177,19 +236,26 @@ the canvas. Changes apply the moment you make them — there is no Save, no Canc
 confirm. _Back to canvas_ or `Esc` returns you to exactly where you were, with the selection
 and the view position intact.
 
-| Setting            | Options                     | Default | What it does                                            |
-| ------------------ | --------------------------- | ------- | ------------------------------------------------------- |
-| **Project folder** | —                           | —       | The open project's folder, read-only                    |
-| **Auto-save**      | `1s` / `3s` / `10s`         | `3s`    | The longest queued card geometry may sit unwritten      |
-| **Snap to grid**   | on / off                    | off     | Cards snap to the 22 px pitch; off keeps free placement |
-| **Zoom with**      | `Scroll` / `Ctrl+scroll`    | Scroll  | `Ctrl+scroll` leaves the plain wheel free to pan        |
-| **Theme**          | `Light` / `Dark` / `System` | Light   | `System` follows Windows live, with no restart          |
+| Setting                | Options                     | Default | What it does                                            |
+| ---------------------- | --------------------------- | ------- | ------------------------------------------------------- |
+| **Project folder**     | —                           | —       | The open project's folder, read-only                    |
+| **Auto-save**          | `1s` / `3s` / `10s`         | `3s`    | The longest queued card geometry may sit unwritten      |
+| **Snap to grid**       | on / off                    | off     | Cards snap to the 22 px pitch; off keeps free placement |
+| **Zoom with**          | `Scroll` / `Ctrl+scroll`    | Scroll  | `Ctrl+scroll` leaves the plain wheel free to pan        |
+| **Theme**              | `Light` / `Dark` / `System` | Light   | `System` follows Windows live, with no restart          |
+| **Font**               | `Serif` / `Sans` / `Marker` | Serif   | Only the family changes; no size moves a card boundary  |
+| **Show Writing Cards** | on / off                    | on      | Off takes the writing types out of the Cards menu       |
 
 Auto-save is a **ceiling**, not a cadence: every change is still written the moment it
 happens and a drag is still one transaction on release. The timer only catches a drag that
 outlives the setting, or a pointer release the window never saw.
 
-These four values live in `settings.json` under `%APPDATA%\IdeaScape` — one file per machine,
+_Show Writing Cards_ is a **menu filter and nothing more**. Turned off, the rail's _Writing
+Pack_ submenu is not drawn and the keys `2`–`7` do nothing; a writing card already on a canvas
+still draws, still edits, still connects and is still found by search. A `settings.json`
+written before the setting existed reads as **on**.
+
+These six values live in `settings.json` under `%APPDATA%\IdeaScape` — one file per machine,
 deliberately outside every project folder so a copied project does not carry another
 machine's theme. The page's footer prints the folder it actually resolved. The file is
 written atomically, it has working defaults, and it is **never required to exist**: delete
@@ -199,7 +265,7 @@ the recent-projects list, deliberately a separate file. Nothing in either leaves
 
 ## Performance
 
-The project's one hard gate is 250 note cards panning at 60 frames per second. It is
+The project's one hard gate is 250 cards panning at 60 frames per second. It is
 measured in the running application, not in a unit test — `scripts/perf-gate.md` records
 the result, the machine and the installer size. A **debug** build re-runs that measurement
 when launched as `ideascape.exe --project "<folder>" --perf-gate`, writing
@@ -207,11 +273,19 @@ when launched as `ideascape.exe --project "<folder>" --perf-gate`, writing
 exists for the measurement harness alone: a release build does not register it, and its one
 route into a project is the picker.
 
-`scripts/phase-5-session.md` is the latest recorded run and the project's own gate — 250
-mixed cards at 59.9 fps with zero dropped frames **in the dark theme with auto-save at its
-fastest setting**, a project opening in 35 ms measured from the picker, and a 2.80 MB
-installer against the 20 MB cap. It also records the four settled dark shadow values and the
-two measured WCAG contrast ratios that close the design system's last open question.
+`scripts/phase-6-session.md` is the latest recorded run — **250 writing cards** at 59.9 fps
+with zero dropped frames at both 100% and 40% zoom, a project opening in 44 ms measured from
+the picker, and a 3.08 MB installer against the 20 MB cap. The writing pack is the first
+feature to make a card face more expensive, so that seed is a deliberate worst case: every
+Pick Many field filled past its overflow so every face carries chips, five pictures pointing
+at files that are not there, and 249 connections each carrying a role. A debug build re-runs
+it as `ideascape.exe --project "<folder>" --perf-gate --perf-gate-writing`, writing
+`perf-gate-writing-result.json`; without the second flag the mixed-card seed runs instead, so
+the earlier phases' numbers stay reproducible.
+
+`scripts/phase-5-session.md` records the phase before it — 250 mixed cards at 59.9 fps **in
+the dark theme with auto-save at its fastest setting**, and the two measured WCAG contrast
+ratios that close the design system's last open question.
 
 `scripts/phase-2-session.md` records the same measurement over a mixed canvas — 250 cards
 _and_ 249 connections — alongside the scripted session that proves the canvas is usable with

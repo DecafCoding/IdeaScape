@@ -341,6 +341,22 @@ pub(crate) fn delete_placements_tx(
                     [placement.item_id],
                     row_to_item,
                 )?;
+                // THE CORRECTED LAST-PLACEMENT RULE. Reading the item BEFORE deciding is the
+                // point of this block: a `blueprint` item is left in place, is not reported
+                // as removed and contributes no asset to `orphaned`.
+                //
+                // This reads as a bug without the reason. The old rule — an item dies with
+                // its last placement — is right for a picture used once and catastrophic for
+                // a Character: taking them off one chapter's canvas would destroy the
+                // character, their sliders, their tropes and their notes. A reused record
+                // outlives every canvas it appears on, and the left column's *Unplaced*
+                // section is what keeps the old rule's promise that nothing it leaves behind
+                // becomes invisible junk. The four original kinds keep the shipped behaviour
+                // EXACTLY.
+                if item.kind == "blueprint" {
+                    effect.placements.push(placement);
+                    continue;
+                }
                 // Collect the asset names, and whether anything else still holds them,
                 // inside the transaction: after the item row goes the payload is unreadable
                 // and the reference count would come out one short.
@@ -515,6 +531,175 @@ pub fn seed_mixed_cards(
     count: i64,
 ) -> AppResult<i64> {
     seed_mixed_cards_for(&state, canvas_id, count)
+}
+
+/// Seed a canvas with `count` WRITING cards, for the Phase 6 frame gate.
+///
+/// A REALISTIC WORST CASE, not an easy one: the six types in rotation, every Pick Many field
+/// filled past its face limit so every face carries chips AND an overflow pill, every Image
+/// field pointing at the one real content-hashed asset, and five pointing at a deliberately
+/// absent name so the missing-file marker is on screen throughout. The connections carry
+/// roles, so the role affordance is measured with everything else.
+///
+/// It sits BESIDE the mixed seed rather than replacing it, so Phase 1's and Phase 3's numbers
+/// stay reproducible and this phase's number is measured with the same two passes, the same
+/// sweep and the same dropped-frame definition.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn seed_blueprint_cards(
+    state: tauri::State<'_, AppState>,
+    canvas_id: i64,
+    count: i64,
+) -> AppResult<i64> {
+    seed_blueprint_cards_for(&state, canvas_id, count)
+}
+
+#[cfg(debug_assertions)]
+fn seed_blueprint_cards_for(state: &AppState, canvas_id: i64, count: i64) -> AppResult<i64> {
+    let folder = state.project_folder();
+    let asset = seed_asset(folder.as_deref());
+    let missing_asset =
+        String::from("0000000000000000000000000000000000000000000000000000000000000000.png");
+    let types = ["book", "chapter", "scene", "beat", "character", "location"];
+    let roles = [
+        "feeds",
+        "follows",
+        "part-of",
+        "appears-in",
+        "told-by",
+        "set-in",
+    ];
+
+    state.with_db(|conn| {
+        let tx = conn.transaction()?;
+        let project_id: i64 = tx.query_row(
+            "SELECT project_id FROM canvas WHERE id = ?1",
+            [canvas_id],
+            |r| r.get(0),
+        )?;
+        let first_z = next_z_order(&tx, canvas_id)?;
+        let columns = 20;
+        let mut seeded: Vec<i64> = Vec::new();
+        let mut pictures = 0;
+
+        for (z, n) in (first_z..).zip(0..count) {
+            let col = n % columns;
+            let row = n / columns;
+            let id = types[(n % types.len() as i64) as usize];
+            let blueprint = crate::blueprints::get(id).expect("a shipped card type");
+
+            let mut fields = serde_json::Map::new();
+            for f in &blueprint.fields {
+                match f.kind {
+                    crate::blueprints::FieldKind::ShortText => {
+                        fields.insert(
+                            f.key.clone(),
+                            serde_json::Value::from(format!("Seeded {} {}", f.label, n + 1)),
+                        );
+                    }
+                    crate::blueprints::FieldKind::LongText => {
+                        // Barred from the face, but stored — search reads it and the payload
+                        // is the size the real thing would be.
+                        fields.insert(
+                            f.key.clone(),
+                            serde_json::Value::from(
+                                "She woke in the hull, and the becalmed ark ship hummed.".repeat(4),
+                            ),
+                        );
+                    }
+                    crate::blueprints::FieldKind::Number => {
+                        fields.insert(f.key.clone(), serde_json::Value::from(n + 1));
+                    }
+                    crate::blueprints::FieldKind::Scale => {
+                        fields.insert(f.key.clone(), serde_json::Value::from((n % 7) - 3));
+                    }
+                    crate::blueprints::FieldKind::Image => {
+                        pictures += 1;
+                        // The first five point at a name that is not there, so the
+                        // missing-file marker is on screen throughout the sweep.
+                        let name = if pictures <= 5 {
+                            Some(missing_asset.clone())
+                        } else {
+                            asset.clone()
+                        };
+                        fields.insert(
+                            f.key.clone(),
+                            serde_json::Value::from(name.unwrap_or_else(|| missing_asset.clone())),
+                        );
+                    }
+                    crate::blueprints::FieldKind::Pick => {
+                        let list = f.list.as_deref().unwrap_or("");
+                        let entries = crate::blueprints::lists::shipped(list);
+                        if let Some(entry) = entries.get((n as usize) % entries.len().max(1)) {
+                            fields.insert(
+                                f.key.clone(),
+                                serde_json::json!({
+                                    "id": entry.id,
+                                    "text": entry.text,
+                                    "sources": [list],
+                                }),
+                            );
+                        }
+                    }
+                    crate::blueprints::FieldKind::PickMany => {
+                        // FILLED TO ITS OVERFLOW: six entries against a face limit of four,
+                        // so every face carries chips and a `+n` pill.
+                        let list = f.list.as_deref().unwrap_or("");
+                        let entries = crate::blueprints::lists::shipped(list);
+                        let picked: Vec<serde_json::Value> = (0..6)
+                            .filter_map(|i| entries.get((n as usize + i) % entries.len().max(1)))
+                            .map(|entry| {
+                                serde_json::json!({
+                                    "id": entry.id,
+                                    "text": entry.text,
+                                    "sources": [list],
+                                })
+                            })
+                            .collect();
+                        fields.insert(f.key.clone(), serde_json::Value::from(picked));
+                    }
+                }
+            }
+
+            let payload = serde_json::json!({
+                "blueprint": id,
+                "name": format!("Seeded {} {}", blueprint.label, n + 1),
+                "detail_canvas_id": serde_json::Value::Null,
+                "fields": fields,
+            })
+            .to_string();
+
+            let item = insert_item(&tx, project_id, "blueprint", &payload)?;
+            tx.execute(
+                "INSERT INTO placement (canvas_id, item_id, x, y, width, height, z_order)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![
+                    canvas_id,
+                    item.id,
+                    col as f64 * 340.0,
+                    row as f64 * 300.0,
+                    blueprint.default_size.width,
+                    blueprint.default_size.height,
+                    z
+                ],
+            )?;
+            seeded.push(tx.last_insert_rowid());
+        }
+
+        // One role-carrying connection per adjacent pair, so the role affordance is measured
+        // with the rest rather than being left out of the number.
+        for (i, pair) in seeded.windows(2).enumerate() {
+            tx.execute(
+                "INSERT INTO connection
+                     (canvas_id, from_placement_id, to_placement_id, label, directed, role)
+                 VALUES (?1, ?2, ?3, NULL, 1, ?4)",
+                rusqlite::params![canvas_id, pair[0], pair[1], roles[i % roles.len()]],
+            )?;
+        }
+
+        tx.commit()?;
+        Ok(count)
+    })
 }
 
 /// The old name, kept as a thin wrapper so nothing that calls it breaks.
@@ -816,8 +1001,10 @@ mod tests {
                 .id,
             );
         }
-        create_connection_for(&state, canvas_id, ids[0], ids[1], Some("a".into()), 1).unwrap();
-        create_connection_for(&state, canvas_id, ids[1], ids[2], Some("b".into()), 2).unwrap();
+        create_connection_for(&state, canvas_id, ids[0], ids[1], Some("a".into()), 1, None)
+            .unwrap();
+        create_connection_for(&state, canvas_id, ids[1], ids[2], Some("b".into()), 2, None)
+            .unwrap();
 
         // Deleting the middle card takes both lines with it, and each is reported once.
         let effect = delete_placements_for(&state, vec![ids[1]]).unwrap();
@@ -861,7 +1048,7 @@ mod tests {
         .unwrap()
         .placement
         .id;
-        create_connection_for(&state, canvas_id, a, b, None, 1).unwrap();
+        create_connection_for(&state, canvas_id, a, b, None, 1, None).unwrap();
 
         let effect = delete_placements_for(&state, vec![a, b]).unwrap();
         assert_eq!(effect.connections.len(), 1);

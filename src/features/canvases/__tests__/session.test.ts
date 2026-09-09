@@ -183,7 +183,14 @@ function backend() {
           db.connections.delete(id);
         }
         db.canvases = db.canvases.filter((c) => c.id !== canvasId);
-        const effect: CanvasDeleteEffect = { canvas, placements, items, connections, assets: [] };
+        const effect: CanvasDeleteEffect = {
+          canvas,
+          placements,
+          items,
+          connections,
+          assets: [],
+          detail_pointers: [],
+        };
         return Promise.resolve(effect);
       }
       case 'restore_canvas': {
@@ -324,6 +331,7 @@ describe('the canvas lifecycle', () => {
       from_anchor: 'auto',
       to_anchor: 'auto',
       bend: '',
+      role: null,
     });
     await canvasStore.loadCanvas(second);
     expect(canvasStore.cardCount).toBe(2);

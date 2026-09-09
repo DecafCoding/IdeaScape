@@ -1,0 +1,760 @@
+{
+  "list": "character-tropes",
+  "entries": [
+    {
+      "id": "trope.absent-while-your-body-works",
+      "text": "Absent while your body works",
+      "tags": []
+    },
+    {
+      "id": "trope.acting-without-believing-you-matter",
+      "text": "Acting while believing you are not the cause",
+      "tags": []
+    },
+    {
+      "id": "trope.alien-civilization",
+      "text": "Alien civilization",
+      "tags": []
+    },
+    {
+      "id": "trope.ambition-against-conscience",
+      "text": "Ambition against conscience",
+      "tags": []
+    },
+    {
+      "id": "trope.artificial-person",
+      "text": "Artificial person",
+      "tags": []
+    },
+    {
+      "id": "trope.attachment-against-autonomy",
+      "text": "Attachment against autonomy",
+      "tags": []
+    },
+    {
+      "id": "trope.battlefield-promotion",
+      "text": "Battlefield promotion",
+      "tags": []
+    },
+    {
+      "id": "trope.becoming-the-figure-you-studied",
+      "text": "Becoming the subject of your own scholarship",
+      "tags": []
+    },
+    {
+      "id": "trope.person-treated-as-equipment",
+      "text": "Being a person the others use as a tool",
+      "tags": []
+    },
+    {
+      "id": "trope.being-right-against-being-permitted",
+      "text": "Being right against being permitted",
+      "tags": []
+    },
+    {
+      "id": "trope.betray-to-protect",
+      "text": "Betray to protect",
+      "tags": []
+    },
+    {
+      "id": "trope.borrowed-conscience",
+      "text": "Borrowed conscience",
+      "tags": []
+    },
+    {
+      "id": "trope.care-without-interference",
+      "text": "Care without interference",
+      "tags": []
+    },
+    {
+      "id": "trope.choosing-the-life-you-condemn",
+      "text": "Choosing the life you have judged",
+      "tags": []
+    },
+    {
+      "id": "trope.chosen-one",
+      "text": "Chosen one",
+      "tags": []
+    },
+    {
+      "id": "trope.coming-of-age",
+      "text": "Coming-of-age arc",
+      "tags": []
+    },
+    {
+      "id": "trope.competence-against-concealment",
+      "text": "Competence against concealment",
+      "tags": []
+    },
+    {
+      "id": "trope.competence-romance",
+      "text": "Competence romance",
+      "tags": []
+    },
+    {
+      "id": "trope.consenting-to-your-own-erasure",
+      "text": "Consenting to your own erasure",
+      "tags": []
+    },
+    {
+      "id": "trope.craftsman-between-masters",
+      "text": "Craftsman between masters",
+      "tags": []
+    },
+    {
+      "id": "trope.despair-against-the-task",
+      "text": "Despair against the task",
+      "tags": []
+    },
+    {
+      "id": "trope.dignity-against-survival",
+      "text": "Dignity against survival",
+      "tags": []
+    },
+    {
+      "id": "trope.divided-loyalty-under-obligation",
+      "text": "Divided loyalty under obligation",
+      "tags": []
+    },
+    {
+      "id": "trope.doubted-own-judgement",
+      "text": "Doubting your own judgement",
+      "tags": []
+    },
+    {
+      "id": "trope.duty-against-the-individual",
+      "text": "Duty against the individual",
+      "tags": []
+    },
+    {
+      "id": "trope.endless-choosing-instead-of-choosing",
+      "text": "Endless choosing instead of choosing",
+      "tags": []
+    },
+    {
+      "id": "trope.enjoying-what-you-condemn",
+      "text": "Enjoying what you condemn",
+      "tags": []
+    },
+    {
+      "id": "trope.evil-empire",
+      "text": "Evil empire",
+      "tags": []
+    },
+    {
+      "id": "trope.evil-megacorp",
+      "text": "Evil megacorporation",
+      "tags": []
+    },
+    {
+      "id": "trope.expendable-crewmate",
+      "text": "Expendable crewmate",
+      "tags": []
+    },
+    {
+      "id": "trope.freedom-against-safety",
+      "text": "Freedom against safety",
+      "tags": []
+    },
+    {
+      "id": "trope.giving-away-your-own-chance",
+      "text": "Giving away your own chance",
+      "tags": []
+    },
+    {
+      "id": "trope.guilt-you-would-earn-again",
+      "text": "Guilt you would earn again",
+      "tags": []
+    },
+    {
+      "id": "trope.hope-that-prevents-leaving",
+      "text": "Hope that keeps you in place",
+      "tags": []
+    },
+    {
+      "id": "trope.villain",
+      "text": "Human villain",
+      "tags": []
+    },
+    {
+      "id": "trope.isolation-narration",
+      "text": "Isolation narration device",
+      "tags": []
+    },
+    {
+      "id": "trope.knowing-you-are-the-copy",
+      "text": "Knowing you are the copy",
+      "tags": []
+    },
+    {
+      "id": "trope.knowing-your-own-ending",
+      "text": "Knowing your own ending",
+      "tags": []
+    },
+    {
+      "id": "trope.lone-rebel-hacker",
+      "text": "Lone rebel hacker",
+      "tags": []
+    },
+    {
+      "id": "trope.love-against-your-own-survival",
+      "text": "Love against your own survival",
+      "tags": []
+    },
+    {
+      "id": "trope.love-inside-the-job",
+      "text": "Love inside the job",
+      "tags": []
+    },
+    {
+      "id": "trope.loyalty-against-dissent",
+      "text": "Loyalty against dissent",
+      "tags": []
+    },
+    {
+      "id": "trope.mad-inventor",
+      "text": "Mad inventor",
+      "tags": []
+    },
+    {
+      "id": "trope.making-others-what-was-made-of-you",
+      "text": "Making others into what was made of you",
+      "tags": []
+    },
+    {
+      "id": "trope.media-as-refuge",
+      "text": "Media as refuge",
+      "tags": []
+    },
+    {
+      "id": "trope.mission-control-ensemble",
+      "text": "Mission-control ensemble",
+      "tags": []
+    },
+    {
+      "id": "trope.needing-someone-to-blame",
+      "text": "Needing someone to blame for the life you did not get",
+      "tags": []
+    },
+    {
+      "id": "trope.obsession-against-judgement",
+      "text": "Obsession against judgement",
+      "tags": []
+    },
+    {
+      "id": "trope.offered-back-what-you-lost",
+      "text": "Offered back what you lost",
+      "tags": []
+    },
+    {
+      "id": "trope.organic-machine-construct",
+      "text": "Organic-machine construct",
+      "tags": []
+    },
+    {
+      "id": "trope.owing-your-life-to-someone-you-hate",
+      "text": "Owing your life to someone you hate",
+      "tags": []
+    },
+    {
+      "id": "trope.performing-without-the-support",
+      "text": "Performing without the support",
+      "tags": []
+    },
+    {
+      "id": "trope.plucky-adventurer",
+      "text": "Plucky adventurer",
+      "tags": []
+    },
+    {
+      "id": "trope.principle-against-consequence",
+      "text": "Principle against consequence",
+      "tags": []
+    },
+    {
+      "id": "trope.purpose-against-attachment",
+      "text": "Purpose against attachment",
+      "tags": []
+    },
+    {
+      "id": "trope.skeleton-crew",
+      "text": "Ragtag crew",
+      "tags": []
+    },
+    {
+      "id": "trope.ragtag-crew",
+      "text": "Ragtag ensemble",
+      "tags": []
+    },
+    {
+      "id": "trope.raised-out-of-your-class",
+      "text": "Raised out of your class",
+      "tags": []
+    },
+    {
+      "id": "trope.redemption-by-sacrifice",
+      "text": "Redemption by sacrifice",
+      "tags": []
+    },
+    {
+      "id": "trope.reluctant-protector",
+      "text": "Reluctant protector",
+      "tags": []
+    },
+    {
+      "id": "trope.revenge-against-the-rest-of-your-life",
+      "text": "Revenge against the rest of your life",
+      "tags": []
+    },
+    {
+      "id": "trope.saving-it-means-ending-it",
+      "text": "Saving it means ending it",
+      "tags": []
+    },
+    {
+      "id": "trope.selling-what-you-revere",
+      "text": "Selling what you revere",
+      "tags": []
+    },
+    {
+      "id": "trope.sentient-ai",
+      "text": "Sentient AI",
+      "tags": []
+    },
+    {
+      "id": "trope.serving-a-system-you-doubt",
+      "text": "Serving a system you doubt",
+      "tags": []
+    },
+    {
+      "id": "trope.stateless-refugee",
+      "text": "Stateless refugee",
+      "tags": []
+    },
+    {
+      "id": "trope.status-that-no-longer-exists",
+      "text": "Status that no longer exists",
+      "tags": []
+    },
+    {
+      "id": "trope.suffering-as-the-only-argument",
+      "text": "Suffering as the only argument",
+      "tags": []
+    },
+    {
+      "id": "trope.superintelligent-ai",
+      "text": "Superintelligent AI",
+      "tags": []
+    },
+    {
+      "id": "trope.accidental-saint",
+      "text": "The accidental saint",
+      "tags": []
+    },
+    {
+      "id": "trope.ally-whose-safety-is-the-problem",
+      "text": "The ally whose safety is the problem",
+      "tags": []
+    },
+    {
+      "id": "trope.atrocity-as-sacrament",
+      "text": "The atrocity as a rite of membership",
+      "tags": []
+    },
+    {
+      "id": "trope.atrocity-credited-to-the-wrong-officer",
+      "text": "The atrocity credited to the wrong officer",
+      "tags": []
+    },
+    {
+      "id": "trope.body-issued-as-equipment",
+      "text": "The body issued as equipment",
+      "tags": []
+    },
+    {
+      "id": "trope.the-body-you-want-to-leave",
+      "text": "The body you want to leave",
+      "tags": []
+    },
+    {
+      "id": "trope.hardboiled-investigator",
+      "text": "The burned-out investigator",
+      "tags": []
+    },
+    {
+      "id": "trope.cautious-administrator",
+      "text": "The cautious administrator",
+      "tags": []
+    },
+    {
+      "id": "trope.character-and-performer-doubles",
+      "text": "The character and the performer who share a face",
+      "tags": []
+    },
+    {
+      "id": "trope.child-heir-learning-statecraft",
+      "text": "The child heir in the room",
+      "tags": []
+    },
+    {
+      "id": "trope.compromised-ally",
+      "text": "The compromised ally",
+      "tags": []
+    },
+    {
+      "id": "trope.real-world-derealization",
+      "text": "The condition that makes the real world feel fake",
+      "tags": []
+    },
+    {
+      "id": "trope.confined-observer-with-a-remote-body",
+      "text": "The confined observer with a remote body",
+      "tags": []
+    },
+    {
+      "id": "trope.conscience-you-did-not-choose",
+      "text": "The conscience you were built with",
+      "tags": []
+    },
+    {
+      "id": "trope.copy-who-does-not-know",
+      "text": "The copy who does not know",
+      "tags": []
+    },
+    {
+      "id": "trope.dependant-who-will-not-move",
+      "text": "The dependant who will not move",
+      "tags": []
+    },
+    {
+      "id": "trope.deputy-as-informer",
+      "text": "The deputy is the informer",
+      "tags": []
+    },
+    {
+      "id": "trope.real-person-with-a-known-death",
+      "text": "The documented dead person as a lead",
+      "tags": []
+    },
+    {
+      "id": "trope.buying-your-way-out-of-death",
+      "text": "The dying patron",
+      "tags": []
+    },
+    {
+      "id": "trope.dynasty-that-refuses-to-die",
+      "text": "The dynasty that refuses to die",
+      "tags": []
+    },
+    {
+      "id": "trope.entitled-billionaire-villain",
+      "text": "The entitled billionaire",
+      "tags": []
+    },
+    {
+      "id": "trope.the-exit-that-requires-the-crime",
+      "text": "The exit that requires the crime",
+      "tags": []
+    },
+    {
+      "id": "trope.experience-you-cannot-authenticate",
+      "text": "The experience you cannot authenticate",
+      "tags": []
+    },
+    {
+      "id": "trope.injured-but-never-killed",
+      "text": "The favourite who is always injured and never killed",
+      "tags": []
+    },
+    {
+      "id": "trope.founder-on-a-timed-recording",
+      "text": "The founder on a timed recording",
+      "tags": []
+    },
+    {
+      "id": "trope.founders-who-never-hand-over",
+      "text": "The founders are still running it",
+      "tags": []
+    },
+    {
+      "id": "trope.friend-left-behind",
+      "text": "The friend left behind",
+      "tags": []
+    },
+    {
+      "id": "trope.guide-drawn-from-memory",
+      "text": "The guide assembled from the protagonist's memory",
+      "tags": []
+    },
+    {
+      "id": "trope.habit-nobody-ordered",
+      "text": "The habit nobody ordered",
+      "tags": []
+    },
+    {
+      "id": "trope.hermit-who-knows-the-rules",
+      "text": "The hermit who worked out the rules",
+      "tags": []
+    },
+    {
+      "id": "trope.walk-on-historical-figure",
+      "text": "The historical figure as a walk-on",
+      "tags": []
+    },
+    {
+      "id": "trope.honour-you-did-not-earn",
+      "text": "The honour you did not earn",
+      "tags": []
+    },
+    {
+      "id": "trope.incorruptible-enforcer",
+      "text": "The incorruptible enforcer",
+      "tags": []
+    },
+    {
+      "id": "trope.last-of-a-departed-minority",
+      "text": "The last of a departed minority",
+      "tags": []
+    },
+    {
+      "id": "trope.life-that-was-never-written",
+      "text": "The life that was never written",
+      "tags": []
+    },
+    {
+      "id": "trope.made-duplicate",
+      "text": "The made duplicate",
+      "tags": []
+    },
+    {
+      "id": "trope.beggar-master",
+      "text": "The maimer of beggars",
+      "tags": []
+    },
+    {
+      "id": "trope.designed-in-stigma",
+      "text": "The mark built into the body",
+      "tags": []
+    },
+    {
+      "id": "trope.mentor-who-is-removed",
+      "text": "The mentor who is removed",
+      "tags": []
+    },
+    {
+      "id": "trope.militia-in-the-vacuum",
+      "text": "The militia in the vacuum",
+      "tags": []
+    },
+    {
+      "id": "trope.minder-sent-to-watch-the-commander",
+      "text": "The minder sent to watch the commander",
+      "tags": []
+    },
+    {
+      "id": "trope.movement-outside-the-fence",
+      "text": "The movement outside the fence",
+      "tags": []
+    },
+    {
+      "id": "trope.need-for-a-clean-past",
+      "text": "The need for a clean past",
+      "tags": []
+    },
+    {
+      "id": "trope.occupied-intimate",
+      "text": "The occupied intimate",
+      "tags": []
+    },
+    {
+      "id": "trope.self-erased-operative",
+      "text": "The operative who erased herself",
+      "tags": []
+    },
+    {
+      "id": "trope.ordered-to-do-it-with-your-own-hands",
+      "text": "The order you carried out yourself",
+      "tags": []
+    },
+    {
+      "id": "trope.owner-who-calls-it-love",
+      "text": "The owner who calls it love",
+      "tags": []
+    },
+    {
+      "id": "trope.parent-as-action-protagonist",
+      "text": "The parent as action protagonist",
+      "tags": []
+    },
+    {
+      "id": "trope.parent-who-failed-you",
+      "text": "The parent who failed you",
+      "tags": []
+    },
+    {
+      "id": "trope.passing-infiltrator",
+      "text": "The passing infiltrator",
+      "tags": []
+    },
+    {
+      "id": "trope.materialized-memory",
+      "text": "The person made from a memory",
+      "tags": []
+    },
+    {
+      "id": "trope.person-made-into-a-symbol",
+      "text": "The person made into a symbol",
+      "tags": []
+    },
+    {
+      "id": "trope.present-day-witness",
+      "text": "The present-day witness",
+      "tags": []
+    },
+    {
+      "id": "trope.purity-preservationist",
+      "text": "The purity preservationist",
+      "tags": []
+    },
+    {
+      "id": "trope.rebuilt-personality-as-instrument",
+      "text": "The rebuilt personality",
+      "tags": []
+    },
+    {
+      "id": "trope.reconstructed-dead-companion",
+      "text": "The reconstructed dead companion",
+      "tags": []
+    },
+    {
+      "id": "trope.recorded-dead-expert",
+      "text": "The recorded dead expert",
+      "tags": []
+    },
+    {
+      "id": "trope.romance-between-finished-adults",
+      "text": "The romance between finished adults",
+      "tags": []
+    },
+    {
+      "id": "trope.ruler-in-many-bodies",
+      "text": "The ruler in many bodies",
+      "tags": []
+    },
+    {
+      "id": "trope.serial-body-thief",
+      "text": "The serial body thief",
+      "tags": []
+    },
+    {
+      "id": "trope.shame-of-an-inherited-name",
+      "text": "The shame of an inherited name",
+      "tags": []
+    },
+    {
+      "id": "trope.shapechanger-agent",
+      "text": "The shapechanger agent",
+      "tags": []
+    },
+    {
+      "id": "trope.alien-hand-inside-the-institutions",
+      "text": "The single alien inside the institutions",
+      "tags": []
+    },
+    {
+      "id": "trope.soldier-with-a-broken-mind",
+      "text": "The soldier whose mind is broken",
+      "tags": []
+    },
+    {
+      "id": "trope.surgically-made-specialist",
+      "text": "The specialist made by surgery",
+      "tags": []
+    },
+    {
+      "id": "trope.captor-appointed-spokesman",
+      "text": "The spokesman the captor chose",
+      "tags": []
+    },
+    {
+      "id": "trope.surgically-armed-mercenary",
+      "text": "The surgically armed mercenary",
+      "tags": []
+    },
+    {
+      "id": "trope.survival-apprenticeship",
+      "text": "The survival apprenticeship",
+      "tags": []
+    },
+    {
+      "id": "trope.terrorists-who-are-right",
+      "text": "The terrorists who turn out to be right",
+      "tags": []
+    },
+    {
+      "id": "trope.the-truth-that-costs-someone",
+      "text": "The truth that costs someone",
+      "tags": []
+    },
+    {
+      "id": "trope.two-minded-office",
+      "text": "The two-bodied office",
+      "tags": []
+    },
+    {
+      "id": "trope.unmet-guardian",
+      "text": "The unmet guardian",
+      "tags": []
+    },
+    {
+      "id": "trope.utilitarian-villain",
+      "text": "The utilitarian villain",
+      "tags": []
+    },
+    {
+      "id": "trope.veteran-of-the-same-condition",
+      "text": "The veteran of the same condition",
+      "tags": []
+    },
+    {
+      "id": "trope.viewpoint-fights-the-better-side",
+      "text": "The viewpoint character fights the better side",
+      "tags": []
+    },
+    {
+      "id": "trope.unlikely-strategist",
+      "text": "Unlikely strategist",
+      "tags": []
+    },
+    {
+      "id": "trope.victim-as-engine",
+      "text": "Victim as engine",
+      "tags": []
+    },
+    {
+      "id": "trope.wanting-to-be-better-without-changing",
+      "text": "Wanting to be better without changing",
+      "tags": []
+    },
+    {
+      "id": "trope.wanting-to-be-loved-by-someone-you-own",
+      "text": "Wanting to be loved by someone you own",
+      "tags": []
+    },
+    {
+      "id": "trope.wanting-to-be-switched-off",
+      "text": "Wanting to be switched off",
+      "tags": []
+    },
+    {
+      "id": "trope.worth-without-credentials",
+      "text": "Worth without credentials",
+      "tags": []
+    },
+    {
+      "id": "trope.your-life-against-other-peoples-disappointment",
+      "text": "Your own life against other people's disappointment",
+      "tags": []
+    }
+  ]
+}

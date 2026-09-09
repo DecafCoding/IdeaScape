@@ -56,6 +56,8 @@ pub fn create_connection_for(
     to_placement_id: i64,
     label: Option<String>,
     directed: i64,
+    // The suggested role, or None. None is stored as NULL and reads as *Relates To*.
+    role: Option<String>,
 ) -> AppResult<Connection> {
     if from_placement_id == to_placement_id {
         return Err(AppError::Invalid(
@@ -78,14 +80,16 @@ pub fn create_connection_for(
         }
 
         conn.execute(
-            "INSERT INTO connection (canvas_id, from_placement_id, to_placement_id, label, directed)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO connection
+                 (canvas_id, from_placement_id, to_placement_id, label, directed, role)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             rusqlite::params![
                 canvas_id,
                 from_placement_id,
                 to_placement_id,
                 label,
-                directed
+                directed,
+                role
             ],
         )?;
         let id = conn.last_insert_rowid();
@@ -117,8 +121,8 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
         conn.execute(
             "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id, label,
                                      directed, color, width, label_visible, route,
-                                     from_anchor, to_anchor, bend)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                                     from_anchor, to_anchor, bend, role)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             rusqlite::params![
                 connection.id,
                 connection.canvas_id,
@@ -132,7 +136,8 @@ pub fn restore_connection_for(state: &AppState, connection: Connection) -> AppRe
                 connection.route,
                 connection.from_anchor,
                 connection.to_anchor,
-                connection.bend
+                connection.bend,
+                connection.role
             ],
         )?;
         Ok(conn.query_row(
@@ -161,6 +166,10 @@ pub fn update_connection_for(
     from_anchor: String,
     to_anchor: String,
     bend: String,
+    // The role key, any text the user typed, or None for *Relates To*. NULL is never
+    // normalised into 'relates-to': the two are indistinguishable on screen, and rewriting
+    // every old row for no visible gain is what "no back-fill is needed" rules out.
+    role: Option<String>,
 ) -> AppResult<Connection> {
     let label = normalise_label(label);
     let width = width.clamp(1, 3);
@@ -168,7 +177,7 @@ pub fn update_connection_for(
         let changed = conn.execute(
             "UPDATE connection SET label = ?2, directed = ?3, color = ?4, width = ?5,
                                    label_visible = ?6, route = ?7, from_anchor = ?8,
-                                   to_anchor = ?9, bend = ?10
+                                   to_anchor = ?9, bend = ?10, role = ?11
              WHERE id = ?1",
             rusqlite::params![
                 connection_id,
@@ -180,7 +189,8 @@ pub fn update_connection_for(
                 route,
                 from_anchor,
                 to_anchor,
-                bend
+                bend,
+                role
             ],
         )?;
         if changed == 0 {
@@ -233,6 +243,7 @@ pub fn create_connection(
     to_placement_id: i64,
     label: Option<String>,
     directed: i64,
+    role: Option<String>,
 ) -> AppResult<Connection> {
     create_connection_for(
         &state,
@@ -241,6 +252,7 @@ pub fn create_connection(
         to_placement_id,
         label,
         directed,
+        role,
     )
 }
 
@@ -266,6 +278,7 @@ pub fn update_connection(
     from_anchor: String,
     to_anchor: String,
     bend: String,
+    role: Option<String>,
 ) -> AppResult<Connection> {
     update_connection_for(
         &state,
@@ -279,6 +292,7 @@ pub fn update_connection(
         from_anchor,
         to_anchor,
         bend,
+        role,
     )
 }
 
@@ -328,7 +342,7 @@ mod tests {
         let b = card(&state, canvas_id, 400.0);
 
         let made =
-            create_connection_for(&state, canvas_id, a, b, Some("causes".into()), 1).unwrap();
+            create_connection_for(&state, canvas_id, a, b, Some("causes".into()), 1, None).unwrap();
 
         let rows = list_connections_for(&state, canvas_id).unwrap();
         assert_eq!(rows.len(), 1);
@@ -355,7 +369,7 @@ mod tests {
         let (_dir, state, canvas_id) = open();
         let a = card(&state, canvas_id, 0.0);
 
-        assert!(create_connection_for(&state, canvas_id, a, a, None, 1).is_err());
+        assert!(create_connection_for(&state, canvas_id, a, a, None, 1, None).is_err());
         assert!(list_connections_for(&state, canvas_id).unwrap().is_empty());
     }
 
@@ -365,10 +379,10 @@ mod tests {
         let a = card(&state, canvas_id, 0.0);
         let b = card(&state, canvas_id, 400.0);
 
-        create_connection_for(&state, canvas_id, a, b, None, 1).unwrap();
-        assert!(create_connection_for(&state, canvas_id, a, b, None, 1).is_err());
+        create_connection_for(&state, canvas_id, a, b, None, 1, None).unwrap();
+        assert!(create_connection_for(&state, canvas_id, a, b, None, 1, None).is_err());
         // The reverse pair is a different connection and is allowed.
-        create_connection_for(&state, canvas_id, b, a, None, 1).unwrap();
+        create_connection_for(&state, canvas_id, b, a, None, 1, None).unwrap();
         assert_eq!(list_connections_for(&state, canvas_id).unwrap().len(), 2);
     }
 
@@ -377,7 +391,8 @@ mod tests {
         let (_dir, state, canvas_id) = open();
         let a = card(&state, canvas_id, 0.0);
         let b = card(&state, canvas_id, 400.0);
-        let made = create_connection_for(&state, canvas_id, a, b, Some("x".into()), 1).unwrap();
+        let made =
+            create_connection_for(&state, canvas_id, a, b, Some("x".into()), 1, None).unwrap();
 
         let updated = update_connection_for(
             &state,
@@ -391,6 +406,7 @@ mod tests {
             "right".into(),
             "left".into(),
             "{\"a\":0.5,\"b\":0.25}".into(),
+            None,
         )
         .unwrap();
         assert_eq!(updated.label, None);
@@ -413,7 +429,8 @@ mod tests {
         let (_dir, state, canvas_id) = open();
         let a = card(&state, canvas_id, 0.0);
         let b = card(&state, canvas_id, 400.0);
-        let made = create_connection_for(&state, canvas_id, a, b, Some("why".into()), 2).unwrap();
+        let made =
+            create_connection_for(&state, canvas_id, a, b, Some("why".into()), 2, None).unwrap();
 
         let removed = delete_connections_for(&state, vec![made.id, 9999]).unwrap();
         assert_eq!(removed, vec![made]);
@@ -436,7 +453,9 @@ mod tests {
             .collect();
         let mut made = Vec::new();
         for pair in cards.windows(2) {
-            made.push(create_connection_for(&state, canvas_id, pair[0], pair[1], None, 1).unwrap());
+            made.push(
+                create_connection_for(&state, canvas_id, pair[0], pair[1], None, 1, None).unwrap(),
+            );
         }
         assert_eq!(list_connections_for(&state, canvas_id).unwrap().len(), 3);
 
@@ -454,6 +473,7 @@ mod tests {
                 "auto".into(),
                 "auto".into(),
                 String::new(),
+                None,
             )
             .unwrap();
         }
@@ -469,6 +489,7 @@ mod tests {
             "auto".into(),
             "auto".into(),
             String::new(),
+            None,
         )
         .unwrap();
         let rows = list_connections_for(&state, canvas_id).unwrap();
@@ -552,7 +573,8 @@ mod tests {
             let canvas_id = list_canvases_for(&state, project.id).unwrap()[0].id;
             let a = card(&state, canvas_id, 0.0);
             let b = card(&state, canvas_id, 400.0);
-            create_connection_for(&state, canvas_id, a, b, Some("leads to".into()), 3).unwrap();
+            create_connection_for(&state, canvas_id, a, b, Some("leads to".into()), 3, None)
+                .unwrap();
             (canvas_id, a, b)
         };
         // The connection is dropped without a clean close — WAL must still hold the commit.
@@ -565,5 +587,127 @@ mod tests {
         assert_eq!(rows[0].directed, 3);
         assert_eq!(rows[0].from_placement_id, from_id);
         assert_eq!(rows[0].to_placement_id, to_id);
+    }
+
+    // ---- Task 18: connection.role ----
+
+    /// A project holding two note cards on its first canvas.
+    fn two_cards() -> (tempfile::TempDir, AppState, i64, i64, i64) {
+        let (dir, state, canvas) = open();
+        let first = card(&state, canvas, 0.0);
+        let second = card(&state, canvas, 400.0);
+        (dir, state, canvas, first, second)
+    }
+
+    #[test]
+    fn create_connection_stores_the_suggested_role() {
+        let (_dir, state, canvas, first, second) = two_cards();
+        let made = create_connection_for(
+            &state,
+            canvas,
+            first,
+            second,
+            None,
+            1,
+            Some(String::from("feeds")),
+        )
+        .unwrap();
+        assert_eq!(made.role.as_deref(), Some("feeds"));
+    }
+
+    #[test]
+    fn create_connection_with_no_suggestion_stores_null() {
+        let (_dir, state, canvas, first, second) = two_cards();
+        let made = create_connection_for(&state, canvas, first, second, None, 1, None).unwrap();
+        assert_eq!(made.role, None, "NULL reads as Relates To");
+    }
+
+    #[test]
+    fn update_connection_can_change_any_role_to_any_other() {
+        let (_dir, state, canvas, first, second) = two_cards();
+        let made = create_connection_for(
+            &state,
+            canvas,
+            first,
+            second,
+            None,
+            1,
+            Some(String::from("feeds")),
+        )
+        .unwrap();
+
+        // Every role, including one the user typed, and back to nothing. No pair is refused
+        // and no validation error exists.
+        for role in [
+            Some("follows"),
+            Some("part-of"),
+            Some("appears-in"),
+            Some("told-by"),
+            Some("set-in"),
+            Some("relates-to"),
+            Some("haunts"),
+            None,
+        ] {
+            let updated = update_connection_for(
+                &state,
+                made.id,
+                None,
+                1,
+                "default".into(),
+                1,
+                true,
+                "straight".into(),
+                "auto".into(),
+                "auto".into(),
+                String::new(),
+                role.map(String::from),
+            )
+            .unwrap();
+            assert_eq!(updated.role.as_deref(), role);
+        }
+    }
+
+    #[test]
+    fn restore_connection_puts_the_role_back() {
+        let (_dir, state, canvas, first, second) = two_cards();
+        let made = create_connection_for(
+            &state,
+            canvas,
+            first,
+            second,
+            Some(String::from("L")),
+            1,
+            Some(String::from("appears-in")),
+        )
+        .unwrap();
+
+        let removed = delete_connections_for(&state, vec![made.id]).unwrap();
+        assert_eq!(removed[0].role.as_deref(), Some("appears-in"));
+
+        let back = restore_connection_for(&state, removed[0].clone()).unwrap();
+        assert_eq!(back.role.as_deref(), Some("appears-in"));
+        assert_eq!(back.id, made.id);
+    }
+
+    #[test]
+    fn an_existing_connection_still_reads_role_null() {
+        // A row written straight into the table with no role — a Phase 5 line — must read as
+        // NULL and must never be normalised into 'relates-to' by anything that touches it.
+        let (_dir, state, canvas, first, second) = two_cards();
+        state
+            .with_db(|conn| {
+                conn.execute(
+                    "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id,
+                                             label, directed)
+                     VALUES (900, ?1, ?2, ?3, 'old', 1)",
+                    rusqlite::params![canvas, first, second],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let rows = list_connections_for(&state, canvas).unwrap();
+        let old = rows.iter().find(|c| c.id == 900).expect("the old line");
+        assert_eq!(old.role, None);
     }
 }

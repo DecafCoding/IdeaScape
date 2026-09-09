@@ -1,0 +1,45 @@
+{
+  "list": "genres",
+  "entries": [
+    {
+      "id": "genre.catastrophe-aftermath",
+      "text": "Catastrophe & Aftermath",
+      "tags": []
+    },
+    {
+      "id": "genre.cross-genre-tonal",
+      "text": "Cross-Genre & Tonal",
+      "tags": []
+    },
+    {
+      "id": "genre.encounter-scale",
+      "text": "Encounter & Scale",
+      "tags": []
+    },
+    {
+      "id": "genre.retro-aesthetic",
+      "text": "Retro & Aesthetic",
+      "tags": []
+    },
+    {
+      "id": "genre.rigor",
+      "text": "Rigor",
+      "tags": []
+    },
+    {
+      "id": "genre.scope-setting",
+      "text": "Scope & Setting",
+      "tags": []
+    },
+    {
+      "id": "genre.technology-future",
+      "text": "Technology & Future",
+      "tags": []
+    },
+    {
+      "id": "genre.time-reality",
+      "text": "Time & Reality",
+      "tags": []
+    }
+  ]
+}

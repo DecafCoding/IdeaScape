@@ -14,6 +14,7 @@
 import { invokeSafe } from '../../lib/ipc';
 import { assetStatus, refreshAssetStatuses } from '../../lib/assets.svelte';
 import { logWarn } from '../../lib/logger';
+import { addListEntry, removeListEntry } from '../../lib/lists';
 import { payloadAssetNames } from '../../lib/types';
 import { canvasStore } from '../../stores/canvasStore.svelte';
 import type {
@@ -22,6 +23,7 @@ import type {
   Connection,
   ConnectionEdit,
   DeleteEffect,
+  ExpandEffect,
   Item,
   Placement,
   PlacementUpdate,
@@ -327,6 +329,7 @@ export function createCanvasCommand(canvas: Canvas, hooks: CanvasCommandHooks): 
     items: [],
     connections: [],
     assets: [],
+    detail_pointers: [],
   };
   return {
     label: 'New Canvas',
@@ -387,6 +390,144 @@ export function deleteCanvasCommand(
     async redo() {
       await invokeSafe<CanvasDeleteEffect>('delete_canvas', { canvasId: effect.canvas.id });
       await hooks.refresh();
+    },
+  };
+}
+
+/**
+ * Adding or removing a value in the project's own vocabulary.
+ *
+ * Pushed only when `add_list_entry` reported it actually wrote a row: typing a value the
+ * shipped list already holds changes nothing, so there is nothing to reverse. Both
+ * directions invalidate the cache, or the combo would keep offering a word that is gone.
+ */
+export function listEntryCommand(list: string, text: string, added: boolean): UndoableCommand {
+  async function add() {
+    await addListEntry(list, text);
+  }
+  async function remove() {
+    await removeListEntry(list, text);
+  }
+  return {
+    label: added ? 'Add List Entry' : 'Remove List Entry',
+    undo: added ? remove : add,
+    redo: added ? add : remove,
+  };
+}
+
+/**
+ * Writing one field of one writing card. The panel's controls and the sheets all commit
+ * through this, so editing a card on its sheet and editing it in the panel produce the same
+ * payload and the same single undo entry.
+ */
+export function setFieldCommand(
+  itemId: number,
+  key: string,
+  before: unknown,
+  after: unknown,
+): UndoableCommand {
+  async function write(value: unknown) {
+    const item = await invokeSafe<Item>('set_item_field', { itemId, key, value });
+    canvasStore.upsertItem(item);
+  }
+  return {
+    label: 'Edit Card',
+    undo: () => write(before),
+    redo: () => write(after),
+  };
+}
+
+/**
+ * Rerolling the five personality sliders. ONE command carrying five effects, which the undo
+ * model already supports: undo restores all five previous values in one step and touches no
+ * other field. Five separate `setFieldCommand`s would need five Ctrl+Z presses.
+ */
+export function randomizeCommand(
+  itemId: number,
+  keys: string[],
+  before: number[],
+  after: number[],
+): UndoableCommand {
+  async function write(values: number[]) {
+    let item: Item | null = null;
+    for (let i = 0; i < keys.length; i += 1) {
+      item = await invokeSafe<Item>('set_item_field', { itemId, key: keys[i], value: values[i] });
+    }
+    if (item) canvasStore.upsertItem(item);
+  }
+  return {
+    label: 'Randomize',
+    undo: () => write(before),
+    redo: () => write(after),
+  };
+}
+
+/**
+ * Deleting an unplaced writing card for good. It has no placement, so the restore goes
+ * through `restore_card`'s asset-untrash path with none — the item row and its files come
+ * back together as one step.
+ */
+export function deleteUnplacedCommand(effect: DeleteEffect): UndoableCommand {
+  const item = effect.items[0];
+  return {
+    label: 'Delete Card',
+    async undo() {
+      if (!item) return;
+      await invokeSafe<Item>('restore_item', {
+        itemId: item.id,
+        projectId: item.project_id,
+        kind: item.kind,
+        payload: item.payload,
+      });
+      await refreshAssetStatuses(payloadAssetNames(item.kind, item.payload));
+    },
+    async redo() {
+      if (!item) return;
+      await invokeSafe<DeleteEffect>('delete_item', { itemId: item.id });
+      await refreshAssetStatuses(payloadAssetNames(item.kind, item.payload));
+    },
+  };
+}
+
+/**
+ * Giving a card a canvas of its own.
+ *
+ * The effect names the canvas, the placement and the previous `detail_canvas_id`, so ONE
+ * undo step reverses all three. Redo goes back through `restore_canvas`, which puts the
+ * canvas back under its original id — which is what keeps the rest of the stack valid.
+ */
+export function expandCommand(effect: ExpandEffect): UndoableCommand {
+  return {
+    label: 'Expand Into A Canvas',
+    async undo() {
+      await invokeSafe<CanvasDeleteEffect>('delete_canvas', { canvasId: effect.canvas.id });
+      const item = await invokeSafe<Item>('set_item_field', {
+        itemId: effect.item.id,
+        key: 'detail_canvas_id',
+        value: effect.previous_detail_canvas_id,
+      });
+      canvasStore.upsertItem(item);
+      canvasStore.canvases = canvasStore.canvases.filter((c) => c.id !== effect.canvas.id);
+      canvasStore.removePlacement(effect.placement.id);
+    },
+    async redo() {
+      await invokeSafe<Canvas>('restore_canvas', {
+        effect: {
+          canvas: effect.canvas,
+          placements: [effect.placement],
+          items: [],
+          connections: [],
+          assets: [],
+          detail_pointers: [],
+        },
+      });
+      const item = await invokeSafe<Item>('set_item_field', {
+        itemId: effect.item.id,
+        key: 'detail_canvas_id',
+        value: effect.canvas.id,
+      });
+      canvasStore.upsertItem(item);
+      canvasStore.canvases = [...canvasStore.canvases, effect.canvas];
     },
   };
 }

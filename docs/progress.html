@@ -209,14 +209,44 @@
   </ul>
 </section>
 
-<section class="phase" data-phase="6" data-status="not-planned">
-  <h2>Phase 6: The writing pack <span class="badge">not planned</span></h2>
-  <p class="meta"><strong>Branch:</strong> <em>to be determined by <code>/dev-plan-phase 6</code></em></p>
-  <p class="meta"><strong>Phase doc:</strong> <em>none yet — run <code>/dev-plan-phase 6</code></em></p>
+<section class="phase" data-phase="6" data-status="complete">
+  <h2>Phase 6: The writing pack <span class="badge">complete</span></h2>
+  <p class="meta"><strong>Branch:</strong> <code>phase-6-writing-pack</code></p>
+  <p class="meta"><strong>Phase doc:</strong> <code>docs/phases/phase-6-writing-pack.html</code></p>
   <p class="meta"><strong>Feature plan:</strong> <a href="feature-writing-pack.html"><code>docs/feature-writing-pack.html</code></a> — the settled design this phase implements.</p>
-  <p class="meta"><strong>Visual design:</strong> <a href="design-system.html"><code>docs/design-system.html</code></a> §9.25–§9.33 — folded in 2026-09-08. This phase is <strong>no longer blocked</strong>.</p>
-  <p class="meta"><strong>Depends on:</strong> Phases 1–5 — all complete.</p>
-  <p class="meta"><strong>Summary:</strong> Phase 6 makes a card know what it is. Card types become data blueprints rather than code, so a writer records characters, chapters, scenes and beats in fields that suit them, and the lines between cards carry a meaning.</p>
+  <p class="meta"><strong>Visual design:</strong> <a href="design-system.html"><code>docs/design-system.html</code></a> §9.25–§9.33 — folded in 2026-09-08.</p>
+  <p class="meta"><strong>Depends on:</strong> Phase 5 (settings, the toggle control, the signed-off dark theme); Phase 4 (search, the canvas list, json_extract); Phase 3 (the assets module, content hash, reference counting); Phase 2 (connections); Phase 1 (the shell, the token layer, culling, undo). No new npm or crate dependency. One outside data source, read once at build time: the Book Guides library at %USERPROFILE%\Documents\SecondBrain\Book Guides</p>
+  <p class="meta"><strong>Summary:</strong> Make a card know what it is.</p>
+  <ul class="tasks">
+    <li class="task" data-task="1" data-status="done">Task 1: Migration 0007 — rebuild item with the widened kind</li>
+    <li class="task" data-task="2" data-status="done">Task 2: Migrations 0008 and 0009 — the role column and the project's own vocabulary</li>
+    <li class="task" data-task="3" data-status="done">Task 3: The blueprint, field and pick-entry types — both sides of the seam</li>
+    <li class="task" data-task="4" data-status="done">Task 4: The six shipped card types, the reader, and list_blueprints</li>
+    <li class="task" data-task="5" data-status="done">Task 5: The shipped lists, extracted once and measured</li>
+    <li class="task" data-task="6" data-status="done">Task 6: The project's own vocabulary — list_entries and its two writes</li>
+    <li class="task" data-task="7" data-status="done">Task 7: One-hop filtering, as a pure function</li>
+    <li class="task" data-task="8" data-status="done">Task 8: The blueprint payload — validation, creation, and writing one field</li>
+    <li class="task" data-task="9" data-status="done">Task 9: The corrected last-placement delete rule</li>
+    <li class="task" data-task="10" data-status="done">Task 10: The Unplaced list in the left column</li>
+    <li class="task" data-task="11" data-status="done">Task 11: The chip, the chip adder and the combo</li>
+    <li class="task" data-task="12" data-status="done">Task 12: The Scale control and the dice button</li>
+    <li class="task" data-task="13" data-status="done">Task 13: The shaped roll and its guarantee</li>
+    <li class="task" data-task="14" data-status="done">Task 14: The generated panel state — one control per field kind</li>
+    <li class="task" data-task="15" data-status="done">Task 15: Placed on and Joined to</li>
+    <li class="task" data-task="16" data-status="done">Task 16: The blueprint card face</li>
+    <li class="task" data-task="17" data-status="done">Task 17: The rail's Cards group, its two submenus and the 2–7 keys</li>
+    <li class="task" data-task="18" data-status="done">Task 18: The role vocabulary, the suggestion, and the stored column</li>
+    <li class="task" data-task="19" data-status="done">Task 19: The role on the line, and the Role combo</li>
+    <li class="task" data-task="20" data-status="done">Task 20: The shared sheet shell</li>
+    <li class="task" data-task="21" data-status="done">Task 21: Character, full screen</li>
+    <li class="task" data-task="22" data-status="done">Task 22: Book, full screen</li>
+    <li class="task" data-task="23" data-status="done">Task 23: Chapter, the writing surface</li>
+    <li class="task" data-task="24" data-status="done">Task 24: Expand Into A Canvas</li>
+    <li class="task" data-task="25" data-status="done">Task 25: The fourth search query</li>
+    <li class="task" data-task="26" data-status="done">Task 26: Show Writing Cards</li>
+    <li class="task" data-task="27" data-status="done">Task 27: The gate — 250 blueprint cards, the installer, and the recorded session</li>
+    <li class="task" data-task="28" data-status="done">Task 28: Commit, push, and open PR</li>
+  </ul>
 </section>
 
 </body>

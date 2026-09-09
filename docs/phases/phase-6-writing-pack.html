@@ -1,0 +1,2485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phase 6: The writing pack</title>
+  <style>
+    :root { --fg:#1a1a1a; --muted:#666; --accent:#2563eb; --done:#16a34a; --warn:#dc2626; --rule:#e5e7eb; }
+    body { font:16px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--fg); max-width:62rem; margin:2rem auto; padding:0 1.25rem; }
+    h1 { font-size:2rem; border-bottom:2px solid var(--rule); padding-bottom:.3rem; }
+    h2 { font-size:1.5rem; margin-top:2.5rem; border-bottom:1px solid var(--rule); padding-bottom:.2rem; }
+    h3.milestone { font-size:1.25rem; margin-top:2rem; color:var(--accent); }
+    h4.task { font-size:1.1rem; margin-top:1.5rem; }
+    dl.phase-meta { display:grid; grid-template-columns:max-content 1fr; gap:.25rem 1rem; }
+    dl.phase-meta dt { font-weight:600; color:var(--muted); }
+    code, pre { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    pre { background:#f6f8fa; padding:1rem; border-radius:6px; overflow:auto; }
+    code { background:#f6f8fa; padding:.1rem .3rem; border-radius:4px; }
+    pre code { background:none; padding:0; }
+    ul.checklist { list-style:none; padding-left:0; }
+    ul.checklist > li::before { content:"\2610 "; color:var(--muted); }
+    ul.checklist > li[data-checked="true"]::before { content:"\2611 "; color:var(--done); }
+    .validate { color:var(--done); font-weight:600; }
+  </style>
+</head>
+<body>
+
+<h1 data-phase="6">Phase 6: The writing pack</h1>
+
+<p>The following plan should be complete, but validate documentation, codebase patterns, and task
+sanity before implementing. Pay special attention to naming of existing utils, types, and models —
+import from the right files.</p>
+
+<h2>Phase Description</h2>
+
+<p>Make a card know what it is. Today every card is the same shape: <code>item.kind</code> is one of
+four values and a note holds free text. A character and a chapter are stored identically, so nothing
+on the canvas can be shown differently, offered a list of tropes, or told that four beats belong to
+one scene.</p>
+
+<p>This phase adds one new item kind, <code>blueprint</code>, and puts the card <em>type</em> inside
+the payload rather than in the schema. A card type becomes a read-only data file — a list of fields —
+and one generated properties-panel state, one generated card face and three full-screen sheets read
+that list. Seven card types ship (Book, Chapter, Scene, Beat, Character, Location, and the existing
+Note). Adding an eighth is a data file and no migration.</p>
+
+<p>Alongside the cards, the lines between them gain a meaning: <code>connection.role</code>, seven
+suggested roles, never a rule. Search reaches the new cards. The last-placement delete rule is
+corrected so a reused Character survives being taken off the one canvas they appear on, and an
+Unplaced list keeps the old rule's promise that nothing becomes invisible junk.</p>
+
+<p>Scope, deliverables and gates: <code>docs/prd.html</code> §11, Phase 6. The blueprint format, the
+field semantics, the pick-entry shape, the role vocabulary and the data model:
+<code>docs/feature-writing-pack.html</code> §5–§10 — it owns them and this plan does not re-decide
+them. Every colour, size, spacing and on-screen state: <code>docs/design-system.html</code> §9.25–§9.33,
+plus §8.3 (the rail's <code>Cards</code> group and its 206px flyout), §9.11 (the Settings row) and
+§9.13 (the role on the line). Read those before writing any component; do not invent a visual value.</p>
+
+<h2>User Stories</h2>
+
+<p><strong>As</strong> a writer building a book on a canvas<br>
+<strong>I want</strong> cards that carry the fields their type needs — a Character with personality
+sliders, a Book with a genre and its tropes, a Chapter with its prose<br>
+<strong>So that</strong> the canvas records the work instead of only describing it.</p>
+
+<p><strong>As</strong> a writer wiring an outline together<br>
+<strong>I want</strong> the line between two cards to say what it means — this beat feeds that scene,
+this chapter is part of that book<br>
+<strong>So that</strong> the shape of the story is readable from the canvas without opening anything.</p>
+
+<p><strong>As</strong> a writer reusing a character across chapters<br>
+<strong>I want</strong> the character to survive being removed from one chapter's canvas<br>
+<strong>So that</strong> tidying a canvas never destroys a record I built.</p>
+
+<p><strong>As</strong> a writer who types a trope the shipped list has never heard of<br>
+<strong>I want</strong> the value accepted, saved and offered again next time<br>
+<strong>So that</strong> the application's vocabulary follows mine rather than the other way round.</p>
+
+<p><strong>As</strong> a user who does not write fiction<br>
+<strong>I want</strong> one switch that takes the writing card types out of the menu<br>
+<strong>So that</strong> the application stays the note-and-picture canvas I opened it for.</p>
+
+<h2>Problem Statement</h2>
+
+<p>The MVP shipped with four card kinds that all store free text. <code>docs/mvp-plan.html</code> §1
+names story building as one of the two example projects the owner gave, and §4 was built for it — the
+item/placement split exists so a Character can sit on three chapter canvases as one record. The data
+model held; the card types were never built. Four separate rows on the deferred list — reusable shaped
+items, templates, tags and metadata, and boards nested inside a canvas — are one feature seen from
+four sides, and building them separately would build the same machinery four times.</p>
+
+<p>Two shipped rules are in the way. <code>item.kind</code> carries a SQLite <code>CHECK</code>
+constraint that cannot be altered in place, so a new kind means rebuilding a table that holds the
+user's work. And the last-placement delete rule destroys an item the moment its last placement goes —
+correct for a picture used once, catastrophic for a character removed from one chapter.</p>
+
+<h2>Solution Statement</h2>
+
+<p>Rebuild <code>item</code> exactly once (migration 0007) to widen the <code>kind</code>
+<code>CHECK</code> by one value, <code>blueprint</code>, and put the card type in the payload from then
+on. Add <code>connection.role</code> (0008) and a per-project vocabulary table (0009), both additive.</p>
+
+<p>Ship the seven card types as read-only JSON data files embedded in the Rust binary and handed to
+the front end through one new command. The properties panel, the card face and the three full-screen
+sheets each generate themselves from a field list and know only the seven field kinds — Short Text,
+Long Text, Pick, Pick Many, Image, Number and Scale. Pick values are the id / your text / its sources
+shape carried unchanged from <code>feature-guide-library.html</code>, so a typed value is always
+accepted and never loses its provenance.</p>
+
+<p>Correct the delete rule to apply to the four original kinds only, and give a blueprint item that
+loses its last placement a home in a new Unplaced list in the left column. Suggest a connection role
+from the two card types, store it, draw it, and never refuse a pair. Widen search by one query. Add
+one settings key that hides the pack from the menu and nothing else.</p>
+
+<h2>Phase Metadata</h2>
+
+<dl class="phase-meta">
+  <dt>Phase Type</dt><dd data-field="type">New Capability</dd>
+  <dt>Estimated Complexity</dt><dd data-field="complexity">High</dd>
+  <dt>Primary Systems Affected</dt><dd data-field="systems">Migrations and schema; Rust commands (item, placement, connection, search, settings, and two new modules); shared types and the new field-control layer in <code>src/lib/</code>; the card layer; the properties panel; the left column; connections; undo; the Settings screen; a new <code>features/writing/</code> folder for the three full-screen sheets</dd>
+  <dt>Dependencies</dt><dd data-field="dependencies">Phase 5 (settings, the toggle control, the signed-off dark theme); Phase 4 (search, the canvas list, <code>json_extract</code>); Phase 3 (the assets module, content hash, reference counting); Phase 2 (connections); Phase 1 (the shell, the token layer, culling, undo). No new npm or crate dependency. One outside data source, read once at build time: the Book Guides library at <code>%USERPROFILE%\Documents\SecondBrain\Book Guides</code></dd>
+</dl>
+
+<h2>Context References</h2>
+
+<h3>Relevant Codebase Files — READ THESE BEFORE IMPLEMENTING</h3>
+
+<ul>
+  <li><code>src-tauri/migrations/0001_initial_schema.sql</code> (lines 22–29, 51–56) — Why: the
+    <code>item</code> table and its <code>kind</code> <code>CHECK</code>, and the two indexes migration
+    0007 must recreate. Never edit this file.</li>
+  <li><code>src-tauri/migrations/0006_connection_bend.sql</code> — Why: the shape of an additive
+    migration in this repo, including the comment style that explains <em>why</em> a column exists.</li>
+  <li><code>src-tauri/src/db/migrations.rs</code> (lines 14–27) — Why: <code>MIGRATION_SQL</code> is a
+    fixed-length array; adding a migration means a new <code>include_str!</code> line <em>and</em>
+    bumping <code>[&amp;str; 6]</code> to <code>[&amp;str; 9]</code>.</li>
+  <li><code>src-tauri/src/db/connection.rs</code> (lines 14–36) — Why: <code>foreign_keys</code> is set
+    <code>ON</code> <em>before</em> <code>migrations::apply</code> runs. Task 1 must change that order;
+    see its GOTCHA. Lines 46–115 are the test pattern for a real SQLite file in a temp directory.</li>
+  <li><code>src-tauri/src/commands/item.rs</code> (lines 11–50) — Why: <code>KINDS</code> and
+    <code>validate_payload</code> are the gate every payload passes. Lines 63–78:
+    <code>asset_names</code>, the one place that knows which fields of which kind are assets. Lines
+    84–95: <code>reference_count</code>.</li>
+  <li><code>src-tauri/src/commands/placement.rs</code> (lines 299–358) —
+    <code>delete_placements_tx</code>. Why: lines 331–353 hold the exact <code>if remaining == 0</code>
+    block Task 9 makes conditional on the item kind. This is the highest-consequence edit in the phase.
+    Lines 419–465: the <code>create_*_card</code> command family Task 8 mirrors. Lines 500–600:
+    <code>seed_mixed_cards_for</code>, the harness Task 27 extends.</li>
+  <li><code>src-tauri/src/commands/search.rs</code> (lines 119–212) — Why: the three
+    <code>LIKE</code> queries, the <code>card_sql(field)</code> closure with its hard
+    <code>i.kind = 'note'</code> filter, <code>escape_like</code> (line 56) and <code>snippet</code>
+    (line 75). Task 25 adds a fourth pass beside them.</li>
+  <li><code>src-tauri/src/commands/connection.rs</code> (lines 224–300) — Why:
+    <code>update_connection</code> takes every styling field as a positional argument; Task 18 adds
+    <code>role</code> to it, to <code>restore_connection</code> and to <code>row_to_connection</code>.</li>
+  <li><code>src-tauri/src/commands/settings.rs</code> (lines 18–70, 86–100) — Why:
+    <code>StoredSettings</code>, its <code>impl Default</code>, the per-field <code>sanitize</code>, and
+    the atomic temp-file-then-rename writer. Task 26 adds one field to all four.</li>
+  <li><code>src-tauri/src/lib.rs</code> (lines 12–118) — Why: <strong>two</strong>
+    <code>invoke_handler</code> lists, one behind <code>#[cfg(debug_assertions)]</code>. Every new
+    command must be registered in both, and a debug-only command in the first only.</li>
+  <li><code>src-tauri/src/error.rs</code> (whole file, 55 lines) — Why: the one error type.
+    <code>AppError::Invalid</code> is the variant every new validation failure uses.
+    <code>From&lt;std::io::Error&gt;</code> maps to <code>DatabaseOpen</code>, which is a false sentence
+    outside <code>db/</code> — map io failures explicitly.</li>
+  <li><code>src/lib/types.ts</code> (lines 71, 211–257, 260–333, 349–381) — Why: <code>ItemKind</code>
+    gains <code>'blueprint'</code>; the payload interfaces and their tolerant
+    <code>parse*Payload</code> readers are the pattern Task 3 mirrors; <code>cardTitle</code> and
+    <code>payloadAssetNames</code> both gain a blueprint case.</li>
+  <li><code>src/lib/cardKinds.ts</code> (lines 18–41) — Why: <code>defaultSizeFor(kind)</code> switches
+    on the kind; for a blueprint card it must read the blueprint instead. Its header comment records
+    the precedent for authoring a default size that no document draws.</li>
+  <li><code>src/lib/shortcuts.ts</code> (lines 10–50, 54–58, 66–122) — Why: the <code>Action</code>
+    union, <code>SHORTCUT_LABELS</code> (menus read these, never retype a key),
+    <code>isTextEntry</code>, and <code>matchAction</code>'s ordering — note that
+    <code>Escape</code> is returned <em>before</em> the <code>inText</code> bail, which is exactly the
+    problem §15.4's sixth open question names.</li>
+  <li><code>src/lib/ipc.ts</code> (37 lines) — Why: <code>invokeSafe&lt;T&gt;</code> is the only door
+    to Rust. <code>@tauri-apps/api/core</code> is imported nowhere else and must stay that way.</li>
+  <li><code>src/lib/settings.svelte.ts</code> (lines 18–45, 68–120) — Why: the TypeScript twin of
+    <code>StoredSettings</code>, its option arrays, <code>sanitizeSettings</code> and
+    <code>setSetting</code>.</li>
+  <li><code>src/lib/glyphs.ts</code> (whole file, 49 lines) — Why: a closed union of 33 names.
+    <code>Icon.svelte</code> cannot be handed a name outside it, so every new glyph is added here first.</li>
+  <li><code>src/lib/Icon.svelte</code> (38 lines) — Why: the precedent for a shared <em>component</em>
+    in <code>lib/</code>, which is what lets the field controls live there without breaking the import
+    rule.</li>
+  <li><code>src/stores/canvasStore.svelte.ts</code> (lines 33–62, 101–136, 209–286) — Why: the one
+    shared canvas state; <code>upsertItem</code>, <code>upsertCard</code>, <code>itemFor</code> and
+    <code>loadCanvas</code> are what every new action writes through.</li>
+  <li><code>src/features/cards/CardLayer.svelte</code> (lines 246–300) — Why: the only place a kind
+    maps to a component; Task 16 adds a fifth branch. Lines 91–197: the move/resize gesture and the
+    undo labels it pushes.</li>
+  <li><code>src/features/shell/PropertiesPanel.svelte</code> (lines 38–96 for <code>Props</code>,
+    247–420 for the connection branch, 412–560 for the card branches) — Why: 907 lines, one component
+    for every selection kind. Tasks 14, 15 and 19 all land here.</li>
+  <li><code>src/features/shell/LeftColumn.svelte</code> (lines 17–60, 106–121) — Why: the
+    <code>Props</code> shape (search and canvases arrive as snippets because import-direction forbids
+    shell importing those features) and the <code>Add</code> group Task 17 turns into
+    <code>Cards</code>.</li>
+  <li><code>src/features/shell/ContextMenu.svelte</code> (lines 18–46) — Why: the menu shell the 206px
+    rail flyout reuses; its <code>MenuEntry[]</code> and edge-flip effect.</li>
+  <li><code>src/features/undo/commands.ts</code> (lines 31–36, 191–207) — Why:
+    <code>UndoableCommand</code>, and <code>editItemCommand</code> — the payload-swap command every new
+    field edit is a variant of.</li>
+  <li><code>src/features/settings/SettingsPage.svelte</code> and <code>Toggle.svelte</code> — Why: the
+    row grammar and the 34×19 switch Task 26 reuses without change.</li>
+  <li><code>src/app.svelte</code> (lines 139, 1162–1211, 1433–1600) — Why: <code>settingsOpen</code> is
+    the exact pattern a full-screen sheet follows; the shortcut-map <code>$effect</code>; and the
+    render tree the sheets slot into.</li>
+  <li><code>scripts/perf-gate.md</code> and <code>scripts/phase-5-session.md</code> — Why: the recorded
+    gate artefact format Task 27 produces for this phase.</li>
+</ul>
+
+<h3>New Files to Create</h3>
+
+<ul>
+  <li><code>src-tauri/migrations/0007_item_blueprint_kind.sql</code> — the one non-additive migration.</li>
+  <li><code>src-tauri/migrations/0008_connection_role.sql</code>,
+    <code>src-tauri/migrations/0009_list_entry.sql</code>.</li>
+  <li><code>src-tauri/data/blueprints/{book,chapter,scene,beat,character,location}.json</code> — the six
+    shipped card types, read-only, embedded with <code>include_str!</code>.</li>
+  <li><code>src-tauri/data/lists/{genres,subgenres,story-tropes,character-tropes,themes,points-of-view}.json</code>
+    — the shipped vocabulary, generated once by <code>scripts/extract-lists.mjs</code> and committed.</li>
+  <li><code>src-tauri/src/blueprints/mod.rs</code> — the Rust blueprint registry: the embedded files,
+    the parsed structs, and the two questions Rust needs to answer (which field keys are Long Text,
+    which are Image).</li>
+  <li><code>src-tauri/src/commands/blueprint.rs</code> — <code>list_blueprints</code>,
+    <code>create_blueprint_card</code>, <code>set_item_field</code>, <code>list_unplaced_items</code>,
+    <code>expand_into_canvas</code>.</li>
+  <li><code>src-tauri/src/commands/lists.rs</code> — <code>list_entries</code>,
+    <code>add_list_entry</code>, <code>remove_list_entry</code>.</li>
+  <li><code>scripts/extract-lists.mjs</code> — reads the Book Guides library and writes the six list
+    files. Run by hand, not by the build.</li>
+  <li><code>src/lib/blueprints.ts</code> — the blueprint, field and pick-entry types; the payload
+    parser; the loaded registry.</li>
+  <li><code>src/lib/lists.ts</code> — the one-hop filter, as a pure function.</li>
+  <li><code>src/lib/randomize.ts</code> — the shaped roll, the weights and the guarantee, as pure
+    functions.</li>
+  <li><code>src/lib/roles.ts</code> — the seven roles, their glyphs and labels, and
+    <code>suggestRole</code>.</li>
+  <li><code>src/lib/fields/FieldControl.svelte</code> and its seven siblings —
+    <code>ShortTextField.svelte</code>, <code>LongTextField.svelte</code>, <code>PickField.svelte</code>,
+    <code>PickManyField.svelte</code>, <code>ImageField.svelte</code>, <code>NumberField.svelte</code>,
+    <code>ScaleField.svelte</code>, plus <code>Combo.svelte</code> and <code>Chip.svelte</code>.</li>
+  <li><code>src/features/cards/BlueprintCard.svelte</code> — the generated card face.</li>
+  <li><code>src/features/writing/SheetShell.svelte</code>, <code>CharacterSheet.svelte</code>,
+    <code>BookSheet.svelte</code>, <code>ChapterSheet.svelte</code>, <code>writing.svelte.ts</code>.</li>
+  <li><code>src/features/canvases/UnplacedList.svelte</code>.</li>
+  <li><code>scripts/phase-6-session.md</code> — the recorded gate.</li>
+  <li>Test files beside each of the above, in the existing <code>__tests__/</code> folders.</li>
+</ul>
+
+<h3>Relevant Documentation — READ BEFORE IMPLEMENTING</h3>
+
+<ul>
+  <li><a href="../feature-writing-pack.html">docs/feature-writing-pack.html</a> §5 — the data model
+    rulings: one new kind, the blueprint and field shapes, the seven field kinds, the pick-entry id
+    spine, the corrected delete rule, the role table, Expand Into A Canvas, the lists, the seven card
+    types, and the Character personality specification carried from PlotReactor. <strong>Authority on
+    every one of those.</strong></li>
+  <li><a href="../feature-writing-pack.html">docs/feature-writing-pack.html</a> §7 — the three
+    architecture-fit exceptions this phase relies on, and §10, which sets the build order this plan
+    follows.</li>
+  <li><a href="../design-system.html">docs/design-system.html</a> §9.25 — the generated panel, all
+    seven field controls re-measured for 153px of content width, the chip, the chip adder and the Scale
+    slider. §9.26 — the combo in four states. §9.27 — the seven card faces and the type kicker. §9.28 —
+    the panel types and the <em>Placed on</em> / <em>Joined to</em> groups. §9.29 — the pack on the
+    canvas. §9.30 — the shared sheet shell. §9.31/§9.32/§9.33 — Character, Book and Chapter.</li>
+  <li><a href="../design-system.html">docs/design-system.html</a> §8.3 — the 168px rail, the
+    <code>Cards</code> group, its two submenu parents and the 206px flyout. §8.5 — the 177px panel.
+    §8.6 — the stacking ladder (a sheet takes no rung). §9.9 — the shared menu grammar the flyout
+    inherits. §9.11 — the Settings screen and its new full-width <code>Packs</code> group. §9.13 — the
+    role at rest and open, and the role/label collision rule. §11.2/§11.4/§11.6 — hover, focus and the
+    keyboard map. §7.1 — the closed glyph set.</li>
+  <li><a href="../prd.html">docs/prd.html</a> §11 Phase 6 — the deliverable list and the five gates.
+    §10.2 — the functional acceptance lines every phase re-runs. §14.4 — the four open questions this
+    phase settles.</li>
+  <li><a href="../architecture.html">docs/architecture.html</a> §3 <code>storage-engine</code>,
+    <code>db-access-layer</code>, <code>search-method</code>, <code>note-text-format</code>,
+    <code>asset-storage</code>, <code>settings-storage</code>; §4–§5
+    <code>architecture-pattern</code>, <code>module-layout</code>, <code>import-direction</code>;
+    §6 <code>ipc-contract</code>, <code>network-boundary</code>; §7 <code>persistence-strategy</code>,
+    <code>undo-model</code>, <code>failure-surfaces</code>; §8 <code>nfr-targets</code>.</li>
+  <li><a href="https://www.sqlite.org/lang_altertable.html#otheralter">SQLite — Making Other Kinds Of
+    Table Schema Changes</a> — the twelve-step table-rebuild procedure. Read step 1 and step 11: the
+    procedure requires <code>PRAGMA foreign_keys</code> to be <strong>off</strong> around the rebuild,
+    and that pragma is a no-op inside a transaction.</li>
+  <li><a href="https://www.sqlite.org/lang_droptable.html">SQLite — DROP TABLE</a> — "If foreign key
+    constraints are enabled, a <code>DROP TABLE</code> command performs an implicit
+    <code>DELETE</code> … the implicit <code>DELETE</code> does cause any configured
+    <code>ON DELETE</code> actions to fire." This is why migration 0007 would otherwise delete every
+    placement in the project.</li>
+  <li><a href="https://www.sqlite.org/pragma.html#pragma_foreign_key_check">SQLite —
+    <code>PRAGMA foreign_key_check</code></a> — the integrity assertion Task 1 runs after the rebuild.</li>
+  <li><a href="https://serde.rs/container-attrs.html#default">Serde — container <code>default</code></a>
+    — <code>#[serde(default)]</code> on <code>StoredSettings</code> fills a missing field from the
+    struct's <code>Default</code> impl, which is what makes a missing
+    <code>showWritingCards</code> key read as <code>true</code> rather than as <code>false</code>.</li>
+  <li><a href="https://svelte.dev/docs/svelte/$state">Svelte 5 — <code>$state</code></a> and
+    <a href="https://svelte.dev/docs/svelte/snippet">snippets</a> — the runes and the snippet prop
+    pattern the rail already uses to stay inside the import rule.</li>
+</ul>
+
+<h3>Patterns to Follow</h3>
+
+<h4>Naming Conventions</h4>
+<ul>
+  <li>Rust: <code>snake_case</code> functions, one <code>#[tauri::command]</code> thin wrapper around a
+    testable <code>*_for(state: &amp;AppState, …)</code> free function. Row structs in
+    <code>db/models.rs</code>; command-shaped structs beside their command.</li>
+  <li>TypeScript: <code>camelCase</code> functions, <code>PascalCase</code> types, Svelte components
+    <code>PascalCase.svelte</code>. Files carrying a rune are <code>*.svelte.ts</code>.</li>
+  <li>Wire shapes: row structs are <code>snake_case</code> on both sides (see <code>Connection</code>
+    in <code>types.ts</code>); <code>StoredSettings</code> is the one deliberate camelCase exception.
+    Match whichever side already exists.</li>
+  <li>Tests: <code>fn name_condition_expected()</code> in Rust,
+    <code>methodName_condition_expectedResult</code> in Vitest.</li>
+  <li>UI text is Title Case; helper text, log messages and validation messages are sentence case.</li>
+</ul>
+
+<h4>A testable command, in two halves</h4>
+<pre><code>// src-tauri/src/commands/search.rs:119 and :219 — the shape every command in this repo takes.
+pub fn search_project_for(state: &amp;AppState, query: String) -&gt; AppResult&lt;SearchResults&gt; {
+    state.with_db(|conn| { /* … */ })
+}
+
+#[tauri::command]
+pub fn search_project(
+    state: tauri::State&lt;'_, AppState&gt;,
+    query: String,
+) -&gt; AppResult&lt;SearchResults&gt; {
+    search_project_for(&amp;state, query)
+}</code></pre>
+
+<h4>A tolerant payload reader</h4>
+<pre><code>// src/lib/types.ts:260 — a malformed row renders as empty, it never throws into a render.
+export function parseNotePayload(payload: string): NotePayload {
+  try {
+    const value = JSON.parse(payload) as Partial&lt;NotePayload&gt;;
+    return {
+      title: typeof value.title === 'string' ? value.title : '',
+      text: typeof value.text === 'string' ? value.text : '',
+    };
+  } catch {
+    return { title: '', text: '' };
+  }
+}</code></pre>
+
+<h4>An undo command</h4>
+<pre><code>// src/features/undo/commands.ts:31 and :191
+export interface UndoableCommand {
+  /** Shown beside the History rows. Title Case. */
+  label: string;
+  undo(): Promise&lt;void&gt;;
+  redo(): Promise&lt;void&gt;;
+}
+
+export function editItemCommand(
+  itemId: number,
+  beforePayload: string,
+  afterPayload: string,
+): UndoableCommand {
+  async function write(payload: string) {
+    const item = await invokeSafe&lt;Item&gt;('update_item_payload', { itemId, payload });
+    canvasStore.upsertItem(item);
+  }
+  return { label: 'Edit Note', undo: () =&gt; write(beforePayload), redo: () =&gt; write(afterPayload) };
+}</code></pre>
+
+<h4>Error handling</h4>
+<pre><code>// src-tauri/src/error.rs — one type, one message. Never a raw Rust string on the page.
+return Err(AppError::Invalid(format!("card kind {kind}")));
+
+// Outside db/, map io failures explicitly: From&lt;std::io::Error&gt; lands on DatabaseOpen,
+// whose message ("the project database could not be opened") would be a lie here.
+.map_err(|e| AppError::Invalid(format!("the shipped list could not be read: {e}")))?</code></pre>
+
+<h4>Logging</h4>
+<pre><code>// Rust: the `log` crate. Front end: src/lib/logger.ts only.
+import { logWarn } from '../../lib/logger';
+logWarn('a list entry could not be saved', error);
+// Never console.log, never println!.</code></pre>
+
+<h4>A Rust data test against a real SQLite file</h4>
+<pre><code>// src-tauri/src/db/connection.rs:49 — the same engine that ships, in a temp directory.
+fn temp_project() -&gt; tempfile::TempDir { tempfile::tempdir().expect("a temp directory") }
+
+#[test]
+fn open_project_db_fresh_folder_creates_schema_and_assets() {
+    let dir = temp_project();
+    let conn = open_project_db(dir.path()).expect("open");
+    /* … assert against the real file … */
+}</code></pre>
+
+<h4>A Tauri mock in a Vitest test</h4>
+<pre><code>// The seam is one module, so one mock covers every command.
+vi.mock('../../../lib/ipc', () =&gt; ({
+  invokeSafe: vi.fn(),
+  IpcError: class extends Error {},
+  toFileUrl: (p: string) =&gt; p,
+}));</code></pre>
+
+<h2>Implementation Plan</h2>
+
+<p><strong>Rendering:</strong> Milestones — see Step 6. Default Flat.</p>
+<p><strong>Rationale:</strong> twenty-eight tasks in eight natural sub-layers — the schema, the
+blueprint format and vocabulary, the item lifecycle, the generated panel, the canvas, connections, the
+three sheets, then reach and the gate. Tasks are tightly coupled inside a layer and loosely coupled
+across them, and a flat list of twenty-eight would be unscannable. Milestone checkpoints prove the
+integration each layer produces; every task still carries its own VALIDATE and executes one at a time,
+top to bottom.</p>
+
+<p><strong>Precondition:</strong> <code>gh</code> is installed and authenticated (Phases 2–5 all used
+it for their PR). The Book Guides library must be present at
+<code>%USERPROFILE%\Documents\SecondBrain\Book Guides</code> for Task 5 only; its output is committed,
+so no later task and no build reads it.</p>
+
+<h3 class="milestone" data-milestone="1">Milestone 1: The database, widened</h3>
+
+<p>Three migrations. The first rewrites a table holding the user's work and is first for exactly that
+reason; nothing else in the phase may start until a project made in Phase 5 has been proved to survive
+it.</p>
+
+<p><strong>Validation checkpoint:</strong> one Rust test builds a project through the <em>Phase 5</em>
+schema path — a project, three canvases, and note, image, link and video items each with placements,
+connections carrying labels, styles, anchors and a bend — then reopens the folder through
+<code>open_project_db</code> so all three migrations run in sequence, and asserts: every item row
+survives with its id, kind and payload byte-identical; every placement and connection survives;
+<code>PRAGMA foreign_key_check</code> returns no rows; <code>PRAGMA foreign_keys</code> reads
+<code>1</code> on the handed-back connection; both <code>idx_item_project</code> and the
+<code>item</code> table's widened <code>CHECK</code> exist; a <code>blueprint</code> insert succeeds and
+a <code>character</code> insert is still refused; <code>connection.role</code> is <code>NULL</code> on
+every pre-existing row; and the <code>list_entry</code> table is empty and unique-indexed. No single
+task's VALIDATE crosses all three migrations against real Phase 5 data.</p>
+
+<h4 class="task" data-task="1">Task 1: Migration 0007 — rebuild <code>item</code> with the widened kind</h4>
+<p>The single highest-risk task in the phase. SQLite cannot alter a <code>CHECK</code> constraint in
+place, so <code>item</code> is rebuilt once: a new table, every row copied, the old table dropped, the
+index recreated. Done once, because from here the card type lives in the payload and no later card type
+needs a migration.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/migrations/0007_item_blueprint_kind.sql</code> — a
+    header comment explaining why the table is rebuilt and that this is expected to happen exactly once
+    (<code>feature-writing-pack.html</code> §7, exception 3), then:
+    <code>CREATE TABLE item_new (…same columns…, kind TEXT NOT NULL CHECK (kind IN ('note','image','link','video','blueprint')), …);</code>
+    then <code>INSERT INTO item_new (id, project_id, kind, payload, created_at, updated_at) SELECT id, project_id, kind, payload, created_at, updated_at FROM item;</code>
+    then <code>DROP TABLE item;</code> then <code>ALTER TABLE item_new RENAME TO item;</code> then
+    <code>CREATE INDEX idx_item_project ON item(project_id);</code></li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/db/connection.rs</code> — move the
+    <code>foreign_keys</code> pragma so it is <strong>off</strong> while migrations run and
+    <strong>on</strong> afterwards:
+    <code>conn.pragma_update(None, "foreign_keys", "OFF")?;</code> before
+    <code>migrations::apply(&amp;mut conn)</code>, then
+    <code>conn.pragma_update(None, "foreign_keys", "ON")?;</code> after it, and then
+    <code>PRAGMA foreign_key_check</code> — if it returns any row, fail with
+    <code>AppError::Migration</code> naming the file, so a damaged rebuild is a drawn
+    "database damaged" message (design-system §15.2) rather than a silently broken project.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/db/migrations.rs</code> — add the
+    <code>include_str!</code> line and change <code>[&amp;str; 6]</code> to <code>[&amp;str; 7]</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/item.rs</code> — <code>KINDS</code> becomes
+    <code>["note", "image", "link", "video", "blueprint"]</code> (a <code>[&amp;str; 5]</code>), so
+    <code>validate_payload</code> stops refusing the new kind. Payload rules for
+    <code>blueprint</code> arrive in Task 8; for now the generic "must be a JSON object" check applies.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/migrations/0006_connection_bend.sql</code> for the
+    comment style; <code>src-tauri/src/db/connection.rs:31-34</code> for the pragma call.</li>
+  <li><strong>GOTCHA:</strong> <strong>this is the failure that loses the user's book.</strong>
+    <code>placement.item_id REFERENCES item(id) ON DELETE CASCADE</code>. With
+    <code>foreign_keys = ON</code>, <code>DROP TABLE item</code> performs an implicit
+    <code>DELETE</code> that fires that cascade and empties <code>placement</code>. The pragma change
+    above is not tidiness — it is the whole safety of this migration. <code>PRAGMA foreign_keys</code>
+    is a <em>no-op inside a transaction</em>, and <code>rusqlite_migration</code> wraps each migration
+    in one, so it cannot be set from inside the <code>.sql</code> file. It has to move in
+    <code>connection.rs</code>.</li>
+  <li><strong>GOTCHA:</strong> name the columns in the <code>INSERT … SELECT</code>. A bare
+    <code>SELECT *</code> binds by position and would silently misfile every column if the two tables
+    ever drift.</li>
+  <li><strong>GOTCHA:</strong> the existing test
+    <code>placement_referencing_a_missing_canvas_is_rejected</code>
+    (<code>db/connection.rs:88</code>) proves foreign keys are enforced on the handed-back connection.
+    It must still pass — that is the assertion that the pragma was turned back on.</li>
+  <li><strong>IMPORTS:</strong> nothing new. <code>rusqlite</code>, <code>tempfile</code> and
+    <code>rusqlite_migration</code> are all present.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml migration_0007</code> — tests:
+    <code>migration_0007_keeps_every_item_row_and_its_placements()</code> (build a project on the
+    pre-0007 schema by running only the first six migrations, insert one item of each of the four
+    kinds with a placement each, then run <code>apply</code> and assert four items and four placements
+    remain with the same ids),
+    <code>migration_0007_accepts_a_blueprint_item_and_still_refuses_an_unknown_kind()</code>,
+    <code>migration_0007_recreates_the_item_project_index()</code>,
+    <code>migration_0007_leaves_foreign_keys_on_and_the_check_clean()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="2">Task 2: Migrations 0008 and 0009 — the role column and the project's own vocabulary</h4>
+<p>Both additive, both invisible to a Phase 5 build. A connection made before this phase gets
+<code>role = NULL</code>, which reads as <em>Relates To</em>, so no back-fill is needed and no existing
+line changes appearance.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/migrations/0008_connection_role.sql</code> —
+    <code>ALTER TABLE connection ADD COLUMN role TEXT;</code> Nullable, <em>no default</em>: NULL is
+    the meaningful value, and it reads as <em>Relates To</em> with no glyph on the line. The comment
+    must say so, because a later reader will otherwise be tempted to give it
+    <code>DEFAULT 'relates-to'</code> and change how every old line draws.</li>
+  <li><strong>CREATE:</strong> <code>src-tauri/migrations/0009_list_entry.sql</code> —
+    <pre><code>CREATE TABLE list_entry (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  list       TEXT NOT NULL,
+  text       TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX idx_list_entry_unique ON list_entry(project_id, list, text);
+CREATE INDEX idx_list_entry_list ON list_entry(project_id, list);</code></pre>
+    A user-typed value carries no id and no source permanently — that is what marks it as the user's
+    (<code>feature-writing-pack.html</code> §5), so there is deliberately no id column here. The table
+    is per project, which is what makes a copied project folder carry its own vocabulary.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/db/migrations.rs</code> — two more
+    <code>include_str!</code> lines, <code>[&amp;str; 9]</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/db/models.rs</code> — add
+    <code>pub role: Option&lt;String&gt;</code> to the <code>Connection</code> struct and read it in
+    <code>row_to_connection</code>. <code>src/lib/types.ts</code> — add
+    <code>role: string | null;</code> to the <code>Connection</code> interface, with a doc comment
+    saying NULL reads as <em>Relates To</em>. Reading and storing it through the commands is Task 18;
+    this task only widens the row so nothing later has to touch the migration again.</li>
+  <li><strong>PATTERN:</strong> <code>0005_connection_anchor.sql</code> for a two-statement additive
+    migration; <code>db/models.rs</code>'s <code>row_to_connection</code> for the column read.</li>
+  <li><strong>GOTCHA:</strong> every <code>SELECT *</code> against <code>connection</code> now returns a
+    column the row reader must handle. <code>row_to_connection</code> is the single place that maps it;
+    read it as <code>r.get::&lt;_, Option&lt;String&gt;&gt;("role")?</code>, never <code>r.get(11)</code>.</li>
+  <li><strong>GOTCHA:</strong> the unique index makes a duplicate <code>add_list_entry</code> an error.
+    Task 6 must use <code>INSERT OR IGNORE</code> rather than letting that surface as a failed action.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml migration_000</code> — tests:
+    <code>migration_0008_gives_every_existing_connection_a_null_role()</code>,
+    <code>migration_0009_creates_an_empty_uniquely_indexed_list_entry_table()</code>,
+    <code>migration_0009_deleting_a_project_removes_its_list_entries()</code>, plus the whole-sequence
+    test named in the milestone checkpoint,
+    <code>migrations_0007_to_0009_open_a_phase_five_project_intact()</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="2">Milestone 2: The blueprint format and the shipped vocabulary</h3>
+
+<p>The card types as data, the reader on both sides of the seam, the shipped lists measured against the
+installer cap, the per-project vocabulary they merge with, and the one-hop filter that sorts them.</p>
+
+<p><strong>Validation checkpoint:</strong> one Vitest suite plus one Rust test prove the two halves
+agree and the data is real: every one of the six shipped blueprints parses on the Rust side and comes
+back through <code>list_blueprints</code> with the same field keys, kinds and order the TypeScript
+registry holds; every <code>list</code> named by a Pick or Pick Many field resolves to a shipped list
+file; every <code>filter_by</code> names a Pick field that appears <em>earlier</em> in the same
+blueprint; every Scale field carries two end words; no Long Text field has
+<code>show_on_face: true</code>; and <code>list_entries</code> for each of the six lists returns the
+shipped entries merged with two user entries added through <code>add_list_entry</code>, deduplicated,
+with the pure filter sorting the tagged ones first and hiding none.</p>
+
+<h4 class="task" data-task="3">Task 3: The blueprint, field and pick-entry types — both sides of the seam</h4>
+<p>The shapes everything else in the phase is written against. They land before any data file so the
+data files can be validated as they are written.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/blueprints.ts</code> —
+    <code>export type FieldKind = 'short-text' | 'long-text' | 'pick' | 'pick-many' | 'image' | 'number' | 'scale';</code>
+    <code>export interface PickEntry { id: string | null; text: string; sources: string[] }</code>
+    (a typed value has <code>id: null</code> and <code>sources: []</code>, permanently — editing the
+    text never changes the id);
+    <code>export type FieldValue = string | number | PickEntry | PickEntry[] | null;</code>
+    <code>export interface BlueprintField { key: string; label: string; kind: FieldKind; meaning: string; show_on_face: boolean; list?: string; filter_by?: string; low?: string; high?: string; randomizable?: boolean }</code>
+    <code>export interface Blueprint { id: string; label: string; glyph: Glyph; sheet: boolean; default_size: { width: number; height: number }; fields: BlueprintField[] }</code>
+    <code>export interface BlueprintPayload { blueprint: string; name: string; detail_canvas_id: number | null; fields: Record&lt;string, FieldValue&gt; }</code></li>
+  <li><strong>IMPLEMENT:</strong> <code>parseBlueprintPayload(payload: string): BlueprintPayload</code>
+    — the same tolerant shape as <code>parseNotePayload</code>: a malformed row reads as
+    <code>{ blueprint: '', name: '', detail_canvas_id: null, fields: {} }</code> and never throws.
+    Plus <code>parsePickEntry(value: unknown): PickEntry | null</code> and
+    <code>parsePickEntries(value: unknown): PickEntry[]</code>, both tolerant, and
+    <code>fieldValueText(field, value): string</code> — the plain-text rendering of one value, used by
+    the card face and by search snippets.</li>
+  <li><strong>IMPLEMENT:</strong> the registry — <code>setBlueprints(list: Blueprint[]): void</code>,
+    <code>getBlueprint(id: string): Blueprint | null</code>, <code>allBlueprints(): Blueprint[]</code>.
+    Backed by a plain <code>Map</code> in a module-level <code>$state</code> box so a component
+    re-renders when the registry loads at project open. No network, no fetch — it is filled from
+    <code>list_blueprints</code> in Task 4.</li>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/blueprints/mod.rs</code> — the mirrored structs:
+    <code>#[derive(Debug, Clone, Serialize, Deserialize)] pub struct Blueprint { pub id: String, pub label: String, pub glyph: String, pub sheet: bool, pub default_size: Size, pub fields: Vec&lt;Field&gt; }</code>
+    and <code>Field</code> with <code>#[serde(default)]</code> on every optional member, so a data file
+    that omits <code>filter_by</code> parses. Field kinds as a
+    <code>#[serde(rename_all = "kebab-case")] pub enum FieldKind</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/types.ts</code> — <code>ItemKind</code> becomes
+    <code>'note' | 'image' | 'link' | 'video' | 'blueprint'</code>. Nothing else yet; the
+    <code>cardTitle</code> and <code>payloadAssetNames</code> cases need the registry and arrive in
+    Task 4 and Task 8.</li>
+  <li><strong>PATTERN:</strong> <code>src/lib/types.ts:260-333</code> for the tolerant readers;
+    <code>src/lib/settings.svelte.ts:47-57</code> for a module-level <code>$state</code> box behind
+    accessor functions.</li>
+  <li><strong>GOTCHA:</strong> field keys are permanent — they are what the payload stores against —
+    and labels are not. Nothing may key off a label.</li>
+  <li><strong>GOTCHA:</strong> <code>Glyph</code> is a closed union in <code>src/lib/glyphs.ts</code>.
+    Typing <code>Blueprint.glyph</code> as <code>Glyph</code> means the sixteen new names must be added
+    there in this task or the six data files will not type-check in Task 4. Add, to the existing 33 and
+    all present in design-system §7.1: <code>book</code>, <code>book-open</code>,
+    <code>file-text</code>, <code>film-slate</code>, <code>dot-outline</code>,
+    <code>user-circle</code>, <code>user</code>, <code>map-pin</code>, <code>squares-four</code>,
+    <code>caret-right</code>, <code>caret-down</code>, <code>caret-up</code>,
+    <code>arrow-right</code>, <code>arrow-down</code>, <code>eye</code>, <code>dice-five</code> — 49
+    in total. §7.1 lists 61 names; the twelve not added here are drawn in mockups that shipped as text
+    controls and are still unused, and the set stays closed at what the code actually draws.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/blueprints.test.ts</code> — tests:
+    <code>parseBlueprintPayload_malformedJson_returnsAnEmptyPayload</code>,
+    <code>parseBlueprintPayload_missingFields_returnsAnEmptyFieldMap</code>,
+    <code>parsePickEntry_aTypedValue_hasNoIdAndNoSources</code>,
+    <code>parsePickEntries_aNonArray_returnsAnEmptyList</code>,
+    <code>getBlueprint_beforeSetBlueprints_returnsNull</code>. Plus
+    <code>cargo test --manifest-path src-tauri/Cargo.toml blueprints::</code> for
+    <code>field_kind_parses_from_kebab_case()</code> and
+    <code>blueprint_with_no_optional_members_parses()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="4">Task 4: The six shipped card types, the reader, and <code>list_blueprints</code></h4>
+<p>The card types as read-only data files inside the binary, and the one command that hands them to the
+front end. One source of truth: the front end never carries a second copy.</p>
+<ul>
+  <li><strong>CREATE:</strong> six JSON files in <code>src-tauri/data/blueprints/</code>. Fields, in
+    order, with <code>show_on_face</code> exactly as design-system §9.27 draws each face:
+    <ul>
+      <li><strong>book.json</strong> — <code>book</code>, glyph <code>book</code>,
+        <code>sheet: true</code>, 300×210. Fields: <code>name</code> (short-text, on face),
+        <code>cover</code> (image), <code>logline</code> (short-text, on face), <code>genre</code>
+        (pick, list <code>genres</code>, on face), <code>subgenre</code> (pick, list
+        <code>subgenres</code>, <code>filter_by: "genre"</code>, on face), <code>synopsis</code>
+        (long-text), <code>story_tropes</code> (pick-many, list <code>story-tropes</code>,
+        <code>filter_by: "genre"</code>, on face), <code>themes</code> (pick-many, list
+        <code>themes</code>), <code>notes</code> (long-text).</li>
+      <li><strong>chapter.json</strong> — <code>chapter</code>, glyph <code>file-text</code>,
+        <code>sheet: true</code>, 264×168. Fields: <code>number</code> (number),
+        <code>name</code> (short-text, on face), <code>summary</code> (short-text, on face),
+        <code>word_target</code> (number), <code>themes</code> (pick-many, list <code>themes</code>,
+        on face), <code>prose</code> (long-text). <strong>No tropes</strong> — PRD §14.4's open
+        question is settled here; see Notes.</li>
+      <li><strong>scene.json</strong> — <code>scene</code>, glyph <code>film-slate</code>,
+        <code>sheet: false</code>, 240×130. Fields: <code>name</code> (short-text, on face),
+        <code>summary</code> (short-text, on face), <code>pov</code> (pick, list
+        <code>points-of-view</code>), <code>notes</code> (long-text).</li>
+      <li><strong>beat.json</strong> — <code>beat</code>, glyph <code>dot-outline</code>,
+        <code>sheet: false</code>, 200×104. Fields: <code>name</code> (short-text, on face),
+        <code>text</code> (short-text, on face).</li>
+      <li><strong>character.json</strong> — <code>character</code>, glyph <code>user-circle</code>,
+        <code>sheet: true</code>, 220×210. Fields: <code>name</code> (short-text, on face),
+        <code>picture</code> (image, on face), <code>role</code> (short-text, on face),
+        <code>one_liner</code> (short-text), <code>description</code> (long-text), the five Scale
+        fields <code>openness</code> / <code>conscientiousness</code> / <code>extraversion</code> /
+        <code>agreeableness</code> / <code>neuroticism</code> (each <code>randomizable: true</code>
+        with its two end words — see Notes), <code>character_tropes</code> (pick-many, list
+        <code>character-tropes</code>), <code>notes</code> (long-text).</li>
+      <li><strong>location.json</strong> — <code>location</code>, glyph <code>map-pin</code>,
+        <code>sheet: false</code>, 220×190. Fields: <code>name</code> (short-text, on face),
+        <code>picture</code> (image, on face), <code>summary</code> (short-text, on face),
+        <code>notes</code> (long-text).</li>
+    </ul>
+    Every field carries a one-sentence <code>meaning</code>, sentence case, which is the grey help text
+    §9.25 prints under the control. Where §9.25 gives the sentence verbatim (Long Text, Pick, Pick Many,
+    Image, Number, Scale), use it.</li>
+  <li><strong>IMPLEMENT:</strong> <code>src-tauri/src/blueprints/mod.rs</code> —
+    <code>const BLUEPRINT_JSON: [&amp;str; 6]</code> of <code>include_str!</code>;
+    <code>pub fn all() -&gt; &amp;'static [Blueprint]</code> behind a <code>OnceLock</code> that parses
+    once and <strong>panics with the file name on a malformed file</strong> (it is shipped data, not
+    user data — a broken file is a build defect and must not become a runtime error the user sees);
+    <code>pub fn get(id: &amp;str) -&gt; Option&lt;&amp;'static Blueprint&gt;</code>;
+    <code>pub fn long_text_keys(id: &amp;str) -&gt; Vec&lt;&amp;'static str&gt;</code> and
+    <code>pub fn image_keys(id: &amp;str) -&gt; Vec&lt;&amp;'static str&gt;</code> — the only two
+    questions the Rust side asks a blueprint, needed by search (Task 25) and by
+    <code>asset_names</code> (Task 8).</li>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/commands/blueprint.rs</code> with the first command,
+    <code>list_blueprints() -&gt; AppResult&lt;Vec&lt;Blueprint&gt;&gt;</code>. It takes no state: the
+    blueprints are the same in every project.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/lib.rs</code> (both handler lists),
+    <code>src-tauri/src/commands/mod.rs</code> (<code>pub mod blueprint;</code>),
+    <code>src-tauri/src/lib.rs</code> module list (<code>mod blueprints;</code>).</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — call <code>list_blueprints</code> once at
+    boot, before the picker draws, and hand the result to <code>setBlueprints</code>. It does not
+    depend on an open project, so it belongs beside the settings load, not inside
+    <code>openProject</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/types.ts</code> — <code>cardTitle</code> gains a
+    <code>case 'blueprint'</code> returning <code>parseBlueprintPayload(item.payload).name</code> or
+    the existing <code>&lt;kind&gt;-&lt;padded id&gt;</code> fallback.
+    <code>src/lib/cardKinds.ts</code> — add
+    <code>defaultSizeForItem(item: Item): CardSize</code> that reads the blueprint's
+    <code>default_size</code> for a blueprint card and falls through to <code>defaultSizeFor</code>
+    otherwise. Leave <code>defaultSizeFor(kind)</code> in place; callers move over as they are touched.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/settings.rs</code> for a state-free
+    command; <code>src/lib/glyphs.ts</code> for a <code>OnceLock</code>-shaped closed set on the Rust
+    side.</li>
+  <li><strong>GOTCHA:</strong> a card face height is not drawn — §9.27 gives every width and
+    <code>auto</code> for every height. <code>placement.height</code> is <code>NOT NULL</code>, so a
+    number has to be authored. The six above are authored from the drawn faces (picture band plus text
+    rows) on the same reasoning <code>cardKinds.ts</code>'s header records for the note's 236×150. This
+    is a default size, not a rule: the user resizes freely and §10 contract 1 forbids the application
+    choosing a <em>position</em>, not a size.</li>
+  <li><strong>GOTCHA:</strong> Long Text never prints on a face. A data file with
+    <code>"kind": "long-text", "show_on_face": true</code> would put a wall of prose on a 264px tile and
+    break the frame gate. The VALIDATE below asserts it; keep that assertion when an eighth type is
+    added.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml blueprints</code> — tests:
+    <code>all_six_shipped_blueprints_parse()</code>,
+    <code>no_long_text_field_is_shown_on_a_card_face()</code>,
+    <code>every_pick_field_names_a_shipped_list()</code> (the list files land in Task 5; until then
+    assert the <code>list</code> member is a non-empty string and mark the file-existence half with the
+    same test name extended in Task 5),
+    <code>every_filter_by_names_an_earlier_pick_field_on_the_same_blueprint()</code>,
+    <code>every_scale_field_carries_two_end_words()</code>,
+    <code>long_text_keys_for_character_are_description_and_notes()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="5">Task 5: The shipped lists, extracted once and measured</h4>
+<p>The first bulk data the application has ever carried. It is extracted from the Book Guides library
+by a script that runs by hand, and the <em>output</em> is committed — so the build, the installer and
+every later task depend on files in this repository and never on a folder outside it.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>scripts/extract-lists.mjs</code> — takes the library path as
+    <code>argv[2]</code>, defaulting to
+    <code>${process.env.USERPROFILE}/Documents/SecondBrain/Book Guides</code>. Reads
+    <code>library/tropes.json</code> and <code>library/subgenres.json</code> and writes six files to
+    <code>src-tauri/data/lists/</code>. Each file is
+    <code>{ "list": "&lt;id&gt;", "entries": [ { "id": "…", "text": "…", "tags": ["…"] } ] }</code>,
+    sorted by <code>text</code>, where <code>tags</code> holds the <em>ids of parent list entries</em>
+    this entry sorts under.
+    <ul>
+      <li><code>genres.json</code> — the 8 sub-genre classes. Entry ids
+        <code>genre.rigor</code>, <code>genre.technology-future</code>,
+        <code>genre.retro-aesthetic</code>, <code>genre.scope-setting</code>,
+        <code>genre.time-reality</code>, <code>genre.catastrophe-aftermath</code>,
+        <code>genre.encounter-scale</code>, <code>genre.cross-genre-tonal</code>; text is the class
+        name without its "Class N ·" prefix. No tags.</li>
+      <li><code>subgenres.json</code> — the <strong>45 <code>status: "ratified"</code></strong>
+        sub-genres (PRD §11 says 45; the file holds 51, six of them <code>proposed</code>). Keep the
+        library's own <code>genre.*</code> id and name; <code>tags</code> is the one genre entry id its
+        <code>class</code> maps to.</li>
+      <li><code>story-tropes.json</code> — every trope whose <code>function</code> is
+        <code>plot</code>, <code>setting</code>, <code>theme</code> or <code>tone</code> (259). Tags are
+        the genre entry ids reached by rolling each trope's sub-genre <code>tiers</code> appearances up
+        to their classes; an untagged trope keeps <code>"tags": []</code> and simply sorts below.</li>
+      <li><code>character-tropes.json</code> — <code>function</code> of <code>character</code> or
+        <code>internal_conflict</code> (151). No tags.</li>
+      <li><code>themes.json</code> — the 41 <code>function: "theme"</code> tropes, seeded from the same
+        library so a theme carries a real id and can be counted later. No tags.</li>
+      <li><code>points-of-view.json</code> — authored in the script, not extracted: five entries with
+        ids <code>pov.first</code>, <code>pov.third-limited</code>, <code>pov.third-omniscient</code>,
+        <code>pov.second</code>, <code>pov.epistolary</code>. No tags.</li>
+    </ul>
+    Carry <code>id</code> and <code>text</code> only — never <code>description</code>,
+    <code>aliases</code>, <code>relationships</code> or <code>examples</code>. That is what keeps
+    669 KB of source down to about 50 KB, and it is also the "generic fields only" rule
+    (<code>feature-writing-pack.html</code> §5) enforced in the reader.</li>
+  <li><strong>IMPLEMENT:</strong> extend <code>src-tauri/src/blueprints/mod.rs</code> (or a sibling
+    <code>lists.rs</code> in the same module) with
+    <code>const LIST_JSON: [(&amp;str, &amp;str); 6]</code> of
+    <code>(id, include_str!(…))</code>, a <code>OnceLock</code> parse, and
+    <code>pub fn shipped(list: &amp;str) -&gt; &amp;'static [ListEntry]</code> where
+    <code>ListEntry { id: Option&lt;String&gt;, text: String, tags: Vec&lt;String&gt; }</code>.</li>
+  <li><strong>ADD:</strong> a <code>npm</code>-free size assertion in the same Rust test module:
+    the six embedded strings together must be under 256 KB. The installer cap is 20 MB and Phase 5
+    measured 2.80 MB, so the real headroom is enormous; the assertion exists to catch someone
+    re-running the script without the field trim, which would embed 725 KB of prose.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/blueprints/mod.rs</code> from Task 4 —
+    the same <code>include_str!</code> + <code>OnceLock</code> shape.</li>
+  <li><strong>GOTCHA:</strong> the extraction runs once and the script is kept for provenance, not for
+    the build. Nothing in <code>package.json</code>, <code>build.rs</code> or
+    <code>tauri.conf.json</code> may invoke it. A machine without the library must still be able to
+    build the installer.</li>
+  <li><strong>GOTCHA:</strong> trope ids are permanent by the library's own rule and are copied into the
+    project when a value is picked, so a rename outside never rewrites a saved card. Do not add a
+    lookup that resolves an id back to the library at runtime.</li>
+  <li><strong>GOTCHA:</strong> the class strings in <code>subgenres.json</code> use a middle dot
+    (<code>·</code>, U+00B7) and an ampersand. Map them to the eight authored ids explicitly rather
+    than slugifying, so a punctuation change in the source cannot silently produce a ninth genre.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml lists</code> — tests:
+    <code>every_shipped_list_parses_and_is_not_empty()</code>,
+    <code>genres_has_eight_entries()</code>, <code>subgenres_has_forty_five_entries()</code>,
+    <code>every_subgenre_tag_names_a_real_genre_entry()</code>,
+    <code>every_story_trope_tag_names_a_real_genre_entry()</code>,
+    <code>no_shipped_entry_carries_a_description_or_an_alias()</code>,
+    <code>the_shipped_lists_are_under_256_kilobytes()</code>, and the extended
+    <code>every_pick_field_names_a_shipped_list()</code> from Task 4.</li>
+</ul>
+
+<h4 class="task" data-task="6">Task 6: The project's own vocabulary — <code>list_entries</code> and its two writes</h4>
+<p>A typed value is always accepted and is saved to the project's own list, so it is offered again next
+time. This is the whole reason <code>list_entry</code> is per project rather than per machine: a copied
+project folder carries its own vocabulary.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src-tauri/src/commands/lists.rs</code> with three commands, each a
+    thin wrapper over a <code>*_for(state, …)</code> function:
+    <code>list_entries(list: String) -&gt; AppResult&lt;Vec&lt;ListEntry&gt;&gt;</code> — the shipped
+    entries for <code>list</code>, then the project's own rows from <code>list_entry</code> that are not
+    already present by <code>text</code> (case-insensitive), each with <code>id: None</code> and
+    <code>tags: []</code>;
+    <code>add_list_entry(list: String, text: String) -&gt; AppResult&lt;bool&gt;</code> — trims, refuses
+    an empty string with <code>AppError::Invalid</code>, does nothing when the text already matches a
+    shipped entry, otherwise <code>INSERT OR IGNORE</code>; returns whether a row was actually written,
+    which is what lets undo know there is anything to reverse;
+    <code>remove_list_entry(list: String, text: String) -&gt; AppResult&lt;()&gt;</code>.</li>
+  <li><strong>IMPLEMENT:</strong> the front-end half in <code>src/lib/lists.ts</code> —
+    <code>loadListEntries(list: string): Promise&lt;ListEntry[]&gt;</code> with a per-list cache keyed
+    on the open project, invalidated by <code>addListEntry</code> / <code>removeListEntry</code> and
+    cleared by <code>closeProject</code>. The combo opens on every keystroke; re-reading six lists per
+    keystroke through the seam is the one place this phase could feel slow.</li>
+  <li><strong>ADD:</strong> <code>listEntryCommand(list, text, added)</code> in
+    <code>src/features/undo/commands.ts</code> — label <code>Add List Entry</code> /
+    <code>Remove List Entry</code>; <code>undo</code> and <code>redo</code> call the opposite command
+    and invalidate the cache. Pushed only when <code>add_list_entry</code> reported it wrote a row.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/mod.rs</code> and both handler lists in
+    <code>src-tauri/src/lib.rs</code>.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/canvas.rs</code> for a per-project table
+    read scoped by <code>project_id</code>; <code>src/lib/assets.svelte.ts</code> for a front-end cache
+    behind accessor functions that a project close resets.</li>
+  <li><strong>GOTCHA:</strong> the unique index is on <code>(project_id, list, text)</code> and SQLite
+    compares <code>TEXT</code> case-sensitively by default. Deduplicate against the shipped entries
+    case-insensitively in Rust before inserting, or "Chosen One" and "chosen one" become two rows.</li>
+  <li><strong>GOTCHA:</strong> a user entry never gains an id, even when its text later matches a
+    shipped entry exactly. The id means "this came from there"; minting one retrospectively would be a
+    false claim.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml lists::</code> — tests:
+    <code>list_entries_with_no_user_rows_returns_the_shipped_entries()</code>,
+    <code>add_list_entry_a_new_value_is_offered_next_time()</code>,
+    <code>add_list_entry_a_value_already_shipped_writes_nothing()</code>,
+    <code>add_list_entry_the_same_value_twice_writes_one_row()</code>,
+    <code>add_list_entry_an_empty_string_is_refused()</code>,
+    <code>remove_list_entry_removes_only_the_user_row()</code>,
+    <code>list_entries_are_scoped_to_one_project()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="7">Task 7: One-hop filtering, as a pure function</h4>
+<p>The ruling that matters more than the mechanism: <strong>filtering sorts, it never hides.</strong> A
+value the shipped list has never heard of is always reachable, and so is an untagged one.</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> in <code>src/lib/lists.ts</code> —
+    <code>export function sortForFilter(entries: ListEntry[], parentId: string | null): ListEntry[]</code>.
+    It returns <strong>every</strong> entry, partitioned into two groups in a stable order: those whose
+    <code>tags</code> contain <code>parentId</code> first, then the rest. <code>parentId</code> is the
+    <em>id</em> of the parent field's current pick entry — <code>null</code> when the parent is empty or
+    when the user typed their own value, in which case the input order is returned unchanged.</li>
+  <li><strong>IMPLEMENT:</strong>
+    <code>export function groupForFilter(entries, parentId, parentLabel): ListGroup[]</code> — the
+    §9.26 shape the combo draws: at most two groups, the first headed by the parent's own text, the
+    second headed <em>Everything else</em> with its rows at reduced opacity. When
+    <code>parentId</code> is null, one unheaded group holding everything.</li>
+  <li><strong>IMPLEMENT:</strong>
+    <code>export function matchEntries(entries: ListEntry[], typed: string): ListEntry[]</code> — the
+    case-insensitive substring match the combo filters on while typing, preserving order, so the
+    highlight in Task 11 can bold the matched run.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/search/highlight.ts</code> — a pure matching helper
+    with its own focused test file, no store and no IPC.</li>
+  <li><strong>GOTCHA:</strong> a chain is not allowed. <code>filter_by</code> names one field on the
+    same card and that field must itself be a Pick. There is no transitive resolution, and the Task 4
+    test asserts it.</li>
+  <li><strong>GOTCHA:</strong> stability matters. Two calls with the same arguments must produce the
+    same order, or the list reshuffles under the pointer between keystrokes. Partition; do not
+    <code>sort</code> with a comparator that returns 0 for most pairs.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/lists.test.ts</code> — tests:
+    <code>sortForFilter_aTaggedParent_putsMatchingEntriesFirstAndKeepsEveryOther</code>,
+    <code>sortForFilter_returnsTheSameNumberOfEntriesItWasGiven</code>,
+    <code>sortForFilter_aNullParent_returnsTheInputOrderUnchanged</code>,
+    <code>sortForFilter_anUntaggedEntry_sortsBelowButIsStillPresent</code>,
+    <code>sortForFilter_calledTwice_producesTheSameOrder</code>,
+    <code>groupForFilter_aTaggedParent_returnsTwoGroupsHeadedByTheParentAndEverythingElse</code>,
+    <code>matchEntries_isCaseInsensitiveAndPreservesOrder</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="3">Milestone 3: The blueprint item and its lifecycle</h3>
+
+<p>The payload, the commands that write one field, the corrected delete rule and the Unplaced list the
+correction needs. The delete rule comes before anything is drawn: it changes a shipped rule that four
+card kinds still depend on, and it is the item most likely to force a rethink.</p>
+
+<p><strong>Validation checkpoint:</strong> one Rust test drives the whole corrected lifecycle against a
+real project file. Create a Character with two placements on two canvases and an Image card with one;
+delete the Character's first placement and assert the item survives with both its payload and its
+remaining placement; delete the second and assert the item <em>still</em> survives, has no placement,
+and appears in <code>list_unplaced_items</code>; delete the image's only placement in the same call and
+assert its item is gone and its file was trashed; then <code>delete_item</code> the unplaced Character
+and assert the row is gone, its picture file is trashed, and the returned effect names both so one undo
+step restores them together. No single task's VALIDATE crosses the kind-conditional rule, the asset
+reference count and the Unplaced list at once.</p>
+
+<h4 class="task" data-task="8">Task 8: The blueprint payload — validation, creation, and writing one field</h4>
+<p>A card with only a default name is a complete card. Nothing is ever required and nothing blocks a
+save (<code>feature-writing-pack.html</code> §3, "Never").</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/item.rs</code> —
+    <code>validate_payload</code> gains a <code>blueprint</code> branch: the payload must carry a
+    <code>blueprint</code> string naming a shipped blueprint (<code>blueprints::get</code>), a
+    <code>name</code> string, and <code>fields</code> as an object when present. Everything else is
+    optional, and <strong>no field is ever required</strong>. <code>detail_canvas_id</code> must be an
+    integer or null.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/item.rs</code> —
+    <code>asset_names</code> gains a <code>"blueprint"</code> arm that reads
+    <code>blueprints::image_keys(payload.blueprint)</code> and pulls each key's value out of
+    <code>fields</code>. This is what makes content-hash dedupe, reference counting and trashing work
+    for an Image field with no change to the assets module.</li>
+  <li><strong>ADD:</strong> to <code>src-tauri/src/commands/blueprint.rs</code>:
+    <code>create_blueprint_card(state, canvas_id, x, y, width, height, blueprint: String) -&gt; AppResult&lt;PlacementWithItem&gt;</code>
+    — builds the payload
+    <code>{"blueprint": …, "name": "Untitled", "detail_canvas_id": null, "fields": {}}</code>, inserts
+    the item and the placement in one transaction, exactly as <code>create_note_card</code> does; and
+    <code>set_item_field(state, item_id, key: String, value: serde_json::Value) -&gt; AppResult&lt;Item&gt;</code>
+    — reads the payload, sets or removes one key inside <code>fields</code> (a
+    <code>null</code> value removes the key rather than storing a null), revalidates and writes.
+    <code>name</code> and <code>detail_canvas_id</code> are top-level and are addressed by those exact
+    key names.</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/types.ts</code> — <code>payloadAssetNames</code> gains a
+    blueprint case reading the registry's image keys, mirroring the Rust arm.</li>
+  <li><strong>ADD:</strong> <code>setFieldCommand(itemId, key, before, after)</code> in
+    <code>src/features/undo/commands.ts</code> — label <code>Edit Card</code>. It writes through
+    <code>set_item_field</code> both ways and calls <code>canvasStore.upsertItem</code>, so an undone
+    edit is genuinely back on disk.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/placement.rs:419-432</code>
+    (<code>create_note_card</code>) for the create-item-and-placement transaction;
+    <code>src-tauri/src/commands/item.rs:161-180</code> (<code>update_item_payload</code>) for the
+    read-modify-validate-write shape; <code>src/features/undo/commands.ts:191</code> for the command.</li>
+  <li><strong>GOTCHA:</strong> <code>set_item_field</code> must revalidate through
+    <code>validate_payload</code> before writing. That is what keeps the asset-name rule — no
+    separator, no <code>..</code> — applying to an Image field, and it is why the Image field can reuse
+    the assets module untouched.</li>
+  <li><strong>GOTCHA:</strong> do not add a second write path for the name. The panel's name box and the
+    sheet header both call <code>set_item_field(itemId, 'name', …)</code>, so editing a card on its
+    sheet and editing it in the panel produce the same payload and the same single undo entry — which
+    is a PRD §11 gate line.</li>
+  <li><strong>GOTCHA:</strong> a Scale field stores an integer −3..3 and <strong>0 is a real answer</strong>,
+    not "unset". Never treat 0 as absent, and never write a Scale key on card creation — an absent key
+    reads as 0 for display and the difference must not be visible anywhere.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml blueprint::</code> — tests:
+    <code>create_blueprint_card_with_no_fields_is_valid_and_reopens()</code>,
+    <code>validate_payload_an_unknown_blueprint_id_is_refused()</code>,
+    <code>validate_payload_a_blueprint_card_needs_no_field_at_all()</code>,
+    <code>set_item_field_writes_one_key_and_leaves_the_others()</code>,
+    <code>set_item_field_a_null_value_removes_the_key()</code>,
+    <code>set_item_field_an_image_value_with_a_separator_is_refused()</code>,
+    <code>asset_names_reads_every_image_field_of_a_blueprint()</code>,
+    <code>set_item_field_name_and_detail_canvas_id_are_top_level()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="9">Task 9: The corrected last-placement delete rule</h4>
+<p>The change with the worst failure mode in the feature: get it wrong and removing a character from
+one chapter destroys the character, their sliders, their tropes and their notes. The four original
+kinds keep the shipped behaviour <em>exactly</em>.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/placement.rs</code>,
+    <code>delete_placements_tx</code> at lines 331–353. Read the item row <em>before</em> deciding, then
+    make the whole orphan block conditional:
+    a <code>blueprint</code> item is left in place, is not added to <code>effect.items</code>, and
+    contributes no asset to <code>orphaned</code>; every other kind behaves exactly as it does today.
+    Comment it with the reason, because the block reads as a bug otherwise.</li>
+  <li><strong>ADD:</strong> to <code>src-tauri/src/commands/blueprint.rs</code>:
+    <code>list_unplaced_items(state) -&gt; AppResult&lt;Vec&lt;Item&gt;&gt;</code> — every
+    <code>blueprint</code> item in the project with no row in <code>placement</code>, ordered by
+    <code>updated_at DESC, id</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/item.rs</code> — <code>delete_item</code>
+    becomes the "delete for good" path: in one transaction it collects the item's asset names, checks
+    <code>reference_count</code> for each, deletes the row, and returns a <code>DeleteEffect</code>
+    naming the item and the assets, so one undo step restores both. Trashing happens after the commit,
+    as <code>delete_placements_for</code> already does. Its current <code>AppResult&lt;()&gt;</code>
+    signature changes; the only caller today is the front end.</li>
+  <li><strong>ADD:</strong> <code>deleteUnplacedCommand(effect: DeleteEffect)</code> in
+    <code>src/features/undo/commands.ts</code> — label <code>Delete Card</code>, restoring through
+    <code>restore_card</code>'s existing asset-untrash path with no placement.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/placement.rs:299-380</code> — the
+    transaction, the effect, and the "trash after commit, never before" rule;
+    <code>src-tauri/src/commands/canvas.rs:271-306</code> for a delete that returns everything it
+    removed.</li>
+  <li><strong>GOTCHA:</strong> <code>delete_canvas</code> calls <code>delete_placements_tx</code> so its
+    cascade goes through the same rule. Deleting a whole canvas full of Characters must leave every
+    Character in the project and put them in the Unplaced list. Assert it — the shared call is what
+    makes it true, and a future refactor that duplicates the rule is what would break it.</li>
+  <li><strong>GOTCHA:</strong> <code>reference_count</code> scans payloads with a
+    <code>LIKE '%"name"%'</code> pattern anchored on the quotes. A blueprint payload nests its image
+    names one level deeper inside <code>fields</code>, which the pattern still matches, because it
+    matches the quoted name anywhere in the JSON text. Do not "fix" it to a
+    <code>json_extract</code> on a fixed key.</li>
+  <li><strong>GOTCHA:</strong> the existing test
+    <code>delete_placements_last_placement_of_an_item_removes_the_item</code>
+    (<code>placement.rs:751</code>) covers a note and must keep passing unchanged. It is the regression
+    that matters most in the phase.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml delete</code> — the existing delete tests all
+    green, plus: <code>delete_placements_last_placement_of_a_blueprint_keeps_the_item()</code>,
+    <code>delete_placements_a_blueprint_item_keeps_its_picture_file()</code>,
+    <code>delete_placements_an_image_beside_a_blueprint_still_loses_its_file()</code>,
+    <code>delete_canvas_leaves_every_blueprint_item_in_the_project()</code>,
+    <code>list_unplaced_items_returns_only_blueprint_items_with_no_placement()</code>,
+    <code>delete_item_removes_the_row_and_names_its_assets()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="10">Task 10: The Unplaced list in the left column</h4>
+<p>The smallest thing that keeps the old rule's promise: nothing becomes invisible junk. It is empty
+and hidden until a blueprint item loses its last placement.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/canvases/UnplacedList.svelte</code> — a rail section
+    below <em>Canvases</em>, drawn with §8.3's section-label and row grammar: the section label
+    <em>Unplaced</em> at 10px / .1em / uppercase / opacity .65, one row per item at
+    <code>padding: 7px 14px</code>, 12.5px, gap 10px, carrying the blueprint's kicker glyph at 14px
+    opacity .7 and the card's name ellipsized. <strong>The whole section is not rendered when the list
+    is empty</strong> — not dimmed, not an empty state.</li>
+  <li><strong>IMPLEMENT:</strong> a row context menu reusing <code>ContextMenu.svelte</code>, with two
+    entries: <em>Place On This Canvas</em> (creates a placement at the centre of the current view, which
+    is the one position the application is allowed to choose because the user asked for it here and no
+    pointer position exists) and <em>Delete For Good</em>, which calls <code>delete_item</code> and
+    pushes <code>deleteUnplacedCommand</code>. Both are also the row's double-click and
+    <code>Delete</code>-key behaviours.</li>
+  <li><strong>IMPLEMENT:</strong> <code>unplaced.svelte.ts</code> beside
+    <code>canvases.svelte.ts</code> — a <code>$state</code> list, <code>refreshUnplaced()</code>, and
+    refresh calls after every delete, every restore, every undo and every canvas load.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/LeftColumn.svelte</code> — accept an
+    <code>unplaced?: Snippet</code> prop and render it under the canvases snippet.
+    <code>src/app.svelte</code> passes it. The shell may not import <code>features/canvases</code>
+    directly; the snippet prop is how the rail already receives the canvas list and the search box.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/canvases/CanvasList.svelte</code> for the rail
+    section, the row context menu and the inline row states;
+    <code>src/features/shell/LeftColumn.svelte:17-45</code> for the snippet props.</li>
+  <li><strong>GOTCHA:</strong> the import-direction rule. <code>features/shell</code> must not import
+    <code>features/canvases</code>. Pass the snippet from <code>app.svelte</code>, which is the
+    composition root and is allowed to know both.</li>
+  <li><strong>GOTCHA:</strong> placing an unplaced item is a <code>create_placement</code>, not a
+    <code>create_blueprint_card</code>. It is the same item, so editing it on the new canvas edits every
+    other placement of it.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/canvases/__tests__/unplaced.test.ts</code> — tests:
+    <code>unplacedList_withNoUnplacedItems_rendersNoSection</code>,
+    <code>unplacedList_afterTheLastPlacementOfACharacterIsDeleted_showsTheCharacter</code>,
+    <code>unplacedList_placeOnThisCanvas_createsAPlacementForTheSameItemId</code>,
+    <code>unplacedList_deleteForGood_callsDeleteItemAndPushesOneUndoCommand</code>,
+    <code>unplacedList_rowShowsTheBlueprintKickerGlyphAndTheCardName</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="4">Milestone 4: The generated panel</h3>
+
+<p>One properties-panel state generated from a field list, and the controls it needs. The panel knows
+the seven field kinds and nothing else — that is the whole point of blueprints, and the test that a new
+card type costs no UI.</p>
+
+<p><strong>Validation checkpoint:</strong> one Vitest suite mounts the properties panel against a
+selected Character card and asserts the panel is genuinely generated rather than hand-built: exactly one
+control per field, in blueprint order, each with its label above and its <code>meaning</code> line
+below; the five Scale rows all reading 0 with no empty state; a Pick Many chip row that wraps; and then
+— without touching the component — swaps the selection to a Beat and asserts the panel now holds
+exactly two controls in the Beat's order. Then it types a value the shipped list does not hold into the
+Character tropes combo, presses Enter, and asserts one <code>add_list_entry</code> and one
+<code>set_item_field</code> went through the seam and one undo entry was pushed.</p>
+
+<h4 class="task" data-task="11">Task 11: The chip, the chip adder and the combo</h4>
+<p>The one control the writing pack adds. Two firm rulings live in it: <strong>a typed value is always
+accepted</strong>, and <strong>filtering sorts, it never hides</strong>.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/fields/Chip.svelte</code> — design-system §9.25's one chip
+    style: in a form, <code>display: inline-flex</code>, gap 5px, padding
+    <code>3px 6px 3px 10px</code>, 1px <code>--color-divider</code>, <code>border-radius: 11px</code>,
+    11px, line-height 1.35, <code>rgba(32,30,29,.72)</code>, <code>white-space: nowrap</code>, with
+    <code>ph-x</code> at 11px opacity .5; a <code>face</code> prop drops the remove icon and tightens to
+    padding <code>2px 8px</code>, radius 10px, 10.5px. One style for genre, sub-genre, tropes and themes
+    alike. An <code>overflow</code> variant draws <code>+n</code> at opacity .55.</li>
+  <li><strong>CREATE:</strong> <code>src/lib/fields/Combo.svelte</code> — §9.26 in all four states.
+    A text box (<code>.input</code> at 11.5px, <code>border-radius: 2px 0 0 2px</code>, no right border)
+    plus a 26px caret button (transparent, 1px <code>--color-divider</code>,
+    <code>ph-caret-down</code> at 12px, flipping to <code>ph-caret-up</code> while open). Typing takes
+    <code>outline: 2px solid var(--color-accent); outline-offset: -1px</code> and drops the list 3px
+    below on <code>--color-surface</code>, radius 2px, 1px <code>--color-divider</code>, shadow
+    <code>0 6px 18px rgba(45,43,43,.16)</code>; rows <code>padding: 5px 9px</code> at 11.5px with the
+    matched substring in <code>&lt;b&gt;</code>; the highlighted row is <code>--color-accent-100</code>
+    on <code>--color-accent-800</code>. Group headers at 9.5px / .09em / uppercase / opacity .45 on
+    <code>--color-neutral-100</code>, the parent's own group first, then <em>Everything else</em> with a
+    1px top border and rows at opacity .72. When nothing matches, the list collapses to one
+    accent-tinted row: <code>ph-plus</code> at 12px + <code>Use "…"</code> over
+    <code>Nothing in the list matches</code> at 10.5px opacity .5.</li>
+  <li><strong>IMPLEMENT:</strong> <code>Combo</code>'s contract —
+    <code>{ list, value: PickEntry | null, parent: PickEntry | null, parentLabel, placeholder, onCommit(entry: PickEntry, added: boolean) }</code>.
+    It reads entries through <code>loadListEntries</code>, orders them with
+    <code>groupForFilter</code>, filters with <code>matchEntries</code>, and on commit produces either
+    the shipped entry <code>{ id, text, sources: [list] }</code> or the user's own
+    <code>{ id: null, text, sources: [] }</code> — calling <code>addListEntry</code> for the latter and
+    reporting whether a row was written.</li>
+  <li><strong>CREATE:</strong> <code>src/lib/fields/PickField.svelte</code> and
+    <code>PickManyField.svelte</code>. Pick is one combo. Pick Many is a wrapping chip row
+    (<code>display: flex; flex-wrap: wrap; gap: 4px</code>, chips
+    <code>max-width: 100%</code> with ellipsized text) above the same combo used as the adder, with the
+    §9.25 placeholders <em>Add a trope…</em> / <em>Add a theme…</em> named for the field. Chips reorder
+    by drag and the order is kept — it is the stored order of the array.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/search/SearchBox.svelte</code> and
+    <code>SearchResults.svelte</code> for a text box that opens a keyboard-navigable list;
+    <code>src/features/search/highlight.ts</code> + <code>splitOnMatch</code> for the bolded run;
+    <code>src/features/settings/SegmentedControl.svelte:78</code> for the keyboard contract on a
+    composite control.</li>
+  <li><strong>IMPORTS:</strong> <code>loadListEntries</code>, <code>addListEntry</code>,
+    <code>groupForFilter</code>, <code>matchEntries</code> from <code>../lists</code>;
+    <code>Icon</code> from <code>../Icon.svelte</code>; <code>splitOnMatch</code> — <strong>move it from
+    <code>src/features/search/highlight.ts</code> to <code>src/lib/highlight.ts</code></strong> and
+    re-export, because two features now need it and the import rule says shared code moves to
+    <code>lib/</code> rather than being imported across.</li>
+  <li><strong>GOTCHA:</strong> these components live in <code>src/lib/fields/</code>, not in a feature.
+    The panel (<code>features/shell</code>), the card face (<code>features/cards</code>) and the sheets
+    (<code>features/writing</code>) all draw them, and a feature may not import another feature.
+    <code>src/lib/Icon.svelte</code> is the precedent for a shared component in <code>lib/</code>.</li>
+  <li><strong>GOTCHA:</strong> a typed value is accepted on <code>Enter</code> <em>and</em> on blur.
+    Losing what the user typed because they clicked away is the failure this control exists to prevent.</li>
+  <li><strong>GOTCHA:</strong> the whole control must fit 153px of content width in the panel — input
+    <code>flex: 1</code>, then the 26px caret button. Never set a fixed input width.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/combo.test.ts</code> — tests:
+    <code>combo_atRest_drawsATextBoxAndAListButton</code>,
+    <code>combo_typing_showsMatchingRowsWithTheMatchedRunBolded</code>,
+    <code>combo_withAParentValue_headsTheFirstGroupWithTheParentAndTheSecondWithEverythingElse</code>,
+    <code>combo_aValueNotInTheList_offersUseItAndCommitsAnEntryWithNoIdAndNoSources</code>,
+    <code>combo_aTypedValue_callsAddListEntryOnce</code>,
+    <code>combo_blurWithTypedText_commitsRatherThanDiscarding</code>,
+    <code>combo_isOperableByKeyboardAlone</code>,
+    <code>pickMany_chipsWrapAndCarryARemoveIcon</code>,
+    <code>pickMany_removingAChip_keepsTheOrderOfTheRest</code>.</li>
+</ul>
+
+<h4 class="task" data-task="12">Task 12: The Scale control and the dice button</h4>
+<p>Seven notches, −3 to +3, all zero by default — and all zero is a real answer meaning "unremarkable,
+like most people", never drawn as an empty state.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/fields/ScaleField.svelte</code> — §9.25's slider exactly: a
+    2px <code>--color-divider</code> rail inside a 16px row; seven 3px <code>rgba(32,30,29,.3)</code>
+    notch dots at <code>space-between</code>; a 12px <code>--color-accent</code> knob with a 2px ring
+    <strong>in the ground colour</strong> (<code>--color-surface</code> in the panel or on a sheet band,
+    <code>--color-bg</code> on a full-screen ground — take it as a prop, do not hard-code it); knob
+    positions <code>left: 0 / 16.66 / 33.33 / 50 / 66.66 / 83.33 / 100%</code> with
+    <code>translateX(-50%)</code>; the blueprint's two end words at 10px opacity .42 at
+    <code>space-between</code> under the rail; the value right-aligned above the rail at 11px weight
+    600, opacity .65, <code>font-variant-numeric: tabular-nums</code>, <strong>signed</strong>
+    (<code>+2</code>, <code>0</code>, <code>−2</code>) using a true minus sign U+2212 and never a
+    hyphen.</li>
+  <li><strong>IMPLEMENT:</strong> keyboard and pointer. <code>role="slider"</code> with
+    <code>aria-valuemin="-3"</code>, <code>aria-valuemax="3"</code>, <code>aria-valuenow</code> and
+    <code>aria-valuetext</code> naming the nearer end word; Left/Right and Down/Up step one notch,
+    Home/End jump to −3/+3. A pointer press snaps to the nearest notch and a drag tracks it. Every
+    committed change is one <code>setFieldCommand</code>.</li>
+  <li><strong>CREATE:</strong> <code>src/lib/fields/DiceButton.svelte</code> — §9.31's button:
+    26 × 22px, radius 2px, transparent, 1px <code>--color-accent</code>,
+    <code>ph-dice-five</code> at 14px in <code>--color-accent-700</code>. It is right-aligned on a group
+    label and takes an <code>onRoll</code> callback; it owns no randomness of its own.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/settings/SegmentedControl.svelte</code> for the
+    keyboard contract and the focus ring; <code>src/features/cards/ResizeHandles.svelte</code> for
+    pointer capture on a drag.</li>
+  <li><strong>GOTCHA:</strong> an absent key and a stored <code>0</code> must be indistinguishable on
+    screen. Read a missing key as 0; never draw a placeholder, a dash or a dimmed state for it.</li>
+  <li><strong>GOTCHA:</strong> a drag must produce <strong>one</strong> undo entry, not one per notch
+    crossed. Record the value at pointer-down and push a single command at pointer-up, exactly as
+    <code>CardLayer</code> does for a move.</li>
+  <li><strong>GOTCHA:</strong> the dice button is offered only when the field's
+    <code>randomizable</code> is true, and §9.31 places <em>one</em> button on the group header that
+    rerolls all five — never one per slider.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/scaleField.test.ts</code> — tests:
+    <code>scaleField_withNoStoredValue_readsZeroAndDrawsNoEmptyState</code>,
+    <code>scaleField_drawsSevenNotchesAndTheBlueprintsTwoEndWords</code>,
+    <code>scaleField_theValueIsSignedAndUsesATrueMinusSign</code>,
+    <code>scaleField_arrowRight_stepsOneNotchAndStopsAtPlusThree</code>,
+    <code>scaleField_homeAndEnd_jumpToMinusThreeAndPlusThree</code>,
+    <code>scaleField_aDragAcrossFourNotches_pushesOneUndoCommand</code>,
+    <code>scaleField_reportsRoleSliderWithAriaValueNowAndValueText</code>,
+    <code>diceButton_isOnlyDrawnForARandomizableField</code>.</li>
+</ul>
+
+<h4 class="task" data-task="13">Task 13: The shaped roll and its guarantee</h4>
+<p>Carried unchanged from <code>feature-character-record.html</code> by way of
+<code>feature-writing-pack.html</code> §5. Plain local random numbers — no network call, no AI,
+permanently.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/randomize.ts</code> —
+    <code>export const SCALE_WEIGHTS = [1, 3, 6, 8, 6, 3, 1] as const;</code> (the relative weights for
+    −3, −2, −1, 0, +1, +2, +3);
+    <code>export function rollScale(random: () =&gt; number = Math.random): number</code> — one weighted
+    draw returning −3..3;
+    <code>export function rollSpread(count: number, random = Math.random): number[]</code> — one draw
+    per slider, then <strong>the guarantee</strong>: if every result falls inside −1..+1, one slider
+    chosen at random is rerolled until it reaches −2, +2 or beyond.</li>
+  <li><strong>IMPLEMENT:</strong> the injected <code>random</code> parameter is what makes this
+    testable and deterministic; nothing else in the module reads <code>Math.random</code> directly.
+    The reroll loop must be bounded (redraw from the tails directly rather than looping on a
+    rejection), so a pathological generator cannot hang the renderer.</li>
+  <li><strong>ADD:</strong> <code>randomizeCommand(itemId, keys, before: number[], after: number[])</code>
+    in <code>src/features/undo/commands.ts</code> — label <code>Randomize</code>. One command carrying
+    five effects, which the undo model already supports; undo restores all five previous values in one
+    step and touches no other field.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/undo/commands.ts:148</code>
+    (<code>deleteCardsCommand</code>) for one command carrying several effects;
+    <code>src/lib/geometry.ts</code> for a pure maths module with its own test file.</li>
+  <li><strong>GOTCHA:</strong> the guarantee is the point. An unguarded bell curve gives a cast of
+    ordinary people; a flat roll gives a cast of extremists. The guarantee gives a mostly ordinary
+    person with one clear edge. Do not "simplify" it away.</li>
+  <li><strong>GOTCHA:</strong> the weight test must measure the <em>raw</em> <code>rollScale</code>
+    distribution, before the guarantee's reroll, or the tails will read heavy and the test will look
+    broken.</li>
+  <li><strong>GOTCHA:</strong> Randomize rerolls the five Scale fields and <strong>nothing else</strong>
+    — not the name, not the tropes, not the notes.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/randomize.test.ts</code> — tests:
+    <code>rollSpread_overTenThousandRuns_neverLeavesEveryValueInsideMinusOneToPlusOne</code>
+    (the 10,000-run assertion PRD §11 names — it must run in well under a second, so keep the module
+    allocation-free),
+    <code>rollScale_overALargeSample_matchesTheWeights1_3_6_8_6_3_1WithinTolerance</code>,
+    <code>rollScale_neverReturnsAValueOutsideMinusThreeToPlusThree</code>,
+    <code>rollSpread_withAnInjectedGenerator_isDeterministic</code>,
+    <code>rollSpread_returnsOneValuePerSlider</code>,
+    <code>randomizeCommand_undo_restoresAllFivePreviousValuesInOneStep</code>.</li>
+</ul>
+
+<h4 class="task" data-task="14">Task 14: The generated panel state — one control per field kind</h4>
+<p>The panel gains <em>one</em> new state, generated from a field list. It is not rebuilt per card type;
+that is what blueprints exist to avoid.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/fields/FieldControl.svelte</code> — the dispatcher. Given
+    a <code>BlueprintField</code>, a value and an <code>onCommit</code>, it draws the field in §9.25's
+    three parts in this order: the <strong>label</strong> (10px, letter-spacing .1em, uppercase, opacity
+    .45), the <strong>control</strong>, and the blueprint's <strong><code>meaning</code> line</strong>
+    (10px, opacity .45, line-height 1.4). The meaning is authored once in the data file and never per
+    card.</li>
+  <li><strong>CREATE:</strong> the four remaining controls, all measured for 153px:
+    <code>ShortTextField.svelte</code> (the panel's existing 11px input,
+    <code>padding: 2px 4px</code>, full width);
+    <code>LongTextField.svelte</code> (a 153 × 44px textarea — the same box as the image card's Alt text
+    in §9.4 — <code>line-height: 1.5</code>, <code>resize: none</code>, storing Markdown through the
+    existing sanitised path);
+    <code>ImageField.svelte</code> (a 52px <code>--color-neutral-200</code> square, the file name
+    ellipsized at 11px opacity .6, then <em>Replace</em> / <em>Remove</em> as two 11px buttons in a
+    <code>gap: 5px</code> row — the same pair as §9.4's File group);
+    <code>NumberField.svelte</code> (a 131px right-aligned input plus a 22px stepper column —
+    <code>ph-caret-up</code> 12px, 1px divider, <code>ph-caret-down</code> 13px — totalling 153px, the
+    one control that moved from the 1064px sheet, by 1px; <strong>empty is not zero</strong>).</li>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/PropertiesPanel.svelte</code> — a new
+    <code>{:else if blueprint}</code> branch beside the note and image branches. It draws the header
+    (the blueprint's <code>label</code> at 13px/600 plus the item id at 10.5px opacity .45, as §8.5
+    already specifies), then <code>{#each blueprint.fields as field}</code> a
+    <code>FieldControl</code>, then the Position / Size / Order groups the panel already has, then the
+    footer's Card group — <em>Expand Into A Canvas</em> (<code>ph-square-half</code>) and
+    <em>Delete Beat</em> / <em>Delete Scene</em> / <em>Delete Location</em> named for the type, which
+    <strong>replaces</strong> §8.5's Duplicate/Delete pair for writing types rather than being drawn
+    beside it (§9.28).</li>
+  <li><strong>IMPLEMENT:</strong> every commit goes through one function that reads the current value,
+    writes through <code>set_item_field</code> and pushes <code>setFieldCommand</code>. Text fields
+    commit on blur and on <code>Enter</code>, never on every keystroke — the same rule
+    <code>NoteEditor</code> follows, and what keeps the undo stack usable.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/shell/PropertiesPanel.svelte:412-500</code> for a
+    card branch and its groups; <code>:239-246</code> for the commit-on-blur helper;
+    <code>src/features/cards/NoteEditor.svelte</code> for the Markdown text box contract.</li>
+  <li><strong>GOTCHA:</strong> for the three types with a sheet (Book, Chapter, Character) the panel
+    still draws — §9.30 keeps the 177px panel beside the sheet — but it draws the identity fields only
+    plus <em>Placed on</em> and <em>Joined to</em>. For Chapter it is reserved entirely (Task 23).
+    Drive that from the blueprint's <code>sheet</code> flag; do not name card types in the component.</li>
+  <li><strong>GOTCHA:</strong> no per-card-type branch may appear in this component. If a
+    <code>if (blueprint.id === 'character')</code> is needed, the blueprint format is missing a member
+    and the fix belongs in the data file.</li>
+  <li><strong>GOTCHA:</strong> nothing here may reach 177px wide. Every control is measured for 153px of
+    content; §9.25's table is the authority and the 350px minimum window width is the test.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/shell/__tests__/panelBlueprint.test.ts</code> — tests:
+    <code>panel_aCharacterCard_drawsOneControlPerFieldInBlueprintOrder</code>,
+    <code>panel_everyFieldDrawsItsLabelAboveAndItsMeaningLineBelow</code>,
+    <code>panel_swappingFromCharacterToBeat_drawsTheBeatsTwoFieldsAndNothingElse</code>,
+    <code>panel_aLongTextField_drawsA44pxTextareaAndNeverAppearsOnTheFace</code>,
+    <code>panel_aNumberField_leavesAnEmptyBoxEmptyRatherThanShowingZero</code>,
+    <code>panel_editingAShortTextField_commitsOnBlurAndPushesOneUndoCommand</code>,
+    <code>panel_aWritingType_showsTheCardGroupNamedForItsTypeInsteadOfDuplicateAndDelete</code>.</li>
+</ul>
+
+<h4 class="task" data-task="15">Task 15: <em>Placed on</em> and <em>Joined to</em></h4>
+<p>The two generated groups that make a reused card legible — where else this record is, and what it is
+wired to. Both are the visible proof that one item can have many placements.</p>
+<ul>
+  <li><strong>ADD:</strong> a command in <code>src-tauri/src/commands/blueprint.rs</code>:
+    <code>item_context(state, item_id) -&gt; AppResult&lt;ItemContext&gt;</code> returning
+    <code>{ placements: [{ placement_id, canvas_id, canvas_name, x, y }], joined: [{ connection_id, canvas_id, other_item_id, other_name, other_blueprint, role, reversed }] }</code>.
+    <code>reversed</code> says which end this card is, which is what lets <em>Part Of</em> read
+    <em>Contains</em> from the other end.</li>
+  <li><strong>IMPLEMENT:</strong> in <code>PropertiesPanel.svelte</code>, the two §9.28 groups.
+    <em>Placed on</em>: one row per placement — <code>ph-square-half</code> at 13px opacity .55, the
+    canvas name ellipsized, the coordinates right-aligned at 10px opacity .4 with
+    <code>font-variant-numeric: tabular-nums</code> — and a helper that <strong>states the count in
+    words</strong>: <em>One record, three places. Editing here changes all three.</em>
+    <em>Joined to</em>: one row per connection — a 15px bordered icon disc carrying the role glyph, the
+    far card's name, and <strong>the role on its own line beneath</strong>, indented
+    <code>padding-left: 22px</code> at 10px opacity .45 with <code>margin-top: -3px</code>. Several
+    connections of one role collapse to a count — <em>2 beats</em> over <em>Feed</em>.</li>
+  <li><strong>IMPLEMENT:</strong> clicking a <em>Placed on</em> row switches to that canvas and selects
+    that placement; clicking a <em>Joined to</em> row selects the far card. Both reuse the same
+    navigation the search results already perform.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/search/SearchResults.svelte</code> for grouped rows
+    that navigate; <code>src/lib/relativeTime.ts</code> for the count-in-words helper's neighbours.</li>
+  <li><strong>GOTCHA:</strong> the counts must be words, not digits — <em>One record, three places</em>,
+    not <em>1 record, 3 places</em>. Beyond ten, fall back to digits; the sentence is helper text and
+    stays sentence case.</li>
+  <li><strong>GOTCHA:</strong> <em>Contains</em> is not an eighth role. It is <em>Part Of</em> read from
+    the other end, so it is a display decision driven by <code>reversed</code> and never a stored
+    value.</li>
+  <li><strong>GOTCHA:</strong> these groups are drawn for blueprint cards only. The four original kinds'
+    panel states are untouched — that is a regression line in PRD §11.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/shell/__tests__/panelContext.test.ts</code> and
+    <code>cargo test --manifest-path src-tauri/Cargo.toml item_context</code> — tests:
+    <code>item_context_returns_every_placement_with_its_canvas_name()</code>,
+    <code>item_context_marks_the_far_end_of_each_connection()</code>,
+    <code>placedOn_threePlacements_statesTheCountInWords</code>,
+    <code>joinedTo_drawsTheRoleOnItsOwnLineBeneathTheFarCardName</code>,
+    <code>joinedTo_twoConnectionsOfOneRole_collapseToACount</code>,
+    <code>joinedTo_aPartOfConnectionFromTheOtherEnd_readsContains</code>,
+    <code>panel_aNoteCard_drawsNeitherGroup</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="5">Milestone 5: The card face and the canvas</h3>
+
+<p>The generated face, and the two ways to make a writing card. Nothing else about the canvas changes:
+a writing card drags, resizes, selects, marquees, culls, z-orders and connects exactly like a note.</p>
+
+<p><strong>Validation checkpoint:</strong> one Vitest suite renders a canvas holding one card of each of
+the six writing types plus a note and asserts every face is generated from its blueprint's
+<code>show_on_face</code> fields — the right kicker glyph and label on each, chips for the pick fields,
+no prose anywhere, the <code>ph-square-half</code> mark only on the card whose
+<code>detail_canvas_id</code> is set — and then that pressing <code>6</code> with the pointer over the
+canvas creates a Character at the pointer at the blueprint's default size, that the rail's
+<em>Writing Pack</em> submenu row for Character prints the same key, and that the card is culled out of
+the page when the view is panned away from it.</p>
+
+<h4 class="task" data-task="16">Task 16: The blueprint card face</h4>
+<p>Every face is the blueprint's <code>show_on_face</code> fields, generated. Three rules: a small type
+kicker, no Long Text ever, and chips as plain outlined pills in one style for every set.</p>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/cards/BlueprintCard.svelte</code> — §9.27. The kicker
+    row at 9.5px, letter-spacing .11em, uppercase, opacity .45, gap 5px, with the blueprint's 12px glyph
+    (Beat takes 13px). Then the fields in blueprint order: Short Text fields as text, Pick and Pick Many
+    as face chips (padding <code>2px 8px</code>, radius 10px, 10.5px) with a <code>+n</code> overflow
+    chip, Image as a picture band flush to the card edge. A card whose
+    <code>detail_canvas_id</code> is set carries <code>ph-square-half</code> at 12px opacity .85,
+    right-aligned on the kicker row — the only mark of it on the face.</li>
+  <li><strong>IMPLEMENT:</strong> the two face shapes §9.27 draws. Text cards: padding
+    <code>11px 13px 12px</code>, gap 7px, body 11.5px line-height 1.5 opacity .78; Beat tightens to
+    <code>10px 12px 11px</code> with gap 6px. Picture cards: <code>overflow: hidden</code>, the band
+    flush to the card edge (Character 104px, Location 92px with <code>ph-image</code> at 22px), the text
+    block <code>9px 12px 11px</code> with gap 5px. Drive the band height from the blueprint's first
+    Image field, not from the card type.</li>
+  <li><strong>IMPLEMENT:</strong> the missing-file marker. An Image field naming a file that is not in
+    <code>assets/</code> draws §9.22's dashed inset border, neutral ground and
+    <code>ph-image-broken</code>, through the existing <code>assetStatus</code> path — the item is never
+    deleted.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/cards/CardLayer.svelte</code> — a fifth branch,
+    <code>{:else if item.kind === 'blueprint'}</code>, rendering <code>BlueprintCard</code>. Double
+    click on a writing card opens its sheet where the blueprint has one and otherwise focuses the
+    panel's first field; it never turns the face into an editor — <strong>there is no editing on the
+    face</strong>.</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/assets.svelte.ts</code>'s refresh path to include blueprint
+    image names, through the <code>payloadAssetNames</code> case added in Task 8.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/cards/LinkCard.svelte</code> for a card with a
+    picture band, a text block and a failure state; <code>ImageCard.svelte</code> for the missing-file
+    marker and the asset URL; <code>CardLayer.svelte:270-296</code> for the branch shape.</li>
+  <li><strong>GOTCHA:</strong> <strong>this is where the frame gate is won or lost.</strong> Chips are
+    the first thing that has ever made a card face more expensive. Keep the face to plain elements —
+    no per-chip transition, no shadow, no <code>filter</code>, no per-card <code>ResizeObserver</code>.
+    Compute the overflow count from the array length, never by measuring the DOM.</li>
+  <li><strong>GOTCHA:</strong> Long Text is barred from the face by the blueprint, and the Task 4 test
+    asserts it — but the component must also simply not render a <code>long-text</code> field, so a
+    hand-edited data file cannot put a wall of prose on a 264px tile.</li>
+  <li><strong>GOTCHA:</strong> a blueprint card must be culled exactly like a note. It is a real page
+    element inside the same world layer, and <code>cullWithCounts</code> needs no change — verify the
+    drawn count still tracks the view.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/cards/__tests__/blueprintCard.test.ts</code> — tests:
+    <code>blueprintCard_drawsOnlyTheFieldsMarkedShowOnFace</code>,
+    <code>blueprintCard_drawsTheTypeKickerWithItsGlyph</code>,
+    <code>blueprintCard_aLongTextField_isNeverRenderedEvenWhenMarkedShowOnFace</code>,
+    <code>blueprintCard_pickManyBeyondTheFaceLimit_drawsAnOverflowChip</code>,
+    <code>blueprintCard_withADetailCanvasId_drawsTheSquareHalfMark</code>,
+    <code>blueprintCard_aMissingPictureFile_drawsTheMarkerAndKeepsTheItem</code>,
+    <code>cardLayer_aBlueprintItem_rendersBlueprintCard</code>,
+    <code>cardLayer_doubleClickOnAWritingCard_neverTurnsTheFaceIntoAnEditor</code>.</li>
+</ul>
+
+<h4 class="task" data-task="17">Task 17: The rail's <code>Cards</code> group, its two submenus and the <code>2</code>–<code>7</code> keys</h4>
+<p>Eight card kinds do not fit as flat rows in a 168px rail, so <code>Add</code> becomes
+<code>Cards</code> with two submenu parents. The rule underneath is unchanged: one flat pack, no pack
+picker, no project types.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/LeftColumn.svelte</code> — the
+    <code>Add</code> section label becomes <code>Cards</code>, and its two action rows become two
+    <strong>submenu parents</strong>: <em>General</em> (<code>ph-squares-four</code>) and
+    <em>Writing Pack</em> (<code>ph-book-open</code>), each with <code>ph-caret-right</code> at 12px
+    opacity .5 right-aligned. An open parent takes the pressed appearance — <code>--color-accent</code>
+    ground, <code>--color-on-accent</code>, weight 600, caret at opacity .8 — which is the same
+    appearance as the active tool, and that is correct.</li>
+  <li><strong>IMPLEMENT:</strong> the flyout, reusing <code>ContextMenu.svelte</code>'s shell and §9.9's
+    grammar: <code>position: absolute; left: 100%</code>, top-aligned to its parent row,
+    <strong>206px</strong> wide, <code>--color-surface</code>, radius 3px, shadow
+    <code>0 10px 28px rgba(45,43,43,.3)</code>, padding <code>5px 0</code>, on
+    <code>--z-context-menu</code> (60). Rows: padding <code>5px 12px</code>, gap 9px, 12px, a 14px icon
+    at opacity .7, and the shortcut right-aligned at 10px opacity .45 with
+    <code>font-variant-numeric: tabular-nums</code>.
+    <em>General</em> = Note <code>ph-note</code> <code>N</code>, Image <code>ph-image</code>
+    <code>I</code>. <em>Writing Pack</em> = Book <code>ph-book</code> <code>2</code>, Chapter
+    <code>ph-file-text</code> <code>3</code>, Scene <code>ph-film-slate</code> <code>4</code>, Beat
+    <code>ph-dot-outline</code> <code>5</code>, Character <code>ph-user-circle</code> <code>6</code>,
+    Location <code>ph-map-pin</code> <code>7</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/shortcuts.ts</code> — six new actions
+    <code>new-book</code>, <code>new-chapter</code>, <code>new-scene</code>, <code>new-beat</code>,
+    <code>new-character</code>, <code>new-location</code>; their <code>SHORTCUT_LABELS</code> entries
+    <code>'2'</code>…<code>'7'</code>; and six cases in <code>matchAction</code>'s plain-key switch,
+    <em>after</em> the <code>inText</code> bail so typing a 4 into a field never makes a Scene.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — six handlers in
+    <code>shellShortcuts</code>, each creating that blueprint at the pointer through
+    <code>create_blueprint_card</code> at the blueprint's <code>default_size</code>, selecting it, and
+    pushing <code>createCardCommand</code>. The rail rows call the same function, so the two routes are
+    one code path.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/shell/ContextMenu.svelte:18-46</code> for the menu
+    shell and the edge flip; <code>src/app.svelte:1193-1211</code> for the handler map;
+    <code>src/features/shell/LeftColumn.svelte:106-121</code> for the rows being replaced.</li>
+  <li><strong>GOTCHA:</strong> menus read <code>SHORTCUT_LABELS</code>; they never retype a key. PRD §6.8
+    requires every key printed on a menu to be honoured, and deriving the label is how that stays true.</li>
+  <li><strong>GOTCHA:</strong> the background context menu (§9.10, 236px) gains
+    <strong>no rows</strong>. It still holds only <em>New note here</em> and <em>Add image…</em>; the
+    rail submenus plus <code>2</code>–<code>7</code> already give two routes.</li>
+  <li><strong>GOTCHA:</strong> "at the pointer" means the last known canvas pointer position, which is
+    what <code>new-note</code> already uses. Do not centre the card in the view — §10 contract 1 forbids
+    the application choosing a position.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/shell/__tests__/cardsGroup.test.ts src/lib/__tests__/shortcuts.test.ts</code>
+    — tests: <code>leftColumn_theCardsGroupHasTwoSubmenuParentsAndNoFlatCardRows</code>,
+    <code>leftColumn_openingAParent_drawsA206pxFlyoutAtLeft100Percent</code>,
+    <code>leftColumn_anOpenParent_takesThePressedAppearance</code>,
+    <code>leftColumn_theWritingPackSubmenuPrintsTheKeys2To7FromShortcutLabels</code>,
+    <code>matchAction_theKey6_returnsNewCharacter</code>,
+    <code>matchAction_theKey4_insideATextBox_returnsNull</code>,
+    <code>shortcuts_creatingACharacterFromTheKeyAndFromTheRail_callTheSameCreateCommand</code>,
+    <code>backgroundContextMenu_gainsNoWritingRows</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="6">Milestone 6: Connections carry a role</h3>
+
+<p>A line gains a meaning. Roles are suggested, always editable, and <strong>never a rule</strong> — the
+application never refuses a pair and never shows a validation error.</p>
+
+<p><strong>Validation checkpoint:</strong> one Vitest suite wires a real canvas — two Beats to a Scene,
+the Scene to a Chapter, a Character to the Scene, the Chapter to a Book — and asserts every connection
+was <em>suggested</em> the right role and every one of them could then be changed to any other,
+including a role the user typed; that a Beat joined straight to a Chapter is accepted with no error;
+that the pre-Phase-6 connection in the same canvas, with <code>role = NULL</code>, draws with no glyph
+and is byte-for-byte the line it was; and that a line carrying both a role and a label puts the role at
+the midpoint and the label at the midpoint of the longer half, with the role winning and the label kept
+when the line is too short for both.</p>
+
+<h4 class="task" data-task="18">Task 18: The role vocabulary, the suggestion, and the stored column</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/lib/roles.ts</code> — the seven roles as a keyed table:
+    <code>feeds</code> (<code>ph-arrow-right</code>, <em>Feeds</em>), <code>follows</code>
+    (<code>ph-arrow-down</code>, <em>Follows</em>), <code>part-of</code>
+    (<code>ph-file-text</code>, <em>Part Of</em>, reading <em>Contains</em> from the other end),
+    <code>appears-in</code> (<code>ph-user</code>, <em>Appears In</em>), <code>told-by</code>
+    (<code>ph-eye</code>, <em>Told By</em>), <code>set-in</code> (<code>ph-map-pin</code>,
+    <em>Set In</em>), and <code>relates-to</code> (<code>ph-minus</code>, <em>Relates To</em>) — the
+    default, what <code>role = NULL</code> reads as, and the only one that draws
+    <strong>no rest glyph at all</strong>.</li>
+  <li><strong>IMPLEMENT:</strong>
+    <code>export function suggestRole(from: string | null, to: string | null): string | null</code> — a
+    pure function over the two blueprint ids. Beat→Scene, Beat→Chapter and Scene→Chapter suggest
+    <code>feeds</code>; Chapter→Chapter and Scene→Scene suggest <code>follows</code>; Chapter→Book
+    suggests <code>part-of</code>; Character→Scene and Character→Chapter suggest
+    <code>appears-in</code>; Location→Scene and Location→Chapter suggest <code>set-in</code>; every
+    other pair, and any pair involving a note, image, link or video card, returns <code>null</code> —
+    which reads as <em>Relates To</em> and leaves the line looking exactly as it does today.
+    <code>roleLabel(role, reversed)</code> returns <em>Contains</em> for a reversed
+    <code>part-of</code> and the role's own label otherwise; an unknown value — a role the user typed —
+    returns its own text and takes the neutral <code>ph-minus</code> glyph.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/connection.rs</code> —
+    <code>create_connection</code> gains <code>role: Option&lt;String&gt;</code>;
+    <code>update_connection</code> gains it as one more positional argument;
+    <code>restore_connection</code> writes it back so undo restores a role with its line.
+    <code>src/lib/types.ts</code> — <code>ConnectionEdit</code> gains <code>role: string | null</code>
+    and <code>connectionEdit()</code> carries it.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/connections/connections.svelte.ts</code> —
+    <code>completeLink</code> reads both endpoints' items, calls <code>suggestRole</code>, and passes
+    the result to <code>create_connection</code>. This is the only place a role is ever suggested.</li>
+  <li><strong>ADD:</strong> the role to <code>editConnectionCommand</code>'s existing before/after
+    <code>ConnectionEdit</code> pair — setting a role is one more field on a command that already
+    exists, so no new command class is needed.</li>
+  <li><strong>PATTERN:</strong> <code>src/lib/connectionStyle.ts</code> for a keyed vocabulary with
+    labels and no hex values; <code>src/features/undo/commands.ts:282</code>
+    (<code>editConnectionCommand</code>).</li>
+  <li><strong>GOTCHA:</strong> <strong>a role must never become a rule.</strong> There is no pair table
+    that refuses, no validation error, and no disabled state. Beat straight to Chapter is a real way to
+    write. The suggestion is a default the user can always change, including to <em>Relates To</em>.</li>
+  <li><strong>GOTCHA:</strong> <code>null</code> and <code>'relates-to'</code> must be indistinguishable
+    on screen — both draw no glyph — but do not normalise one into the other on write. A Phase 5 project
+    must keep <code>NULL</code>, because "no back-fill is needed" is the compatibility promise.</li>
+  <li><strong>GOTCHA:</strong> <code>update_connection</code> already takes nine positional arguments and
+    clippy's <code>too_many_arguments</code> is allowed on its neighbours. Add the
+    <code>#[allow]</code> rather than reshaping the command, so the front-end call site stays the single
+    <code>ConnectionEdit</code> it is today.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/lib/__tests__/roles.test.ts</code> and
+    <code>cargo test --manifest-path src-tauri/Cargo.toml connection::</code> — tests:
+    <code>suggestRole_beatToScene_isFeeds</code>, <code>suggestRole_chapterToBook_isPartOf</code>,
+    <code>suggestRole_characterToScene_isAppearsIn</code>,
+    <code>suggestRole_beatToChapter_isFeedsAndIsNeverRefused</code>,
+    <code>suggestRole_aNoteToACharacter_isNull</code>,
+    <code>roleLabel_partOfReversed_readsContains</code>,
+    <code>roleLabel_aTypedRole_returnsItsOwnTextAndTheNeutralGlyph</code>,
+    <code>create_connection_stores_the_suggested_role()</code>,
+    <code>update_connection_can_change_any_role_to_any_other()</code>,
+    <code>restore_connection_puts_the_role_back()</code>,
+    <code>an_existing_connection_still_reads_role_null()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="19">Task 19: The role on the line, and the Role combo</h4>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src/features/connections/ConnectionLayer.svelte</code> — the role
+    affordance from §9.13. <strong>At rest</strong>: a 15px circle on <code>--color-surface</code> with
+    a 1px <code>--color-divider</code> border and <code>border-radius: 50%</code>, holding the role's
+    9px icon at opacity .75, centred on the line. <strong>Open</strong> — on hover, <em>or when either
+    end card is selected</em> — a chip at 10px, padding <code>2px 8px 2px 3px</code>,
+    <code>border-radius: 9px</code>, holding a 13px icon disc and the role name; neutral is
+    <code>--color-surface</code> with a 1px <code>rgba(32,30,29,.32)</code> border and shadow
+    <code>0 1px 4px rgba(45,43,43,.14)</code>, selected is <code>--color-accent</code> ground with
+    <code>--color-on-accent</code> text and the icon disc at <code>rgba(255,255,255,.22)</code>.
+    <strong>A <code>relates-to</code> or <code>NULL</code> role draws nothing at all.</strong></li>
+  <li><strong>UPDATE:</strong> <code>src/features/connections/ConnectionLabels.svelte</code> — the
+    collision rule §9.13 authors: the role owns the line's <strong>midpoint</strong>; a free label chip
+    moves to the <strong>midpoint of the longer half</strong>, keeping its existing appearance; they are
+    never stacked; and when the line is too short for both, <strong>the role wins and the label is not
+    drawn</strong> — kept, not lost, exactly as the existing 50px rule already keeps it.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/PropertiesPanel.svelte</code> — a
+    <strong>Role</strong> group holding a <code>Combo</code>, placed <strong>above</strong> the existing
+    Label group in the connection branch (§9.13). Its list is the seven roles; a typed role is accepted
+    like any other combo value. It commits through the same <code>commitConnection</code> path every
+    other connection field uses, so it is one <code>editConnectionCommand</code>.</li>
+  <li><strong>IMPLEMENT:</strong> both marks are HTML in the same overlay
+    <code>ConnectionLabels</code> already uses, positioned from <code>routePoints</code>, not SVG
+    <code>&lt;text&gt;</code> — chips need a solid ground and real ellipsis.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/connections/ConnectionLabels.svelte</code> in full —
+    it is the same problem solved once already; <code>src/lib/connectionGeometry.ts:520</code>
+    (<code>polylinePath</code>) and <code>:601</code> (<code>trimRoute</code>) for the point along the
+    route.</li>
+  <li><strong>GOTCHA:</strong> the affordance adds one small element per <em>visible</em> connection.
+    Connections are culled by <code>routeInView</code> and the role mark must be culled with them, or
+    the gate regresses on a canvas with many lines.</li>
+  <li><strong>GOTCHA:</strong> the rest glyph is drawn for the other six roles only. A bare
+    <em>Relates To</em> connection must look byte-for-byte as it does today — that is a PRD §11 gate
+    line and the reason no back-fill was needed.</li>
+  <li><strong>GOTCHA:</strong> "when either end is selected" means either endpoint's <em>card</em>, not
+    the connection. Selecting a card opens every role chip around it, which is how the structure of a
+    chapter becomes readable.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/connections/__tests__/roles.test.ts</code> — tests:
+    <code>connectionLayer_aFeedsRole_drawsA15pxRestGlyphAtTheMidpoint</code>,
+    <code>connectionLayer_aNullRole_drawsNoMarkAtAll</code>,
+    <code>connectionLayer_hover_opensTheGlyphIntoANamedChip</code>,
+    <code>connectionLayer_selectingAnEndCard_opensTheChip</code>,
+    <code>connectionLabels_aRoleAndALabel_putTheRoleAtTheMidpointAndTheLabelInTheLongerHalf</code>,
+    <code>connectionLabels_tooShortForBoth_drawsTheRoleAndKeepsTheLabelUnDrawn</code>,
+    <code>panel_theRoleComboSitsAboveTheLabelGroup</code>,
+    <code>panel_typingARole_isAcceptedAndStored</code>,
+    <code>connectionLayer_aRoleOffScreen_isCulledWithItsLine</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="7">Milestone 7: The three full-screen sheets</h3>
+
+<p>Three types outgrow the 177px panel: Book, Chapter and Character. Scene, Beat and Location stay in
+the panel and open nothing. A sheet is a <em>view of one card</em>, not a mode — edits land in the same
+payload through the same commands with the same undo entries, and nothing is committed on leaving.</p>
+
+<p><strong>Validation checkpoint:</strong> one Vitest suite opens each of the three sheets in turn and
+asserts the shared shell is genuinely shared — one header component, one back affordance, one body
+grid — while each sheet's content differs; that editing the same field on the sheet and in the panel
+produces <strong>the same payload and the same single undo entry</strong>; that leaving a sheet commits
+nothing extra and returns to the canvas with the selection and the view position intact; and that
+<code>Esc</code> inside the Chapter prose blurs the writing surface on the first press and leaves the
+sheet on the second, while <code>Esc</code> with no text focus leaves immediately.</p>
+
+<h4 class="task" data-task="20">Task 20: The shared sheet shell</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/writing/SheetShell.svelte</code> — §9.30. The header:
+    <code>flex: none</code>, padding <code>11px 28px</code>, gap 12px, 1px <code>--color-divider</code>
+    bottom border; left to right, <em>Back to canvas</em> (<code>ph-arrow-left</code> 13px, label
+    11.5px, padding <code>3px 9px</code>, radius 2px, 1px <code>--color-divider</code>), then the card
+    name at 14px weight 600, then the type at 9.5px / .11em / uppercase / opacity .45 on the same
+    baseline. The body: padding <code>22px 28px</code>, column, gap 20px, exposed as two named snippets
+    — an <strong>identity</strong> band (a picture with <em>Replace</em> / <em>Remove</em> beneath at
+    11px and the file name at 10px opacity .45, beside a <code>flex: 1</code> column of 26px-tall fields
+    at <code>padding: 2px 8px; min-height: 26px</code> with 10px / .1em / uppercase / opacity .45
+    labels) and a <strong>columns</strong> band (<code>grid-template-columns: 1fr 1fr</code>, gap 24px,
+    <code>align-items: start</code>).</li>
+  <li><strong>CREATE:</strong> <code>src/features/writing/writing.svelte.ts</code> — the open sheet as
+    <code>$state&lt;number | null&gt;</code> (a placement id), <code>openSheet</code>,
+    <code>closeSheet</code>, and a derived <code>sheetBlueprint</code>.</li>
+  <li><strong>UPDATE:</strong> <code>src/app.svelte</code> — render the sheet exactly where
+    <code>SettingsPage</code> renders, on the same condition shape as <code>settingsOpen</code>: the
+    title bar, the rail and the properties panel all stay, and the sheet replaces the canvas.
+    <strong>A sheet takes no stacking rung</strong> (§8.6) — it is not a dialog and must not be layered
+    over the canvas.</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/shortcuts.ts</code> — export <code>isTextEntry</code>, so a
+    screen can ask whether the key came from a text box. <code>src/app.svelte</code> — a
+    <code>sheetShortcuts</code> map beside <code>settingsShortcuts</code>, chosen by the same
+    <code>$effect</code>, whose <code>cancel</code> handler <strong>blurs the focused text box if there
+    is one and leaves the sheet otherwise</strong>. This settles design-system §15.4's sixth open
+    question and PRD §14.4's last row: <code>Esc</code> is the key, and on the Chapter sheet — where
+    almost the whole screen is a text field — the first press gets you out of the prose and the second
+    gets you out of the sheet.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/settings/SettingsPage.svelte</code> for the whole
+    screen-that-replaces-the-canvas shape, including the back button and the header;
+    <code>src/app.svelte:1183-1191</code> for the shortcut map switch;
+    <code>src/features/shell/LeftColumn.svelte</code> for snippet props.</li>
+  <li><strong>GOTCHA:</strong> the sheet must not clear the selection or move the view. Leaving it
+    returns to exactly the canvas the user left, which is the same promise the Settings page already
+    makes.</li>
+  <li><strong>GOTCHA:</strong> <code>matchAction</code> returns <code>'cancel'</code> for
+    <code>Escape</code> <em>before</em> its <code>inText</code> bail, deliberately, so a note editor can
+    cancel. That is why the two-press behaviour lives in the handler and not in
+    <code>matchAction</code> — changing <code>matchAction</code> would break note editing.</li>
+  <li><strong>GOTCHA:</strong> no per-sheet component may re-implement the header, the back button or the
+    body grid. If a sheet needs a different header, the difference belongs in a prop — Chapter's
+    header carries the Card actions (Task 23) and that is the one variation.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/writing/__tests__/sheetShell.test.ts</code> — tests:
+    <code>sheetShell_drawsBackToCanvasThenTheCardNameThenTheType</code>,
+    <code>sheetShell_replacesTheCanvasAndKeepsTheTitleBarRailAndPanel</code>,
+    <code>sheetShell_backToCanvas_returnsWithTheSelectionAndViewIntact</code>,
+    <code>sheetShortcuts_escWithNoTextFocus_leavesTheSheet</code>,
+    <code>sheetShortcuts_escInsideATextBox_blursItAndKeepsTheSheetOpen</code>,
+    <code>sheetShortcuts_escTwiceFromATextBox_leavesTheSheet</code>,
+    <code>sheetShell_takesNoStackingRung</code>.</li>
+</ul>
+
+<h4 class="task" data-task="21">Task 21: Character, full screen</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/writing/CharacterSheet.svelte</code> — §9.31. The
+    identity band: a <strong>150 × 150px</strong> picture, then Name and Role side by side, then
+    One-liner, then Description. The left column: <strong>Personality</strong> — the five Scale sliders
+    stacked at <strong>gap 7px</strong>, which is the gap that keeps all five visible with no scrolling,
+    with the dice button right-aligned on the group label. The right column: Character tropes, then
+    <em>Placed on</em> and <em>Joined to</em> side by side, then the Card actions.</li>
+  <li><strong>IMPLEMENT:</strong> the randomize guarantee <strong>printed on screen, verbatim</strong>:
+    <em>"Randomize rolls a bell curve, then guarantees at least one slider reaches ±2 — a mostly
+    ordinary person with one clear edge. Undo restores all five in one step."</em> Wiring: the dice
+    button calls <code>rollSpread(5)</code>, writes the five values through five
+    <code>set_item_field</code> calls in the order the blueprint lists them, and pushes
+    <strong>one</strong> <code>randomizeCommand</code>.</li>
+  <li><strong>IMPLEMENT:</strong> the sliders take the ground colour of the band they sit on, so the
+    knob's 2px ring is <code>--color-surface</code> on a sheet band and <code>--color-bg</code> on a
+    full-screen ground (Task 12's prop).</li>
+  <li><strong>PATTERN:</strong> <code>src/features/settings/SettingsPage.svelte</code> for a
+    two-column body on a full screen; <code>src/lib/fields/FieldControl.svelte</code> — the sheet reuses
+    the same controls at the sheet's field height, it does not fork them.</li>
+  <li><strong>GOTCHA:</strong> the roll is local random numbers. No network call, no AI, permanently —
+    PRD §11's gate includes a network monitor recording zero traffic for a session that runs Randomize.</li>
+  <li><strong>GOTCHA:</strong> Randomize must be a single undo entry that restores all five previous
+    values and changes nothing else. Five separate <code>setFieldCommand</code>s would need five
+    <code>Ctrl+Z</code> presses and would fail the gate.</li>
+  <li><strong>GOTCHA:</strong> the Character card <em>face</em> stays sparse — picture, name and role
+    only, as §9.27 draws it. The one-liner and the trope chips live on the sheet. See Notes for why that
+    open question is settled as drawn rather than by adding them back.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/writing/__tests__/characterSheet.test.ts</code> — tests:
+    <code>characterSheet_drawsA150pxPictureAndTheFourIdentityFields</code>,
+    <code>characterSheet_drawsFiveSlidersAtGapSevenWithOneDiceButtonOnTheGroupLabel</code>,
+    <code>characterSheet_printsTheRandomizeGuaranteeVerbatim</code>,
+    <code>characterSheet_randomize_writesFiveFieldsAndPushesOneUndoCommand</code>,
+    <code>characterSheet_undoAfterRandomize_restoresAllFiveInOneStep</code>,
+    <code>characterSheet_randomize_changesNoOtherField</code>,
+    <code>characterSheet_editingTheNameHereAndInThePanel_produceTheSamePayload</code>.</li>
+</ul>
+
+<h4 class="task" data-task="22">Task 22: Book, full screen</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/writing/BookSheet.svelte</code> — §9.32, deliberately
+    the same shape as Character: one sheet pattern, two types. The identity band: a
+    <strong>132 × 190px</strong> cover, then Name, then Genre and Sub-genre as two combos, then Logline
+    (with its <code>meaning</code>, <em>The one sentence the card face shows.</em>) and Synopsis. Book
+    has no sliders, so the left column carries <strong>Tropes</strong> and <strong>Themes</strong> — one
+    chip style for both — and the right column carries <em>Placed on</em>, <em>Joined to</em> and the
+    Card actions.</li>
+  <li><strong>IMPLEMENT:</strong> the Sub-genre combo's <code>filter_by: "genre"</code> is what makes
+    the one-hop filter visible for the first time — the card's own genre group first, then
+    <em>Everything else</em>, nothing hidden. Story tropes filter by the same parent.</li>
+  <li><strong>IMPLEMENT:</strong> <em>Joined to</em> reads <strong>downward</strong> here —
+    <em>Contains</em> — where Character's reads upward. One group carries both directions; it is
+    <em>Part Of</em> read from the other end, driven by Task 15's <code>reversed</code> flag.</li>
+  <li><strong>PATTERN:</strong> <code>CharacterSheet.svelte</code> from Task 21 — this sheet is that
+    layout with a different left column, and any divergence beyond the left column and the identity
+    picture size is a defect.</li>
+  <li><strong>GOTCHA:</strong> Synopsis is the Long Text and <strong>never reaches the card face</strong>.
+    Logline is the Short Text the face shows. Do not swap them.</li>
+  <li><strong>GOTCHA:</strong> chip-set ownership is settled: Genre and Sub-genre are Book only; Tropes
+    are Book and Character; Themes are Book and Chapter. Chapter carries no tropes — see Notes.</li>
+  <li><strong>GOTCHA:</strong> the cover is an ordinary Image field going through the existing assets
+    module — copied in, named by content hash, reference counted. It is 132 × 190 on this sheet and the
+    52px square everywhere else; that is a layout prop, not a second Image control.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/writing/__tests__/bookSheet.test.ts</code> — tests:
+    <code>bookSheet_drawsA132by190CoverAndTheFiveIdentityFields</code>,
+    <code>bookSheet_theSubgenreCombo_sortsTheCardsGenreFirstAndHidesNothing</code>,
+    <code>bookSheet_typingASubgenreNotInTheList_isAcceptedAndSaved</code>,
+    <code>bookSheet_leftColumnCarriesTropesAndThemesAndNoSliders</code>,
+    <code>bookSheet_joinedTo_readsContainsForAChapterPartOfThisBook</code>,
+    <code>bookSheet_synopsisIsLongTextAndNeverReachesTheFace</code>,
+    <code>bookSheet_sharesTheSheetShellHeaderWithCharacterSheet</code>.</li>
+</ul>
+
+<h4 class="task" data-task="23">Task 23: Chapter, the writing surface</h4>
+<ul>
+  <li><strong>CREATE:</strong> <code>src/features/writing/ChapterSheet.svelte</code> — §9.33. Chapter is
+    the one type the field stack cannot hold, because its Long Text <em>is</em> the work, so the screen
+    inverts. <strong>The strip</strong>: Number (66px, right-aligned), Title (<code>flex: 1</code>) and
+    Word target (120px, right-aligned) on one <code>align-items: flex-end</code> row; then Summary
+    (<code>flex: 1</code>, a 46px textarea) beside Themes (300px, chips and adder wrapping inline).</li>
+  <li><strong>IMPLEMENT:</strong> <strong>one context line</strong> — <em>Placed on</em> and
+    <em>Joined to</em> collapse to a single 10.5px opacity .5 row
+    (<code>ph-square-half</code> <em>Placed on</em> …, <code>ph-book</code> <em>Part of</em> …,
+    <code>ph-film-slate</code> <em>Contains</em> …). This is the one place those two groups collapse to
+    a line; everywhere else they are the §9.28 groups.</li>
+  <li><strong>IMPLEMENT:</strong> <strong>the writing surface</strong> — <code>flex: 1</code>,
+    <code>--color-surface</code>, <code>border-radius: 3px 3px 0 0</code>,
+    <code>box-shadow: 0 -1px 0 var(--color-divider) inset</code>, running off the bottom of the window;
+    inside it one centred <strong>560px measure</strong> at 13px, line-height 1.85, paragraph gap 14px,
+    with a 1.5 × 15px accent caret at the insertion point. It stores Markdown and renders through the
+    existing sanitised path — the same <code>note-text-format</code> contract, for a second kind of
+    card. No editor library.</li>
+  <li><strong>IMPLEMENT:</strong> <strong>the foot</strong> — padding <code>9px 22px</code>, 1px top
+    border, 10.5px opacity .5, gap 14px: <em>Prose · Long Text</em>, then
+    <em>1,204 of 3,200 words</em> computed from the prose and the Word target, then a
+    <strong>120 × 3px</strong> <code>--color-neutral-200</code> rail with a <code>--color-accent</code>
+    fill, then <em>Never shown on the card face</em> pushed right.</li>
+  <li><strong>IMPLEMENT:</strong> the two differences from the other sheets — the
+    <strong>header carries the Card actions</strong> (<em>Expand into a canvas</em> and <em>Delete</em>,
+    right-aligned), because the strip has no room for a Card group; and the
+    <strong>177px panel is reserved</strong> — the type name, the card id and
+    <em>Reserved for AI options</em>, and nothing else. There is no AI glyph and none is held back.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/cards/NoteEditor.svelte</code> for the
+    Markdown-in-a-plain-textarea contract and the debounce before commit;
+    <code>src/lib/markdown.ts</code> for the sanitised render;
+    <code>SheetShell.svelte</code> for everything above the strip.</li>
+  <li><strong>GOTCHA:</strong> a long prose edit must not push one undo entry per keystroke. Commit on
+    blur and on an idle pause bounded by the auto-save cadence from settings, exactly as the note editor
+    does — this is <code>persistence-strategy</code>: rapid changes are grouped and written when the
+    burst ends.</li>
+  <li><strong>GOTCHA:</strong> the word count is computed for display and <strong>never stored</strong>.
+    A stored count would drift from the prose beside it.</li>
+  <li><strong>GOTCHA:</strong> the prose can never run script. It goes through the same sanitised
+    Markdown path a note body does, and the phase's validation proves it against the new field
+    specifically.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>npx vitest run src/features/writing/__tests__/chapterSheet.test.ts</code> — tests:
+    <code>chapterSheet_drawsTheStripWithNumberTitleAndWordTarget</code>,
+    <code>chapterSheet_collapsesPlacedOnAndJoinedToIntoOneContextLine</code>,
+    <code>chapterSheet_theWritingSurfaceIsA560pxMeasureRunningOffTheBottom</code>,
+    <code>chapterSheet_theFootCountsWordsAgainstTheTargetAndStoresNoCount</code>,
+    <code>chapterSheet_theHeaderCarriesTheCardActions</code>,
+    <code>chapterSheet_thePanelIsReservedAndNamesNoAiGlyph</code>,
+    <code>chapterSheet_aBurstOfTypingPushesOneUndoEntry</code>,
+    <code>chapterSheet_scriptInTheProse_isSanitisedAndNeverRuns</code>,
+    <code>chapterSheet_proseNeverAppearsOnTheCardFace</code>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="8">Milestone 8: Reach, control and the gate</h3>
+
+<p>The card points at a canvas, search finds it, one switch hides the pack from the menu, and the frame
+gate and the installer are re-measured against the first feature that ever made a card face more
+expensive.</p>
+
+<p><strong>Validation checkpoint:</strong> a whole-session Rust and Vitest pass proves the phase's
+reach: a Chapter is expanded into a canvas, the same item appears on both canvases and an edit in one
+shows in the other; the detail canvas is deleted and the card's <code>detail_canvas_id</code> falls back
+to null with the card intact; a cycle between two detail canvases is created, saved, reopened and
+navigated; search finds that Chapter by a phrase inside its prose <em>and</em> by its name, with canvas
+names still ranked first; and <em>Show Writing Cards</em> is turned off and on with the rail's
+<em>Writing Pack</em> parent disappearing and returning while a Character already on the canvas keeps
+drawing, editing, connecting and being found.</p>
+
+<h4 class="task" data-task="24">Task 24: Expand Into A Canvas</h4>
+<ul>
+  <li><strong>ADD:</strong> to <code>src-tauri/src/commands/blueprint.rs</code>:
+    <code>expand_into_canvas(state, item_id, x, y, width, height) -&gt; AppResult&lt;ExpandEffect&gt;</code>
+    — in one transaction it creates a canvas named after the card, creates a placement of
+    <strong>the same item</strong> on it, and sets <code>payload.detail_canvas_id</code>. The effect
+    names the canvas, the placement and the previous <code>detail_canvas_id</code>, so one undo step
+    reverses all three.</li>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/canvas.rs</code> —
+    <code>delete_canvas</code> also clears <code>detail_canvas_id</code> on every item that pointed at
+    the deleted canvas, inside the same transaction, and reports the affected item rows in
+    <code>CanvasDeleteEffect</code> so <code>restore_canvas</code> can put the pointers back.</li>
+  <li><strong>IMPLEMENT:</strong> the front-end half — the panel footer's and the Chapter header's
+    <em>Expand into a canvas</em> action, the <code>ph-square-half</code> mark on the face (already
+    drawn in Task 16), and opening the detail canvas when the mark is clicked.</li>
+  <li><strong>ADD:</strong> <code>expandCommand(effect: ExpandEffect)</code> in
+    <code>src/features/undo/commands.ts</code> — label <code>Expand Into A Canvas</code>, restoring the
+    canvas under its original id through <code>restore_canvas</code>.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/canvas.rs:52-110</code> for canvas creation
+    and <code>sort_order</code>; <code>:271-306</code> and <code>src/features/undo/commands.ts:376</code>
+    for the delete-and-restore pair.</li>
+  <li><strong>GOTCHA:</strong> a cycle is allowed and must not be prevented. Canvas A may hold a card
+    whose detail canvas is B while B holds a card whose detail canvas is A. Nothing is drawn inside
+    anything, so nothing recurses — do not add a cycle check.</li>
+  <li><strong>GOTCHA:</strong> the card on the book canvas and the card on the chapter canvas are
+    <strong>one item</strong>. There is no copy and nothing to keep in step; if the implementation ever
+    creates a second item, the feature's central claim is broken.</li>
+  <li><strong>GOTCHA:</strong> clearing <code>detail_canvas_id</code> on canvas delete must happen in the
+    same transaction as the delete. A crash between the two would leave a card pointing at a canvas that
+    is not there — the failure <code>persistence-strategy</code> exists to prevent.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml expand</code> — tests:
+    <code>expand_into_canvas_creates_a_canvas_holding_the_same_item()</code>,
+    <code>expand_into_canvas_editing_either_placement_edits_one_item()</code>,
+    <code>delete_canvas_clears_detail_canvas_id_on_every_card_that_pointed_at_it()</code>,
+    <code>restore_canvas_puts_the_detail_pointers_back()</code>,
+    <code>expand_into_canvas_a_cycle_between_two_canvases_saves_and_reopens()</code>,
+    <code>expand_into_canvas_undo_removes_the_canvas_the_placement_and_the_pointer()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="25">Task 25: The fourth search query</h4>
+<p>A widening inside <code>search-method</code>, not a departure from it: the ranking rule is unchanged
+and canvas names still rank first.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/search.rs</code> — after the two note
+    passes, a fourth pass over blueprint items. The SQL prefilter is one more
+    <code>LIKE … ESCAPE '\'</code> query —
+    <code>WHERE c.project_id = ?1 AND i.kind = 'blueprint' AND (json_extract(i.payload, '$.name') LIKE ?2 ESCAPE '\' OR i.payload LIKE ?2 ESCAPE '\')</code>
+    — and Rust then filters the rows precisely, because which keys are Long Text is a blueprint
+    question and only Rust can answer it: a row counts as a hit when its <code>name</code> matches or
+    when any <code>blueprints::long_text_keys</code> value matches, case-insensitively.</li>
+  <li><strong>IMPLEMENT:</strong> the hit is named by the card's <code>name</code> and its snippet is
+    taken from the matching Long Text field through the existing <code>snippet</code> function.
+    <code>matched_title</code> is true when the name matched. The same
+    <code>seen_items</code> deduplication applies, so a card matching on both is one result — and the
+    name pass runs first so it wins.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/search/SearchResults.svelte</code> — a blueprint hit
+    carries its type kicker glyph in the row, so a Chapter hit is visibly a Chapter.
+    <code>CardHit.kind</code> is already <code>ItemKind</code> and now widens for free.</li>
+  <li><strong>PATTERN:</strong> <code>src-tauri/src/commands/search.rs:159-206</code> — the closure, the
+    loop and the deduplication are the shape this pass joins.</li>
+  <li><strong>GOTCHA:</strong> the <code>i.payload LIKE ?2</code> prefilter matches field <em>keys</em>
+    and blueprint ids as well as values — searching <em>prose</em> would otherwise return every Chapter.
+    The Rust filter after it is not an optimisation, it is the correctness step. Do not drop it.</li>
+  <li><strong>GOTCHA:</strong> canvas names still rank first. That ranking is the requirement, not the
+    indexing, and Phase 4's test for it must keep passing untouched.</li>
+  <li><strong>GOTCHA:</strong> <code>GROUP_LIMIT</code> is applied per pass and then the combined card
+    list is truncated. Adding a fourth pass without re-truncating would return more rows than the
+    popover's header count claims.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml search</code> — the existing search tests all
+    green, plus: <code>search_finds_a_blueprint_card_by_its_name()</code>,
+    <code>search_finds_a_chapter_by_a_phrase_inside_its_prose()</code>,
+    <code>search_does_not_return_a_chapter_for_the_word_prose()</code>,
+    <code>search_a_card_matching_name_and_body_is_one_result_named_by_its_name()</code>,
+    <code>search_still_ranks_canvas_names_first()</code>,
+    <code>search_a_short_text_field_is_not_searched()</code>.</li>
+</ul>
+
+<h4 class="task" data-task="26">Task 26: <em>Show Writing Cards</em></h4>
+<p>A menu filter and nothing more. A toggle that hid cards on the canvas would look exactly like data
+loss, and the failure rule is that the application never makes the user's work disappear.</p>
+<ul>
+  <li><strong>UPDATE:</strong> <code>src-tauri/src/commands/settings.rs</code> —
+    <code>StoredSettings</code> gains <code>pub show_writing_cards: bool</code>, its
+    <code>impl Default</code> returns <code>true</code>, and <code>sanitize</code> is unchanged for it
+    (a bool cannot be out of range). <code>src/lib/settings.svelte.ts</code> — the same field on
+    <code>Settings</code>, <code>true</code> in <code>DEFAULT_SETTINGS</code>, and a
+    <code>=== false</code> check in <code>sanitizeSettings</code> so anything that is not literally
+    <code>false</code> reads as on.</li>
+  <li><strong>UPDATE:</strong> <code>src/features/settings/SettingsPage.svelte</code> — the
+    <strong>seventh row</strong>, in a new <strong>Packs</strong> group that sits
+    <strong>under</strong> the two-column grid as a single full-width row, because it governs the whole
+    application. Label <em>Show Writing Cards</em>, the P5 <code>Toggle</code> unchanged, default on,
+    helper text: <em>Off hides Book, Chapter, Scene, Beat, Character and Location from the Cards menu.
+    Cards already on a canvas stay.</em></li>
+  <li><strong>UPDATE:</strong> <code>src/features/shell/LeftColumn.svelte</code> — when the setting is
+    off, the <em>Writing Pack</em> submenu parent is <strong>not drawn at all</strong>, not dimmed.
+    <em>General</em> stays a submenu rather than flattening, so the rail does not change shape. The
+    <code>2</code>–<code>7</code> shortcuts are disabled with it, because a key printed on a menu row
+    that is not there has nothing to be printed on.</li>
+  <li><strong>UPDATE:</strong> <code>CLAUDE.md</code> — the Configuration section says
+    <code>settings.json</code> "holds five values"; it holds six after this task. Correct that sentence
+    and its list. <strong>Do not edit <code>docs/architecture.html</code></strong> — see Notes.</li>
+  <li><strong>PATTERN:</strong> <code>src/features/settings/SettingsPage.svelte</code>'s existing six
+    rows and their groups; <code>src-tauri/src/commands/settings.rs:26-70</code> for the four places a
+    setting is declared.</li>
+  <li><strong>GOTCHA:</strong> <strong>a missing <code>showWritingCards</code> key must read as
+    <code>true</code>.</strong> A settings file written before Phase 6 has no such key, and reading it
+    as <code>false</code> would silently empty the Cards menu in every existing project.
+    <code>#[serde(default)]</code> is already on the container, so a missing field falls back to the
+    struct's <code>Default</code> — which is why the <code>impl Default</code> above is the whole
+    mechanism. Prove it with a test that parses a five-key Phase 5 file.</li>
+  <li><strong>GOTCHA:</strong> the toggle touches <em>one</em> surface. A writing card already on a
+    canvas still draws, still edits, still connects, is still found by search, and its properties panel
+    is unchanged.</li>
+  <li><strong>GOTCHA:</strong> this is a switch on one flat pack. It is not a pack registry and it does
+    not bring back project types.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>cargo test --manifest-path src-tauri/Cargo.toml settings</code> and
+    <code>npx vitest run src/features/settings src/lib/__tests__/settings.test.ts</code> — tests:
+    <code>read_settings_at_a_phase_five_file_with_no_show_writing_cards_key_reads_as_on()</code>,
+    <code>write_settings_writes_six_keys()</code>,
+    <code>settingsPage_hasASeventhRowInAFullWidthPacksGroup</code>,
+    <code>settingsPage_showWritingCards_defaultsToOn</code>,
+    <code>leftColumn_withShowWritingCardsOff_doesNotDrawTheWritingPackParentAtAll</code>,
+    <code>leftColumn_withShowWritingCardsOff_keepsGeneralAsASubmenu</code>,
+    <code>shortcuts_withShowWritingCardsOff_theKey6DoesNothing</code>,
+    <code>canvas_withShowWritingCardsOff_aPlacedCharacterStillDrawsAndEdits</code>.</li>
+</ul>
+
+<h4 class="task" data-task="27">Task 27: The gate — 250 blueprint cards, the installer, and the recorded session</h4>
+<p>The same hard gate Phase 1 set and every phase since has re-measured — but this is the first feature
+that has ever made a card face more expensive, so it is the real risk and not a formality.</p>
+<ul>
+  <li><strong>ADD:</strong> <code>seed_blueprint_cards(state, canvas_id, count)</code> in
+    <code>src-tauri/src/commands/placement.rs</code>, behind
+    <code>#[cfg(debug_assertions)]</code> beside <code>seed_mixed_cards</code>. It seeds a realistic
+    worst case, not an easy one: the six types in rotation, <strong>every Pick Many field filled to its
+    overflow</strong> so every face carries chips, every Image field pointing at the one real
+    content-hashed asset <code>seed_asset</code> already copies in, and five pointing at a deliberately
+    absent name so the missing-file marker is on screen throughout. Also seed connections carrying roles
+    so the role affordance is measured with the rest.</li>
+  <li><strong>ADD:</strong> <code>perf_gate_writing() -&gt; AppResult&lt;bool&gt;</code> beside
+    <code>perf_gate_requested</code>, reading a <code>--perf-gate-writing</code> argument, and register
+    both new commands in the debug handler list only.</li>
+  <li><strong>UPDATE:</strong> <code>src/lib/perfGate.ts</code> and its caller — when the writing flag is
+    set, seed through <code>seed_blueprint_cards</code> instead and write the result to
+    <code>perf-gate-writing-result.json</code>. The two passes (100% and 40% zoom), the 30-second
+    diagonal sweep, the frame sampling and the dropped-frame definition are unchanged, so this phase's
+    number is comparable with Phase 1's.</li>
+  <li><strong>CREATE:</strong> <code>scripts/phase-6-session.md</code> in the format
+    <code>scripts/phase-5-session.md</code> established: how the walk was driven, the machine, every
+    PRD §11 gate line marked PASS only because a <strong>named test is green</strong> or a
+    <strong>measurement was taken in the real window</strong>, the fps table with its culling counts,
+    the installer size against the 20 MB budget and against Phase 5's 2,940,216 bytes, and the network
+    monitor result for a session that creates every card type and runs Randomize.</li>
+  <li><strong>IMPLEMENT:</strong> the run itself —
+    <code>npm run tauri build -- --debug</code>, then
+    <code>ideascape.exe --project &lt;scratch folder&gt; --perf-gate --perf-gate-writing</code>, then
+    <code>npm run tauri build</code> for the release installer's size. Transcribe both into the session
+    file.</li>
+  <li><strong>PATTERN:</strong> <code>scripts/perf-gate.md</code> and
+    <code>scripts/phase-5-session.md</code> — the recorded-artefact format, including the rule that the
+    drawn count is read first because a broken cull makes the frame rate beside it meaningless.</li>
+  <li><strong>GOTCHA:</strong> if the gate misses, the fix is on the card face, not on the culling. The
+    prose bar and the plain-element rule in Task 16 exist for this; the next levers are dropping the
+    overflow chip's own element and rendering chips as a single text run.</li>
+  <li><strong>GOTCHA:</strong> read the drawn count before the frame rate. Phase 1 recorded 36 of 250
+    drawn at 100% and 165 at 40%; a blueprint run that draws most of the set means the cull broke on the
+    new card and the fps figure is meaningless.</li>
+  <li><strong>GOTCHA:</strong> measure the <em>release</em> installer for the size line. The debug
+    bundle is not the artefact the 20 MB budget applies to.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span> one non-interactive block —
+    <code>npm run tauri build -- --debug &amp;&amp; ideascape.exe --project "$TMPDIR/p6gate" --perf-gate --perf-gate-writing &amp;&amp; npm run tauri build</code>
+    followed by the Level 4 assertion script below, which fails non-zero unless
+    <code>scripts/phase-6-session.md</code> records <code>Gate: PASS</code>, a median at or above
+    58 fps with zero dropped frames, a drawn count under half the total, an installer under 20 MB, and
+    zero network requests. See <strong>Validation Commands → Level 4</strong>.</li>
+</ul>
+
+<h3 class="milestone" data-milestone="9">Milestone 9: Commit, push, and open PR</h3>
+
+<h4 class="task" data-task="28">Task 28: Commit, push, and open PR</h4>
+<p>After every prior validation checkpoint has passed:</p>
+<ul>
+  <li><strong>IMPLEMENT:</strong> stage and commit uncommitted changes with a descriptive message
+    summarizing the phase; push with <code>git push -u origin phase-6-writing-pack</code>; open a PR
+    with <code>gh pr create --head phase-6-writing-pack --title "&lt;title&gt;" --body "&lt;body&gt;"</code>
+    (omitting <code>--base</code> targets the repo's default branch; pass <code>--base main</code>
+    explicitly if needed).</li>
+  <li><strong>PR title format:</strong> <code>Phase 6: The writing pack</code> — names the phase, not
+    any individual feature inside it.</li>
+  <li><strong>PR body format:</strong> copy the Acceptance Criteria as a checklist with each box checked
+    off, followed by a <code>Notes</code> section listing assumptions and trade-offs decided during
+    execution.</li>
+  <li><strong>GOTCHA:</strong> if <code>gh</code> is not installed or authenticated this step fails. It
+    is listed as a precondition at the top of the Implementation Plan.</li>
+  <li><strong>GOTCHA:</strong> <code>src-tauri/data/lists/*.json</code> and
+    <code>src-tauri/data/blueprints/*.json</code> are generated-looking but are
+    <strong>committed source</strong>. Check they are not caught by a <code>.gitignore</code> rule
+    before pushing, or the build breaks on a clean checkout.</li>
+  <li><span class="validate"><strong>VALIDATE:</strong></span>
+    <code>gh pr view --json number,title,state,headRefName</code> returns the new PR with
+    <code>"state": "OPEN"</code> and <code>"headRefName": "phase-6-writing-pack"</code>.</li>
+</ul>
+
+<h2>Testing Strategy</h2>
+
+<h3>Unit Tests</h3>
+<ul>
+  <li><strong>Vitest, pure logic first.</strong> <code>src/lib/__tests__/</code> gains
+    <code>blueprints.test.ts</code> (the tolerant payload and pick-entry readers, the registry),
+    <code>lists.test.ts</code> (the one-hop filter — sorts, never hides, stable),
+    <code>randomize.test.ts</code> (the weights, the bounds, the guarantee over 10,000 runs) and
+    <code>roles.test.ts</code> (<code>suggestRole</code> and <code>roleLabel</code>, including
+    <em>Contains</em> from the far end). These four are the phase's real logic and none of them touches
+    a component, a store or the IPC seam.</li>
+  <li><strong>Vitest, components against the real composition root with the seam mocked.</strong>
+    One suite per control (<code>combo</code>, <code>scaleField</code>), one per generated surface
+    (<code>panelBlueprint</code>, <code>panelContext</code>, <code>blueprintCard</code>), one per sheet,
+    plus <code>cardsGroup</code> and <code>unplaced</code>. <code>src/lib/ipc</code> is the single mock
+    point — no component gets its own.</li>
+  <li><strong>Rust, in-file <code>#[cfg(test)]</code> per area.</strong> Data tests run against a real
+    SQLite file in a <code>tempfile::TempDir</code> — the same engine that ships, so migrations and WAL
+    behave the same. New modules: <code>blueprints</code> (the six data files and the six list files
+    parse and are internally consistent), <code>commands::blueprint</code>, <code>commands::lists</code>.
+    Widened: <code>db::migrations</code>, <code>db::connection</code>, <code>commands::item</code>,
+    <code>commands::placement</code>, <code>commands::connection</code>, <code>commands::search</code>,
+    <code>commands::settings</code>.</li>
+  <li><strong>Named for behaviour</strong> — <code>fn name_condition_expected()</code> in Rust,
+    <code>methodName_condition_expectedResult</code> in TypeScript, as CLAUDE.md requires. Every test
+    name in this plan's VALIDATE lines is the name to use.</li>
+</ul>
+
+<h3>Integration Tests</h3>
+<ul>
+  <li><strong>The migration sequence against real Phase 5 data</strong> —
+    <code>migrations_0007_to_0009_open_a_phase_five_project_intact()</code> builds a project through the
+    first six migrations only, fills it with all four card kinds, placements, connections with labels,
+    styles, anchors and a bend, then reopens the folder so all three new migrations run in order. This
+    is the phase's single most important test.</li>
+  <li><strong>The corrected lifecycle</strong> — the Milestone 3 checkpoint test, crossing the
+    kind-conditional delete, the asset reference count, the Unplaced list and undo in one pass.</li>
+  <li><strong>Session tests, per the existing convention.</strong> Each feature folder already carries a
+    <code>session.test.ts</code> that drives a realistic sequence. Add
+    <code>src/features/writing/__tests__/session.test.ts</code> (create a Character from the key, fill
+    every field kind, randomize, undo, open the sheet, edit the same field there, leave, confirm one
+    payload and one undo entry) and extend
+    <code>src/features/connections/__tests__/connectionSession.test.ts</code> with the Milestone 6
+    wired-canvas walk.</li>
+  <li><strong>The whole-project round trip</strong> — create one card of every one of the seven types
+    with every field kind filled, close the project, reopen it, and assert every value round-trips
+    byte-identically through the payload.</li>
+</ul>
+
+<h3>Edge Cases</h3>
+<ul>
+  <li>A project written before Phase 6, holding all four kinds, opening in a Phase 6 build.</li>
+  <li>A blueprint card saved with <em>every</em> field empty except the default name.</li>
+  <li>A Scale field with no stored key, and one storing a real <code>0</code> — indistinguishable.</li>
+  <li>A Number field left empty. <strong>Empty is not zero</strong>, and neither is drawn as the other.</li>
+  <li>A typed pick value that later matches a shipped entry's text exactly — it keeps
+    <code>id: null</code> permanently.</li>
+  <li>The same typed value in two casings — one row, not two.</li>
+  <li>A pick entry whose own text the user edits — the id never changes.</li>
+  <li>A trope with no genre tag, under a filtered list — sorts below, is never hidden.</li>
+  <li>A parent field left empty, or holding a typed value with no id — the filter returns the input
+    order unchanged.</li>
+  <li>Randomize when all five sliders already sit outside −1..+1, and when all five sit at 0.</li>
+  <li>A Beat joined straight to a Chapter; a note joined to a Character; a card joined to itself's far
+    end on another canvas — every pair accepted, none refused.</li>
+  <li>A connection carrying a role <em>and</em> a label on a line too short for both.</li>
+  <li>A pre-Phase-6 connection with <code>role = NULL</code> beside a new one carrying a role.</li>
+  <li>An Image field naming a file that is not in <code>assets/</code> — the marker draws, the item
+    survives.</li>
+  <li>Two Image fields on different cards naming the same content hash — one file, reference counted;
+    deleting one card keeps the file.</li>
+  <li>Deleting a canvas full of Characters — every Character survives and lands in the Unplaced list.</li>
+  <li>A cycle of detail canvases, saved, reopened and navigated.</li>
+  <li>Deleting a canvas that three cards point at as their detail canvas.</li>
+  <li>Prose containing <code>&lt;script&gt;</code>, and a note title containing one — both sanitised.</li>
+  <li>A search term that is a field key (<em>prose</em>, <em>name</em>) or a blueprint id
+    (<em>character</em>) — must not return every card of that type.</li>
+  <li>A search term containing <code>%</code> or <code>_</code> — <code>escape_like</code> still applies
+    on the fourth pass.</li>
+  <li>A <code>settings.json</code> holding the five Phase 5 keys and no sixth.</li>
+  <li>A <code>settings.json</code> holding <code>"showWritingCards": "yes"</code> — anything that is not
+    literally <code>false</code> reads as on.</li>
+  <li><em>Show Writing Cards</em> off, with six writing cards already on the canvas.</li>
+  <li>The 350px minimum window width, with every field control in the 177px panel.</li>
+  <li>A card name and a chip long enough to need ellipsis, in the panel and on the face.</li>
+  <li>Every new control operated by keyboard alone, in both themes.</li>
+</ul>
+
+<h2>Validation Commands</h2>
+
+<h3>Level 1: Syntax &amp; Style</h3>
+<pre><code>npm run check
+npx prettier --check .
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings</code></pre>
+<p>Expected: exit code 0 from each.</p>
+
+<h3>Level 2: Unit Tests</h3>
+<pre><code>npx vitest run
+cargo test --manifest-path src-tauri/Cargo.toml</code></pre>
+
+<h3>Level 3: Integration Tests</h3>
+<pre><code>cargo test --manifest-path src-tauri/Cargo.toml -- --include-ignored
+npx vitest run src/features src/stores src/lib</code></pre>
+
+<h3>Level 4: Manual Validation</h3>
+<p>One non-interactive block. It builds the application, asserts the bundle is still self-contained and
+within budget, and asserts the recorded gate artefact. Exits 0 on success, non-zero on failure.</p>
+<pre><code>set -e
+npm run build
+npm run tauri build
+node -e "
+const fs=require('fs'), p=require('path');
+const walk=d=&gt;fs.readdirSync(d,{withFileTypes:true}).flatMap(e=&gt;e.isDirectory()?walk(p.join(d,e.name)):[p.join(d,e.name)]);
+const css=walk('dist').filter(f=&gt;f.endsWith('.css')).map(f=&gt;fs.readFileSync(f,'utf8')).join('');
+if(/url\(\s*['\\\"]?https?:/.test(css)) { console.error('external asset reference in bundle'); process.exit(1); }
+const d='src-tauri/target/release/bundle/nsis';
+const exe=fs.readdirSync(d).find(x=&gt;x.endsWith('.exe'));
+if(!exe) { console.error('no NSIS installer'); process.exit(1); }
+const size=fs.statSync(p.join(d,exe)).size;
+if(size &gt; 20*1024*1024) { console.error('installer over 20 MB'); process.exit(1); }
+const s=fs.readFileSync('scripts/phase-6-session.md','utf8');
+if(/FAIL/.test(s)) { console.error('a recorded session step failed'); process.exit(1); }
+if(!/Gate:\s*PASS/.test(s)) { console.error('session gate not recorded as PASS'); process.exit(1); }
+const m=s.match(/median[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*fps/i);
+if(!m || parseFloat(m[1]) &lt; 58) { console.error('no median fps at or above 58 recorded'); process.exit(1); }
+if(!/dropped[^0-9]*0\b/i.test(s)) { console.error('dropped frames not recorded as zero'); process.exit(1); }
+const dr=s.match(/drawn[^0-9]*([0-9]+)[^0-9]+of[^0-9]*([0-9]+)/i);
+if(!dr || parseInt(dr[1]) &gt; parseInt(dr[2])*0.5) { console.error('cull looks broken; the fps number is meaningless'); process.exit(1); }
+if(!/250/.test(s)) { console.error('the 250-card figure is not recorded'); process.exit(1); }
+if(!/network[^\\n]*\b(0|zero)\b/i.test(s)) { console.error('zero network traffic not recorded'); process.exit(1); }
+for (const t of ['Book','Chapter','Scene','Beat','Character','Location']) if(!new RegExp('\\\\b'+t+'\\\\b').test(s)) { console.error('card type not walked: '+t); process.exit(1); }
+console.log('phase 6 gate ok:', m[1], 'fps,', dr[1], 'of', dr[2], 'drawn, installer', size, 'bytes');
+"</code></pre>
+
+<h3>Level 5: Additional Validation (Optional)</h3>
+<pre><code># Every new command is registered in BOTH invoke_handler lists
+node -e "
+const fs=require('fs');
+const s=fs.readFileSync('src-tauri/src/lib.rs','utf8');
+const cmds=[['blueprint','list_blueprints'],['blueprint','create_blueprint_card'],['blueprint','set_item_field'],
+            ['blueprint','list_unplaced_items'],['blueprint','item_context'],['blueprint','expand_into_canvas'],
+            ['lists','list_entries'],['lists','add_list_entry'],['lists','remove_list_entry']];
+for (const [m,c] of cmds) {
+  const n=(s.match(new RegExp(m+'::'+c+'\\\\b','g'))||[]).length;
+  if (n &lt; 2) { console.error('command not registered in both handlers: '+c); process.exit(1); }
+}
+// The two debug-only commands are registered ONCE
+for (const c of ['seed_blueprint_cards','perf_gate_writing']) {
+  const n=(s.match(new RegExp(c+'\\\\b','g'))||[]).length;
+  if (n !== 1) { console.error('debug command should appear once: '+c); process.exit(1); }
+}
+console.log('every phase 6 command is registered correctly');
+"
+# Nine migrations, and the shipped ones are untouched
+node -e "const n=require('fs').readdirSync('src-tauri/migrations').filter(f=&gt;f.endsWith('.sql')).length; if(n!==9){console.error('migration count: '+n);process.exit(1);} console.log('nine migrations');"
+git diff --stat origin/main -- src-tauri/migrations/000[1-6]*.sql | grep -q . &amp;&amp; { echo 'a shipped migration was edited'; exit 1; } || true
+# Foreign keys are off for the migration run and on afterwards
+grep -q 'foreign_keys", "OFF"' src-tauri/src/db/connection.rs
+grep -q 'foreign_keys", "ON"' src-tauri/src/db/connection.rs
+grep -q 'foreign_key_check' src-tauri/src/db/connection.rs
+# The shipped data is committed and small
+test -d src-tauri/data/blueprints &amp;&amp; test -d src-tauri/data/lists
+git ls-files --error-unmatch src-tauri/data/blueprints/character.json src-tauri/data/lists/story-tropes.json &gt; /dev/null
+node -e "const fs=require('fs'),p=require('path');let t=0;for(const d of ['src-tauri/data/blueprints','src-tauri/data/lists'])for(const f of fs.readdirSync(d))t+=fs.statSync(p.join(d,f)).size;if(t&gt;262144){console.error('shipped data over 256 KB: '+t);process.exit(1);}console.log('shipped data',t,'bytes');"
+# The extraction script is never part of the build
+! grep -rn "extract-lists" package.json src-tauri/tauri.conf.json src-tauri/build.rs
+# No card type is named in a component — the blueprint is the only source
+! grep -rn "'character'\|'chapter'\|\"character\"\|\"chapter\"" src/features/shell/PropertiesPanel.svelte src/features/cards/BlueprintCard.svelte
+# The import direction rule
+! grep -rn "from '\.\./\.\./features/" src/features --include=*.ts --include=*.svelte
+! grep -rn "features/" src/lib src/stores --include=*.ts --include=*.svelte
+# The command seam is not bypassed
+! grep -rn "@tauri-apps/api/core" src --include=*.ts --include=*.svelte | grep -v "lib/ipc.ts"
+# This feature makes no network call
+! grep -rn "reqwest" src-tauri/src --include=*.rs | grep -v "src-tauri/src/fetch/"
+! grep -rn "fetch(\|XMLHttpRequest\|WebSocket" src --include=*.ts --include=*.svelte
+# {@html} is used on sanitised Markdown only — the note body and the chapter prose
+test "$(grep -rn '{@html' src --include=*.svelte | wc -l)" = "2"
+grep -rn '{@html' src --include=*.svelte | grep -q "NoteCard.svelte"
+grep -rn '{@html' src --include=*.svelte | grep -q "ChapterSheet.svelte"
+# No literal colour and no ramp step outside the token layer
+! grep -rn -- "--color-neutral-[0-9]" src/features src/lib/fields src/app.svelte src/app.css
+! grep -rnE "#[0-9a-fA-F]{6}" src/features src/lib/fields src/app.svelte src/app.css --include=*.svelte --include=*.css
+# Menus derive their keys; they never retype one
+! grep -rn "'2'\|'7'" src/features/shell/LeftColumn.svelte
+# No forbidden logging reached shipped source
+! grep -rn "console\.log" src --include=*.ts --include=*.svelte | grep -v "logger.ts"
+! grep -rn "println!" src-tauri/src
+# No new dependency
+git diff --stat origin/main -- src-tauri/Cargo.toml package.json src-tauri/capabilities/default.json</code></pre>
+
+<h2>Acceptance Criteria</h2>
+
+<ul class="checklist">
+  <li data-checked="false">A project made in Phases 1–5 opens in a Phase 6 build with every card, placement, connection, label, style, anchor and bend intact, and <code>PRAGMA foreign_key_check</code> returns nothing.</li>
+  <li data-checked="false">All seven writing card types — Book, Chapter, Scene, Beat, Character, Location and the unchanged Note — can be added from the rail's <code>Writing Pack</code> submenu and from the keys <code>2</code>–<code>7</code>, filled, saved, reopened and deleted.</li>
+  <li data-checked="false">A card saves with only its default name. No field is ever required, nothing blocks a save, and a card with only a name is a complete card.</li>
+  <li data-checked="false">All seven field kinds round-trip through the payload and back: Short Text, Long Text, Pick, Pick Many, Image, Number and Scale.</li>
+  <li data-checked="false">A typed list value is accepted, saved to the project's own vocabulary and offered again in that project. It carries no id and no source, permanently, and editing a pick entry's own text never changes its id.</li>
+  <li data-checked="false">A filtered list sorts and never hides an entry. Every entry, including an untagged one, is still reachable.</li>
+  <li data-checked="false">All five Character sliders default to 0, an all-zero spread is a valid saved state drawn as a real answer, and Randomize never produces a flat spread over 10,000 runs. Undo restores all five in one step and Randomize changes no other field.</li>
+  <li data-checked="false">Any card type joins any other. No pair is refused, no validation error is shown, and the suggested role can always be changed — including to a role the user types.</li>
+  <li data-checked="false">A connection made before Phase 6 draws with no role glyph and looks byte-for-byte as it did, because <code>role = NULL</code> reads as <em>Relates To</em>. <code>Part Of</code> reads <code>Contains</code> from the other end, so one <em>Joined to</em> group shows both directions.</li>
+  <li data-checked="false">Expand Into A Canvas creates a canvas holding the same item; editing the card in one place changes both. Deleting a canvas clears <code>detail_canvas_id</code> on every card that pointed at it, and a cycle between two detail canvases saves, reopens and navigates without a crash.</li>
+  <li data-checked="false">Deleting the last placement of a Character keeps the Character; it appears in the Unplaced list, can be placed again or deleted for good, and undo brings a deleted one back whole with its asset files.</li>
+  <li data-checked="false">Deleting the last placement of an image still deletes the item and its picture file, and undo still brings both back. The delete rule for note, image, link and video is unchanged.</li>
+  <li data-checked="false">Search finds a blueprint card by its name and by a phrase inside a Long Text field, names the hit by the card's name, and canvas names still rank first.</li>
+  <li data-checked="false">Editing a card on its sheet and editing it in the properties panel produce the same payload and the same single undo entry.</li>
+  <li data-checked="false">Undo covers every new action: set a field, add a list entry, remove a list entry, Randomize, set a role, expand into a canvas, and delete an unplaced item.</li>
+  <li data-checked="false"><em>Show Writing Cards</em> is the Settings screen's seventh row, in a new full-width <code>Packs</code> group, using the Phase 5 toggle, default on. Off, the rail's <code>Writing Pack</code> parent is not drawn at all and the <code>2</code>–<code>7</code> keys do nothing; a card already on a canvas still draws, edits, connects and is found by search. A <code>settings.json</code> with no <code>showWritingCards</code> key reads as on.</li>
+  <li data-checked="false"><strong>Gate:</strong> 250 blueprint cards carrying chips pan at 60 frames per second, at 100% and at 40% zoom, with zero dropped frames and a drawn count well under the total.</li>
+  <li data-checked="false"><strong>Gate:</strong> the NSIS installer stays under 20 MB with the shipped lists inside it.</li>
+  <li data-checked="false"><strong>Gate:</strong> every writing-pack screen matches <code>docs/design-system.html</code> §9.25–§9.33 at its locked token values, in light and in dark, and every field control fits the 177px panel with no horizontal scroll and no clipped chip at the 350px minimum window width.</li>
+  <li data-checked="false">A network monitor records zero traffic for a session that creates every card type, fills every list field and runs Randomize.</li>
+  <li data-checked="false">A Long Text field can never run script: the prose goes through the existing sanitised Markdown path, and <code>{@html}</code> appears exactly twice in the source, on the note body and the chapter prose.</li>
+  <li data-checked="false">Every new control is reachable and operable from the keyboard alone, and reports the roles and values §12 requires.</li>
+  <li data-checked="false"><code>Esc</code> leaves a full-screen sheet, and inside a text field it blurs the field first rather than leaving.</li>
+</ul>
+
+<h2>Completion Checklist</h2>
+
+<ul class="checklist">
+  <li data-checked="false">Level 1 — <code>npm run check</code>, <code>npx prettier --check .</code>, <code>cargo fmt -- --check</code> and <code>cargo clippy -- -D warnings</code> all exit 0.</li>
+  <li data-checked="false">Level 2 — <code>npx vitest run</code> and <code>cargo test</code> green, with every test named in this plan present.</li>
+  <li data-checked="false">Level 3 — the migration-sequence test, the corrected-lifecycle test and every <code>session.test.ts</code> green.</li>
+  <li data-checked="false">Level 4 — the build block exits 0: the bundle references no external asset, the release installer is under 20 MB, and <code>scripts/phase-6-session.md</code> records <code>Gate: PASS</code> with the fps, dropped-frame, drawn-count, 250-card, network and card-type lines.</li>
+  <li data-checked="false">Level 5 — every command registered in both handler lists, nine migrations with the first six untouched, the pragma order proved, the shipped data committed and under 256 KB, the import-direction and command-seam greps clean, and no new dependency.</li>
+  <li data-checked="false">Every Acceptance Criterion above ticked.</li>
+  <li data-checked="false"><code>docs/progress.html</code> regenerated by <code>/dev-create-progress</code>, and <code>README.md</code> updated if it names the phase set.</li>
+  <li data-checked="false">Task 28 done: branch pushed and the PR open on <code>phase-6-writing-pack</code>.</li>
+</ul>
+
+<h2>Notes</h2>
+
+<h3>Architecture conformance</h3>
+
+<p>Read <code>docs/architecture.html</code> in full. All twenty decisions are
+<code>settled</code> or <code>amended</code>; none is <code>open</code>, so nothing here is planned
+against an unsettled decision. The slugs this phase touches, and how it conforms:</p>
+
+<ul>
+  <li><code>storage-engine</code> — one SQLite file per project, unchanged. The typed payload carries
+    every new field. <strong>Exception, already recorded</strong> in
+    <code>feature-writing-pack.html</code> §7: migration 0007 is not additive. It is done once, and the
+    reason it is never done again is that the card type lives in the payload. A second table rebuild
+    proposed for the same reason is the signal to return to <code>dev-architecture</code>.</li>
+  <li><code>db-access-layer</code> — <code>rusqlite_migration</code> runs 0007–0009 when a project
+    opens, numbered files, as established. Synchronous <code>rusqlite</code> throughout; no async
+    database layer is added.</li>
+  <li><code>search-method</code> — <strong>exception, already recorded</strong>: three
+    <code>LIKE</code> queries become four. The ranking rule — canvas names first — is unchanged, which
+    is the part the decision is about. FTS5 stays present and unused. Undo cost stays cheap.</li>
+  <li><code>settings-storage</code> — <strong>exception, already recorded</strong>: five values become
+    six. Still one JSON file per machine under <code>%APPDATA%\IdeaScape</code>, outside every project
+    folder, written by the application, with working defaults, never required to exist.</li>
+  <li><code>note-text-format</code> — a Long Text field is Markdown in the payload, rendered through the
+    existing sanitised path, edited as a plain text box. The same contract for a second kind of card. No
+    editor library, on the same 250-instance reasoning.</li>
+  <li><code>asset-storage</code> — an Image field holds a bare file name, never a path. The existing
+    content hash, copy-in, dedupe and reference counting are reused with no change.</li>
+  <li><code>rendering-approach</code> — a blueprint card is a page element on the one transformed world
+    layer and is culled like every other card.</li>
+  <li><code>architecture-pattern</code>, <code>module-layout</code>, <code>import-direction</code> — the
+    three sheets go in a new <code>src/features/writing/</code>; the card face joins
+    <code>features/cards/</code>; the generated panel state joins the existing
+    <code>features/shell/PropertiesPanel.svelte</code>. The blueprint reader, the field types, the list
+    filter, the roll and the roles go in <code>src/lib/</code> because two or more features read them.
+    <strong>So do the field control components</strong>, in <code>src/lib/fields/</code> — see the
+    decision below.</li>
+  <li><code>ipc-contract</code> — nine new named commands, no generic query call, no SQL in the front
+    end, one wrapper, one error type.</li>
+  <li><code>undo-model</code> — new inverse commands only. Randomize is one command carrying five
+    effects, which the model already supports.</li>
+  <li><code>network-boundary</code> — untouched. This feature makes no network call at all; the shipped
+    lists are embedded in the binary and the roll is local random numbers.</li>
+  <li><code>persistence-strategy</code> — every change written; a burst of typing grouped and written at
+    the end; multi-row changes in one transaction.</li>
+  <li><code>failure-surfaces</code> — a missing picture file draws the marker on the card and the item
+    is not deleted. No new dialog is introduced anywhere in this phase.</li>
+  <li><code>nfr-targets</code> — the 60 fps / 250 card gate and the 20 MB installer are both
+    re-measured in Task 27; the sanitised Markdown and plain-text rules hold for the new field.</li>
+  <li><code>deployment-target</code> — nothing new to fill in. No key, no service, no setting required
+    to start.</li>
+</ul>
+
+<p><strong>One stale factual line is left alone deliberately.</strong>
+<code>docs/architecture.html</code> §3 still says <code>settings.json</code> "holds the five values the
+Settings screen edits". After this phase it is six. That file is owned by
+<code>dev-architecture</code> and this skill does not edit it; the correction needs an amendment run.
+<code>CLAUDE.md</code> carries the same stale sentence and <em>is</em> corrected, in Task 26, because it
+is project guidance rather than an architecture decision.</p>
+
+<h3>Assumptions and decisions</h3>
+
+<p>This was an unattended run. Every question below was decided here, in the authority order
+<code>architecture.html</code> → <code>prd.html</code> → <code>CLAUDE.md</code> → earlier phase docs'
+Notes → the codebase's dominant pattern → the smallest reversible option.</p>
+
+<ol>
+  <li><strong>Migration 0007 runs with foreign keys off.</strong> <code>PRAGMA foreign_keys</code> is a
+    no-op inside a transaction and <code>rusqlite_migration</code> wraps each migration in one, so the
+    pragma cannot live in the <code>.sql</code> file. With foreign keys on, <code>DROP TABLE item</code>
+    fires <code>placement</code>'s <code>ON DELETE CASCADE</code> and empties the project.
+    <code>db/connection.rs</code> therefore sets the pragma off, runs migrations, sets it back on and
+    runs <code>PRAGMA foreign_key_check</code>. Authority: SQLite's documented table-rebuild procedure;
+    the codebase pattern of doing pragma work in <code>open_project_db</code>. Smallest reversible
+    option — three lines in one file, and the existing foreign-key test proves the pragma came back on.</li>
+  <li><strong>Blueprints and lists are JSON data files embedded in the Rust binary, handed to the front
+    end by <code>list_blueprints</code> and <code>list_entries</code>.</strong> The alternative — JSON
+    imported by Vite into the front end — would need a second copy for the two questions Rust must
+    answer (which keys are Long Text, for search; which are Image, for
+    <code>asset_names</code>), and two copies of shipped data drift. One source, through the existing
+    command seam, conforms to <code>ipc-contract</code>. Vite cannot reach into <code>src-tauri/</code>
+    anyway.</li>
+  <li><strong>The field control components live in <code>src/lib/fields/</code>, not in a feature
+    folder.</strong> The panel (<code>features/shell</code>), the card face
+    (<code>features/cards</code>) and the sheets (<code>features/writing</code>) all draw them, and
+    <code>import-direction</code> forbids a feature importing another feature — shared code moves to
+    <code>lib/</code>. <code>src/lib/Icon.svelte</code> is the existing precedent for a shared component
+    in <code>lib/</code>. <code>feature-writing-pack.html</code> §7 anticipates this: "the blueprint
+    reader and the field types go in <code>src/lib/</code>, because two features read them."</li>
+  <li><strong><code>splitOnMatch</code> moves from <code>src/features/search/highlight.ts</code> to
+    <code>src/lib/highlight.ts</code>.</strong> The combo needs the same bolded-match run as the search
+    results, and the rule is that shared code moves to <code>lib/</code> rather than being imported
+    across features.</li>
+  <li><strong>Default card heights are authored, because no document draws one.</strong>
+    design-system §9.27 gives every width and <code>auto</code> for every height, and
+    <code>placement.height</code> is <code>NOT NULL</code>. Authored from the drawn faces: Book 300×210,
+    Chapter 264×168, Scene 240×130, Beat 200×104, Character 220×210, Location 220×190. Same reasoning
+    <code>src/lib/cardKinds.ts</code>'s header already records for the note's 236×150, and §10 contract 1
+    forbids the application choosing a <em>position</em>, not a default size.</li>
+  <li><strong>Any field the card face shows is Short Text; Long Text is reserved for the fields that
+    never reach a face.</strong> §9.27 draws Chapter's and Scene's <em>summary</em> and Beat's
+    <em>text</em> on the face, and the same section forbids Long Text on a face. So Summary, Logline,
+    Role, One-liner and Beat's Text are Short Text, and Synopsis, Notes, Description and Prose are Long
+    Text. §9.33 draws Chapter's Summary as a 46px textarea <em>on the sheet</em>; that is a sheet layout
+    detail over a plain string, not a second field kind.</li>
+  <li><strong>Chapter carries themes and no tropes.</strong> Settles PRD §14.4 and design-system §15.4's
+    third open question, "Does Chapter carry tropes as well as themes?". §9.32 records the ownership as
+    drawn — Tropes are Book and Character, Themes are Book and Chapter — and §15.4 says "today it does
+    not". Following what is drawn is the smallest reversible option; adding tropes later is one line in
+    <code>chapter.json</code> and no code.</li>
+  <li><strong>The Character card face ships as drawn — picture, name and role.</strong> Settles §15.4's
+    fifth open question. The design system is the authority on what a face shows, the one-liner and the
+    trope chips are named there as "the first things to add back", and adding them is a
+    <code>show_on_face</code> flag in one data file with no code change. Judging it on a real canvas of
+    ten characters is a post-phase call, not a planning one.</li>
+  <li><strong>The role/label collision rule is implemented as §9.13 authors it</strong> — role at the
+    midpoint, label at the midpoint of the longer half, never stacked, role wins and the label is kept
+    but not drawn when the line is too short. Settles §15.4's fourth open question, which asks only for
+    confirmation against a real wired canvas; the Milestone 6 checkpoint is that canvas.</li>
+  <li><strong><code>Esc</code> leaves a sheet, but blurs a focused text box first.</strong> Settles
+    §15.4's sixth open question and PRD §14.4's last row. <code>matchAction</code> deliberately returns
+    <code>'cancel'</code> for <code>Escape</code> before its <code>inText</code> bail so a note editor
+    can cancel, so the two-press behaviour lives in the sheet's handler and
+    <code>isTextEntry</code> is exported for it. On the Chapter sheet, where almost the whole screen is
+    a text field, the first press gets you out of the prose and the second out of the sheet.</li>
+  <li><strong>Story tropes are the plot, setting, theme and tone tropes (259); character tropes are the
+    character and internal-conflict tropes (151).</strong> <code>feature-writing-pack.html</code> §5
+    names the first split exactly; the library's <code>internal_conflict</code> function has no other
+    home and belongs with a character. Themes are seeded from the 41 <code>theme</code>-function
+    tropes, so a theme carries a real permanent id and can be counted later; the deliberate overlap with
+    story tropes is correct — a theme trope is legitimately both.</li>
+  <li><strong>The genre list is the eight sub-genre classes, and sub-genres are the 45 ratified
+    entries.</strong> PRD §11 and <code>feature-writing-pack.html</code> §5 both say "45 sub-genres in
+    8 classes"; the library file holds 51, six of them <code>status: "proposed"</code>. Ship the
+    ratified 45. Genre entry ids are authored (<code>genre.rigor</code> …) and the class strings are
+    mapped to them explicitly rather than slugified, so a punctuation change in the source cannot
+    silently produce a ninth genre.</li>
+  <li><strong>Story tropes are tagged by genre by rolling their sub-genre tier appearances up to
+    classes.</strong> <code>feature-writing-pack.html</code> §5 says story tropes filter by Genre, but
+    the library tags tropes against sub-genres. Rolling up preserves the doc's stated hop; 46 of the 259
+    carry a tag and the rest sort below, which is exactly the "sorts and never hides" rule. Tagging more
+    is a re-run of the extraction script and no code.</li>
+  <li><strong>Scene gains a <code>points-of-view</code> list, authored in the extraction script.</strong>
+    §9.28 draws Scene's third field as "Point of view — a combo", and no shipped list covers it. Five
+    entries — first, third limited, third omniscient, second, epistolary. A typed value is accepted as
+    everywhere else, so the list being short costs nothing.</li>
+  <li><strong>The five Big Five sliders' end words are authored in
+    <code>character.json</code>.</strong> <code>feature-writing-pack.html</code> §5 fixes the five
+    dimensions, the −3..+3 range, the weights and the guarantee, and says "a plain word at each end of
+    every slider. The words live in the blueprint" — without naming them. Authored:
+    Conventional/Curious, Spontaneous/Disciplined, Reserved/Outgoing, Contrary/Agreeable,
+    Steady/Volatile. One line each in a data file.</li>
+  <li><strong>The role suggestion table.</strong> <code>feature-writing-pack.html</code> §5's role table
+    lists typical uses, two of which overlap (Scene→Chapter appears under both <em>Feeds</em> and
+    <em>Part Of</em>). A suggestion must pick one, so Scene→Chapter suggests <em>Feeds</em>, which the
+    table lists first, and the user changes it in one click. Character→Chapter suggests
+    <em>Appears In</em> rather than <em>Told By</em>, because presence is the common case and point of
+    view is the deliberate one. Every unlisted pair, and every pair involving a note, image, link or
+    video card, suggests <code>null</code> — which reads as <em>Relates To</em> and draws nothing.</li>
+  <li><strong>A role the user types is stored as its own text and draws the neutral
+    <code>ph-minus</code> glyph.</strong> §9.13 says a typed role is accepted like any other combo
+    value, and §7.1's set is closed, so there is no glyph to give an unknown role. It still opens to a
+    named chip on hover.</li>
+  <li><strong><code>role = NULL</code> is never normalised to <code>'relates-to'</code> on
+    write.</strong> "No back-fill is needed" is the compatibility promise, and the two are
+    indistinguishable on screen. Writing one into the other would rewrite every old row for no visible
+    gain.</li>
+  <li><strong>The fourth search query is a <code>LIKE</code> prefilter plus a precise Rust
+    filter.</strong> Which keys are Long Text is a blueprint question and SQLite cannot answer it, so
+    the SQL matches the payload text broadly and Rust then checks the name and each Long Text value.
+    Without the second step, searching <em>prose</em> would return every Chapter. The query count, the
+    ranking and the size argument in <code>search-method</code> are all unchanged.</li>
+  <li><strong>The <code>list_entry</code> table has no id column.</strong> A user-typed value carries no
+    id and no source permanently — that is what marks it as the user's own
+    (<code>feature-writing-pack.html</code> §5). Storing a nullable id that is always null would be a
+    column waiting to be misused by the deferred template importer.</li>
+  <li><strong>User vocabulary is deduplicated case-insensitively against the shipped entries and against
+    itself.</strong> SQLite's default <code>TEXT</code> comparison is case-sensitive, so
+    "Chosen One" and "chosen one" would otherwise become two rows. The unique index stays on the raw
+    text and the check happens in Rust before the insert.</li>
+  <li><strong>The extraction script runs by hand and its output is committed.</strong> The Book Guides
+    library lives outside the repository. Nothing in <code>package.json</code>,
+    <code>build.rs</code> or <code>tauri.conf.json</code> may invoke it, so a clean checkout on a
+    machine without the library still builds the installer.</li>
+  <li><strong>Sixteen glyphs are added to the closed set, not twenty-eight.</strong> §7.1 lists 61 names
+    and <code>src/lib/glyphs.ts</code> holds 33; the twelve not added here — the six align icons,
+    <code>arrows-horizontal</code>, <code>crosshair</code>, <code>gauge</code>,
+    <code>download-simple</code>, <code>warning</code>, <code>warning-circle</code> — are drawn in
+    mockups whose controls shipped as text and are still unused. The set stays closed at what the code
+    actually draws, which is the property that makes it enforceable.</li>
+  <li><strong>Placing an unplaced item puts it at the centre of the current view.</strong> §10 contract 1
+    says the application never chooses a position for a card, but an unplaced item has no pointer
+    position to use — the user acted on a rail row. The view centre is the smallest defensible answer and
+    the user drags it immediately, as they do with a pasted card.</li>
+  <li><strong>The Unplaced section is not rendered at all when empty</strong> — not dimmed, not an empty
+    state. §8.3 gives no drawn empty state for it, and
+    <code>feature-writing-pack.html</code> §6 says it "is empty and hidden until a blueprint item loses
+    its last placement".</li>
+  <li><strong>The perf gate gains a second mode rather than replacing the first.</strong>
+    <code>seed_blueprint_cards</code> and a <code>--perf-gate-writing</code> flag sit beside the mixed
+    seed, so Phase 1's and Phase 3's numbers stay reproducible and this phase's number is measured with
+    the same two passes, the same sweep and the same dropped-frame definition.</li>
+  <li><strong>Milestones, not a flat list.</strong> Twenty-eight tasks in eight layers. Tasks still
+    execute one at a time and every one carries its own VALIDATE; the milestone checkpoints are
+    additive and prove the integration each layer produces.</li>
+</ol>
+
+<h3>Conflicts found between documents</h3>
+
+<ul>
+  <li><strong><code>docs/architecture.html</code> §3 and <code>CLAUDE.md</code> both say
+    <code>settings.json</code> holds five values.</strong> It already holds five and gains a sixth here.
+    <code>CLAUDE.md</code> is corrected in Task 26; <code>architecture.html</code> is left for a
+    <code>dev-architecture</code> amendment, because this skill does not edit it. The decision itself
+    (<code>settings-storage</code>) is unchanged and stays cheap to undo — this is a factual line, not a
+    decision.</li>
+  <li><strong><code>feature-writing-pack.html</code> §6 says the Add menu gains the seven types "under
+    one Writing heading"; design-system §8.3 makes it a <code>Cards</code> group with two 206px submenu
+    parents.</strong> The design system wins on the surface, as its own amendment log records
+    (2026-09-08), and the feature doc's rule — one flat pack, no pack picker, no project types — is
+    unchanged.</li>
+  <li><strong><code>feature-writing-pack.html</code> §6 puts every type in the properties panel;
+    design-system §9.30 gives Book, Chapter and Character a full-screen sheet.</strong> The design system
+    wins; the feature doc's own §12 amendment already records the change.</li>
+  <li><strong><code>feature-writing-pack.html</code> §5 names six roles; design-system §9.13 and
+    <code>prd.html</code> §11 name seven.</strong> Seven, with <code>Part Of</code> added
+    2026-09-08 and <code>Contains</code> being it read from the other end rather than an eighth.</li>
+  <li><strong>The feature doc calls <em>Show Writing Cards</em> the Settings screen's sixth row;
+    design-system §9.11 and the PRD make it the seventh.</strong> Seventh — the Font row took the sixth
+    — while it is still the sixth stored value in <code>settings.json</code>.</li>
+  <li><strong>The feature doc's field lists are shorter than the fields the sheets draw</strong> (no
+    cover or synopsis on Book, no number or word target on Chapter, no point of view on Scene). The
+    feature doc owns field <em>semantics</em>; the design system owns what is on screen. Both are
+    honoured: the extra fields are added and every one of the feature doc's fields is kept.</li>
+  <li>None of these is an architecture conflict. No decision in <code>docs/architecture.html</code> has
+    to change and no amendment is needed.</li>
+</ul>
+
+<h3>Risks carried into execution</h3>
+
+<ul>
+  <li><strong>Migration 0007 damages a project.</strong> The worst outcome in the phase: real user work.
+    It is task 1, its pragma order is the whole safety of it, and it is proved against a project holding
+    all four existing kinds before anything is built on it.</li>
+  <li><strong>Chips break the frame gate.</strong> The first feature ever to make a card face more
+    expensive. Prose is barred from the face for this reason, the face is kept to plain elements, and
+    the gate is re-measured on 250 blueprint cards carrying chips <em>and</em> role-carrying connections.</li>
+  <li><strong>The corrected delete rule leaves invisible junk</strong> — the exact problem the old rule
+    prevented. The Unplaced list is built in the same milestone, and
+    <code>delete_canvas</code> goes through the same shared function so the rule cannot be applied in one
+    place and forgotten in the other.</li>
+  <li><strong>A role quietly becomes a rule.</strong> Written as a ruling in the feature doc, as a
+    GOTCHA in Task 18 and as a test: any card joins any card, no pair refused, no validation error.</li>
+  <li><strong>The generated panel grows a per-card-type branch.</strong> That would rebuild the panel per
+    type, which is exactly what blueprints exist to avoid. Task 14 forbids it and Level 5 greps for it.</li>
+  <li><strong>The blueprint field lists grow without limit</strong> and the panel becomes the tedious
+    detail window the PlotReactor scan recorded against yWriter. Blueprints are authored by the owner,
+    not by users, in this phase; keep each list short.</li>
+  <li><strong>A trope id is renamed in the Book Guides library.</strong> The library's own rule forbids
+    it, and ids are copied into the project, so a change outside never rewrites a saved card.</li>
+  <li><strong>Twenty-eight tasks is a long unattended run.</strong> Milestone checkpoints are the
+    recovery points: a failure inside a milestone should be fixed within it rather than carried forward,
+    because the later milestones all assume the generated panel and the corrected delete rule are
+    genuinely working.</li>
+</ul>
+
+</body>
+</html>

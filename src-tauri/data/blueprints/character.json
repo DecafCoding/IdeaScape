@@ -1,0 +1,109 @@
+{
+  "id": "character",
+  "label": "Character",
+  "glyph": "user-circle",
+  "sheet": true,
+  "default_size": { "width": 220, "height": 210 },
+  "fields": [
+    {
+      "key": "name",
+      "label": "Name",
+      "kind": "short-text",
+      "meaning": "What the character is called.",
+      "show_on_face": true
+    },
+    {
+      "key": "picture",
+      "label": "Picture",
+      "kind": "image",
+      "meaning": "Copied into assets/ under its content hash. Never a path.",
+      "show_on_face": true
+    },
+    {
+      "key": "role",
+      "label": "Role",
+      "kind": "short-text",
+      "meaning": "What they are to the story — protagonist, rival, witness.",
+      "show_on_face": true
+    },
+    {
+      "key": "one_liner",
+      "label": "One-liner",
+      "kind": "short-text",
+      "meaning": "The character in one sentence.",
+      "show_on_face": false
+    },
+    {
+      "key": "description",
+      "label": "Description",
+      "kind": "long-text",
+      "meaning": "Never shown on the card face.",
+      "show_on_face": false
+    },
+    {
+      "key": "openness",
+      "label": "Openness",
+      "kind": "scale",
+      "meaning": "Seven notches. The two end words live in the blueprint, never typed per card.",
+      "show_on_face": false,
+      "low": "Conventional",
+      "high": "Curious",
+      "randomizable": true
+    },
+    {
+      "key": "conscientiousness",
+      "label": "Conscientiousness",
+      "kind": "scale",
+      "meaning": "Seven notches. The two end words live in the blueprint, never typed per card.",
+      "show_on_face": false,
+      "low": "Spontaneous",
+      "high": "Disciplined",
+      "randomizable": true
+    },
+    {
+      "key": "extraversion",
+      "label": "Extraversion",
+      "kind": "scale",
+      "meaning": "Seven notches. The two end words live in the blueprint, never typed per card.",
+      "show_on_face": false,
+      "low": "Reserved",
+      "high": "Outgoing",
+      "randomizable": true
+    },
+    {
+      "key": "agreeableness",
+      "label": "Agreeableness",
+      "kind": "scale",
+      "meaning": "Seven notches. The two end words live in the blueprint, never typed per card.",
+      "show_on_face": false,
+      "low": "Contrary",
+      "high": "Agreeable",
+      "randomizable": true
+    },
+    {
+      "key": "neuroticism",
+      "label": "Neuroticism",
+      "kind": "scale",
+      "meaning": "Seven notches. The two end words live in the blueprint, never typed per card.",
+      "show_on_face": false,
+      "low": "Steady",
+      "high": "Volatile",
+      "randomizable": true
+    },
+    {
+      "key": "character_tropes",
+      "label": "Character Tropes",
+      "kind": "pick-many",
+      "meaning": "Drag a chip to reorder. The order is yours and is kept.",
+      "show_on_face": false,
+      "list": "character-tropes"
+    },
+    {
+      "key": "notes",
+      "label": "Notes",
+      "kind": "long-text",
+      "meaning": "Never shown on the card face.",
+      "show_on_face": false
+    }
+  ]
+}

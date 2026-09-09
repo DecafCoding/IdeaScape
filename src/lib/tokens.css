@@ -64,6 +64,11 @@
   --color-line-pink: #c93a86;
   --color-arrowhead: rgba(32, 30, 29, 0.75);
   --color-placeholder: rgba(32, 30, 29, 0.5);
+  /* The writing pack's chip text and its Scale notches (§9.25), as a share of the ink
+     rather than a literal, so both follow the theme. */
+  --color-ink-72: color-mix(in srgb, var(--color-text) 72%, transparent);
+  --color-ink-32: color-mix(in srgb, var(--color-text) 32%, transparent);
+  --color-ink-30: color-mix(in srgb, var(--color-text) 30%, transparent);
   /* The YouTube mark on a video thumbnail (§9.6). A brand colour, not a palette colour: it
      is the same in both themes because a logo does not re-tint. */
   --color-provider-youtube: #ff0000;
@@ -151,6 +156,11 @@
      no modal surface existed before this phase. */
   --shadow-dialog: 0 18px 44px rgba(45, 43, 43, 0.34);
   --scrim: color-mix(in srgb, var(--color-text) 26%, transparent);
+  /* Phase 6 additions, flagged for the owner. Both values are authored by the design
+     system itself — §9.26 draws the combo's drop-down list and §9.13 the open role chip —
+     so this is the same single ad-hoc-shadow deviation, not a new one. */
+  --shadow-combo-list: 0 6px 18px rgba(45, 43, 43, 0.16);
+  --shadow-role-chip: 0 1px 4px rgba(45, 43, 43, 0.14);
 
   /* Interaction tints (§11.1) */
   --tint-accent-hover: color-mix(in srgb, var(--color-accent) 8%, transparent);
@@ -186,7 +196,9 @@
   --tracking-tight-1: -0.01em;
   --tracking-2: 0.02em;
   --tracking-6: 0.06em;
+  --tracking-9: 0.09em;
   --tracking-10: 0.1em;
+  --tracking-11: 0.11em;
   --tracking-12: 0.12em;
 
   /* Stacking ladder. Neither document defines a z-index scale; this encodes exactly the

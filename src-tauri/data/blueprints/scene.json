@@ -1,0 +1,38 @@
+{
+  "id": "scene",
+  "label": "Scene",
+  "glyph": "film-slate",
+  "sheet": false,
+  "default_size": { "width": 240, "height": 130 },
+  "fields": [
+    {
+      "key": "name",
+      "label": "Name",
+      "kind": "short-text",
+      "meaning": "What the scene is called.",
+      "show_on_face": true
+    },
+    {
+      "key": "summary",
+      "label": "Summary",
+      "kind": "short-text",
+      "meaning": "What happens, in a line. This is what the card face shows.",
+      "show_on_face": true
+    },
+    {
+      "key": "pov",
+      "label": "Point Of View",
+      "kind": "pick",
+      "meaning": "Whose eyes the scene is seen through.",
+      "show_on_face": false,
+      "list": "points-of-view"
+    },
+    {
+      "key": "notes",
+      "label": "Notes",
+      "kind": "long-text",
+      "meaning": "Never shown on the card face.",
+      "show_on_face": false
+    }
+  ]
+}

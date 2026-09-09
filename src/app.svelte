@@ -9,6 +9,17 @@
   import LeftColumn from './features/shell/LeftColumn.svelte';
   import PropertiesPanel from './features/shell/PropertiesPanel.svelte';
   import ContextMenu from './features/shell/ContextMenu.svelte';
+  import UnplacedList from './features/canvases/UnplacedList.svelte';
+  import CharacterSheet from './features/writing/CharacterSheet.svelte';
+  import BookSheet from './features/writing/BookSheet.svelte';
+  import ChapterSheet from './features/writing/ChapterSheet.svelte';
+  import {
+    closeSheet,
+    openSheetFor,
+    sheetBlueprint,
+    sheetItem,
+    sheetOpen,
+  } from './features/writing/writing.svelte';
   import CanvasSurface from './features/canvas/CanvasSurface.svelte';
   import EmptyCanvas from './features/canvas/EmptyCanvas.svelte';
   import CardLayer from './features/cards/CardLayer.svelte';
@@ -52,6 +63,10 @@
   import {
     createCanvasCommand,
     createCardCommand,
+    deleteUnplacedCommand,
+    expandCommand,
+    randomizeCommand,
+    setFieldCommand,
     createConnectionCommand,
     deleteCanvasCommand,
     deleteCardsCommand,
@@ -67,8 +82,30 @@
   import { getAssetsFolder, noteAssetPresent, setAssetsFolder } from './lib/assets.svelte';
   import { LINK_SIZE, NOTE_SIZE, VIDEO_SIZE } from './lib/cardKinds';
   import { decidePaste, type UrlClassification } from './lib/paste';
-  import { registerShortcuts } from './lib/shortcuts';
+  import { isTextEntry, registerShortcuts } from './lib/shortcuts';
   import { getSettings, loadSettings } from './lib/settings.svelte';
+  import { loadBlueprints } from './lib/blueprints.svelte';
+  import { clearListCache } from './lib/lists';
+  import { rollSpread } from './lib/randomize';
+  import {
+    clearUnplaced,
+    deleteUnplaced,
+    placeUnplaced,
+    refreshUnplaced,
+    unplacedItems,
+  } from './features/canvases/unplaced.svelte';
+  import { defaultSizeForItem } from './lib/cardKinds';
+  import {
+    blueprintForPayload,
+    getBlueprint,
+    parseBlueprintPayload,
+    scaleValue,
+    type BlueprintField,
+    type FieldValue,
+  } from './lib/blueprints.svelte';
+  import { logWarn } from './lib/logger';
+  import { listEntryCommand } from './features/undo/commands';
+  import type { ExpandEffect, ItemContext } from './lib/types';
   import { applyFont, applyTheme } from './lib/theme';
   import {
     debounce,
@@ -82,6 +119,7 @@
   import {
     BACKGROUND_MENU_WIDTH,
     CANVAS_MENU_WIDTH,
+    UNPLACED_MENU_WIDTH,
     ELEMENT_MENU_WIDTH,
     type MenuEntry,
     type OpenMenu,
@@ -134,6 +172,8 @@
    * read `openMenu.canvasId` would always find it null.
    */
   let menuCanvasId = $state<number | null>(null);
+  /** Which Unplaced row the menu is about, held apart from `openMenu` for the same reason. */
+  let menuUnplacedId = $state<number | null>(null);
 
   /** True while the Settings page has replaced the canvas (§9.11, frame 16a). */
   let settingsOpen = $state(false);
@@ -194,6 +234,7 @@
       const loaded = await loadSettings();
       applyTheme(loaded.theme);
       applyFont(loaded.font);
+      await loadBlueprints();
       await projectsState.loadRecents();
       await maybeRunPerfGate();
     });
@@ -247,6 +288,10 @@
       canvasStore.closeProject();
       undoStack.clear();
       setAssetsFolder(null);
+      // The project's own vocabulary goes with the project, not with the application.
+      clearListCache();
+      clearUnplaced();
+      closeSheet();
       clipboard = [];
       folderPath = null;
       openMenu = null;
@@ -389,8 +434,13 @@
     const canvasId = canvasStore.activeCanvasId;
     if (canvasId === null) return;
 
+    // Phase 6's mode: 250 WRITING cards carrying chips, rather than the mixed set. The two
+    // passes, the sweep and the dropped-frame definition are unchanged, so this phase's
+    // number is directly comparable with Phase 1's.
+    const writing = await invokeSafe<boolean>('perf_gate_writing').catch(() => false);
     if (canvasStore.cardCount < 250) {
-      await invokeSafe('seed_mixed_cards', { canvasId, count: 250 - canvasStore.cardCount });
+      const count = 250 - canvasStore.cardCount;
+      await invokeSafe(writing ? 'seed_blueprint_cards' : 'seed_mixed_cards', { canvasId, count });
       await canvasStore.loadCanvas(canvasId);
     }
 
@@ -417,10 +467,17 @@
 
     const path = await invokeSafe<string>('record_perf_result', {
       json: JSON.stringify(
-        { startedAt: new Date().toISOString(), openMs, pickerOpenMs, passes },
+        {
+          startedAt: new Date().toISOString(),
+          mode: writing ? 'writing' : 'mixed',
+          openMs,
+          pickerOpenMs,
+          passes,
+        },
         null,
         2,
       ),
+      fileName: writing ? 'perf-gate-writing-result.json' : 'perf-gate-result.json',
     });
     logInfo(`the performance gate result was written to ${path}`);
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -462,6 +519,8 @@
     persistView.flush();
     undoStack.clear();
     await guard(() => canvasStore.loadCanvas(canvasId));
+    // A placement anywhere in the project can move a record on or off the Unplaced list.
+    await refreshUnplaced();
   }
 
   /** The hooks the canvas undo commands need, so `features/undo/` imports no feature. */
@@ -540,6 +599,32 @@
     });
   }
 
+  /**
+   * Go to one placement of a card and select it. Both §9.28 groups navigate this way, which
+   * is the same route the search results already take.
+   */
+  async function openPlacement(canvasId: number, placementId: number) {
+    if (canvasId !== canvasStore.activeCanvasId) await switchCanvas(canvasId);
+    const placement = canvasStore.placements.get(placementId);
+    if (!placement) return;
+    canvasStore.setSelection([placementId]);
+    canvas?.centreOn({
+      x: placement.x,
+      y: placement.y,
+      width: placement.width,
+      height: placement.height,
+    });
+  }
+
+  /** Go to the far card of a connection. It is named by its item, so its placement on that
+   *  canvas is looked up after the switch. */
+  async function openItemOnCanvas(canvasId: number, itemId: number) {
+    if (canvasId !== canvasStore.activeCanvasId) await switchCanvas(canvasId);
+    const placement = [...canvasStore.placements.values()].find((p) => p.item_id === itemId);
+    if (!placement) return;
+    await openPlacement(canvasId, placement.id);
+  }
+
   // --- card actions -----------------------------------------------------
 
   async function createNote(at: Point) {
@@ -579,6 +664,8 @@
       for (const c of effect.connections) canvasStore.removeConnection(c.id);
       canvasStore.clearSelection();
       undoStack.push(deleteCardsCommand(effect));
+      // A writing card that lost its last placement is now unplaced, not gone.
+      await refreshUnplaced();
     });
   }
 
@@ -1067,6 +1154,222 @@
     });
   }
 
+  /**
+   * Make one writing card AT THE POINTER, at its blueprint's own default size.
+   *
+   * "At the pointer" is the last known canvas pointer position, exactly as `new-note`
+   * already uses: §10 contract 1 forbids the application choosing a position, so the card is
+   * never centred in the view.
+   *
+   * The rail rows call this too, so the key route and the menu route are one code path.
+   */
+  async function createWritingCard(blueprint: string) {
+    const canvasId = canvasStore.activeCanvasId;
+    if (canvasId === null) return;
+    // Off, the 2–7 keys do nothing — a key printed on a menu row that is not there has
+    // nothing to be printed on.
+    if (!getSettings().showWritingCards) return;
+    const found = getBlueprint(blueprint);
+    if (!found) return;
+
+    await guard(async () => {
+      const card = await writeNow(
+        () =>
+          invokeSafe<PlacementWithItem>('create_blueprint_card', {
+            canvasId,
+            x: pointerWorld.x,
+            y: pointerWorld.y,
+            width: found.default_size.width,
+            height: found.default_size.height,
+            blueprint,
+          }),
+        saveHooks,
+      );
+      canvasStore.upsertCard(card);
+      canvasStore.setSelection([card.placement.id]);
+      undoStack.push(createCardCommand(card));
+      await refreshUnplaced();
+    });
+  }
+
+  // --- writing cards: the generated panel and the sheets ------------------
+
+  /**
+   * Where the selected writing card is, and what it is wired to (§9.28).
+   *
+   * Re-read whenever the selection or the card itself changes: a new line, a new placement
+   * or a renamed far card all show here.
+   */
+  let itemContext = $state<ItemContext | null>(null);
+
+  $effect(() => {
+    const item = selectedItem();
+    // Read the payload so an edit to the card re-runs this and the groups stay current.
+    void item?.payload;
+    if (!item || item.kind !== 'blueprint') {
+      itemContext = null;
+      return;
+    }
+    void (async () => {
+      try {
+        itemContext = await invokeSafe<ItemContext>('item_context', { itemId: item.id });
+      } catch (error) {
+        logWarn('the card context could not be read', error);
+        itemContext = null;
+      }
+    })();
+  });
+
+  /**
+   * The one write path for every field of a writing card.
+   *
+   * The panel's controls and all three sheets commit through this, which is what makes
+   * editing a card on its sheet and editing it in the panel produce the same payload and the
+   * same single undo entry.
+   */
+  async function changeField(itemId: number, key: string, value: FieldValue, listAdded = false) {
+    const item = findItemById(itemId);
+    if (!item) return;
+    const before = parseBlueprintPayload(item.payload).fields[key] ?? null;
+    const topLevel = key === 'name' || key === 'detail_canvas_id';
+    const beforeValue = topLevel
+      ? ((parseBlueprintPayload(item.payload) as unknown as Record<string, FieldValue>)[key] ??
+        null)
+      : before;
+    await guard(async () => {
+      const updated = await writeNow(
+        () => invokeSafe<Item>('set_item_field', { itemId, key, value }),
+        saveHooks,
+      );
+      canvasStore.upsertItem(updated);
+      undoStack.push(setFieldCommand(itemId, key, beforeValue, value));
+      // A value the user typed was written to the project's own vocabulary, and that is a
+      // second reversible thing — pushed only when a row was actually written.
+      if (listAdded) {
+        const list = listForField(item, key);
+        if (list) undoStack.push(listEntryCommand(list, textOf(value), true));
+      }
+    });
+  }
+
+  /** The shipped list a Pick or Pick Many field draws from, for the undo entry above. */
+  function listForField(item: Item, key: string): string | null {
+    const blueprint = blueprintForPayload(item.payload);
+    return blueprint?.fields.find((field: BlueprintField) => field.key === key)?.list ?? null;
+  }
+
+  /** The text of the entry just committed — the last member of a Pick Many, or the Pick. */
+  function textOf(value: FieldValue): string {
+    if (Array.isArray(value)) return value.at(-1)?.text ?? '';
+    if (value && typeof value === 'object') return value.text;
+    return typeof value === 'string' ? value : '';
+  }
+
+  /** A card on the open canvas, or a record sitting in the Unplaced list. */
+  function findItemById(itemId: number): Item | null {
+    return canvasStore.items.get(itemId) ?? unplacedItems().find((i) => i.id === itemId) ?? null;
+  }
+
+  /** A Scale drag is one undo entry: the value at pointer-down comes back with the change. */
+  async function changeScale(itemId: number, key: string, next: number, before: number) {
+    await guard(async () => {
+      const updated = await writeNow(
+        () => invokeSafe<Item>('set_item_field', { itemId, key, value: next }),
+        saveHooks,
+      );
+      canvasStore.upsertItem(updated);
+      undoStack.push(setFieldCommand(itemId, key, before, next));
+    });
+  }
+
+  /**
+   * Give a card a canvas of its own.
+   *
+   * One transaction creates the canvas, a placement of THE SAME ITEM on it, and the pointer;
+   * one undo step reverses all three. There is no copy — the card on this canvas and the
+   * card on the new one are one item, so editing either edits both.
+   */
+  async function expandIntoCanvas(itemId: number) {
+    const item = findItemById(itemId);
+    if (!item) return;
+    await guard(async () => {
+      const size = defaultSizeForItem(item);
+      const effect = await writeNow(
+        () =>
+          invokeSafe<ExpandEffect>('expand_into_canvas', {
+            itemId,
+            x: 0,
+            y: 0,
+            width: size.width,
+            height: size.height,
+          }),
+        saveHooks,
+      );
+      canvasStore.upsertItem(effect.item);
+      await refreshCanvases();
+      undoStack.push(expandCommand(effect));
+    });
+  }
+
+  /** Open the canvas a card was expanded into, from the mark on its face or the panel. */
+  async function openDetailCanvas(itemId: number) {
+    const item = findItemById(itemId);
+    if (!item) return;
+    const canvasId = parseBlueprintPayload(item.payload).detail_canvas_id;
+    if (canvasId === null) return;
+    closeSheet();
+    await switchCanvas(canvasId);
+  }
+
+  /**
+   * Reroll every randomizable Scale field on a card, as ONE undo entry carrying five
+   * effects. Five separate commands would need five Ctrl+Z presses and would fail the gate.
+   *
+   * The roll is local random numbers. No network call, no AI, permanently. It touches the
+   * sliders and NOTHING else — not the name, not the tropes, not the notes.
+   */
+  async function randomizeCard(itemId: number) {
+    const item = findItemById(itemId);
+    if (!item) return;
+    const blueprint = blueprintForPayload(item.payload);
+    if (!blueprint) return;
+    const keys = blueprint.fields.filter((f) => f.randomizable).map((f) => f.key);
+    if (keys.length === 0) return;
+
+    const payload = parseBlueprintPayload(item.payload);
+    const before = keys.map((key) => scaleValue(payload.fields[key]));
+    const after = rollSpread(keys.length);
+
+    await guard(async () => {
+      let updated: Item | null = null;
+      for (let i = 0; i < keys.length; i += 1) {
+        updated = await invokeSafe<Item>('set_item_field', {
+          itemId,
+          key: keys[i],
+          value: after[i],
+        });
+      }
+      if (updated) canvasStore.upsertItem(updated);
+      undoStack.push(randomizeCommand(itemId, keys, before, after));
+    });
+  }
+
+  /** Replace the picture in one Image FIELD of a writing card. */
+  async function replaceFieldImage(itemId: number, key: string) {
+    await guard(async () => {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const chosen = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'Pictures', extensions: [...IMAGE_EXTENSIONS] }],
+      });
+      if (chosen === null || Array.isArray(chosen)) return;
+      const asset = await invokeSafe<AssetRef>('add_image_from_path', { path: chosen });
+      noteAssetPresent(asset.name, asset.byte_size);
+      await changeField(itemId, key, asset.name);
+    });
+  }
+
   /** Show in folder: a WebView cannot reveal a path, so the opener plugin does it. */
   async function showAssetsFolder() {
     try {
@@ -1187,12 +1490,41 @@
   $effect(() => {
     if (canvasStore.project === null) return registerShortcuts(pickerShortcuts);
     if (settingsOpen) return registerShortcuts(settingsShortcuts);
+    if (sheetOpen()) return registerShortcuts(sheetShortcuts);
     return registerShortcuts(shellShortcuts);
   });
+
+  /**
+   * A sheet's own key map (§9.30). `Esc` BLURS A FOCUSED TEXT BOX FIRST and leaves the sheet
+   * otherwise — so on the Chapter sheet, where almost the whole screen is a text field, the
+   * first press gets you out of the prose and the second gets you out of the sheet.
+   *
+   * It lives here rather than in `matchAction`, which deliberately returns `cancel` for
+   * Escape BEFORE its own text bail so a note editor can cancel; changing that would break
+   * note editing.
+   */
+  const sheetShortcuts = {
+    cancel: () => {
+      const focused = document.activeElement;
+      if (isTextEntry(focused) && focused instanceof HTMLElement) {
+        focused.blur();
+        return;
+      }
+      closeSheet();
+    },
+  };
 
   const shellShortcuts = $derived({
     'new-note': () => void createNote(pointerWorld),
     'new-image': () => void addFromPicker(),
+    // The writing pack's 2–7. Each key and the matching rail row call the SAME function, so
+    // the two routes are one code path.
+    'new-book': () => void createWritingCard('book'),
+    'new-chapter': () => void createWritingCard('chapter'),
+    'new-scene': () => void createWritingCard('scene'),
+    'new-beat': () => void createWritingCard('beat'),
+    'new-character': () => void createWritingCard('character'),
+    'new-location': () => void createWritingCard('location'),
     edit: () => cards?.editSelected(),
     connect: startLinkFromSelection,
     cancel: () => {
@@ -1239,8 +1571,16 @@
     'zoom-to-fit': () => canvas?.zoomToFit(),
     'bring-forward': () => void reorder('front'),
     'send-back': () => void reorder('back'),
-    undo: () => void guard(() => undoStack.undo()),
-    redo: () => void guard(() => undoStack.redo()),
+    undo: () =>
+      void guard(async () => {
+        await undoStack.undo();
+        await refreshUnplaced();
+      }),
+    redo: () =>
+      void guard(async () => {
+        await undoStack.redo();
+        await refreshUnplaced();
+      }),
   } satisfies Parameters<typeof registerShortcuts>[0]);
 
   // --- context menus ----------------------------------------------------
@@ -1378,6 +1718,82 @@
     },
   ]);
 
+  const unplacedMenu = $derived<MenuEntry[]>([
+    {
+      kind: 'item',
+      label: 'Place On This Canvas',
+      glyph: 'square-half',
+      action: 'new-note',
+      // There is no key for it — the user acted on a rail row, so no key is printed.
+      shortcutLabel: '',
+      available: canvasStore.activeCanvasId !== null,
+      run: () => {
+        if (menuUnplacedId !== null) void placeUnplacedItem(menuUnplacedId);
+      },
+    },
+    {
+      kind: 'item',
+      label: 'Delete For Good',
+      glyph: 'trash',
+      action: 'delete',
+      destructive: true,
+      run: () => {
+        if (menuUnplacedId !== null) void deleteUnplacedItem(menuUnplacedId);
+      },
+    },
+  ]);
+
+  /**
+   * Put an unplaced record back at the CENTRE OF THE CURRENT VIEW.
+   *
+   * §10 contract 1 says the application never chooses a position for a card, and it does not
+   * here either — but a rail row carries no pointer position, so there is nothing else to
+   * use. The view centre is the smallest defensible answer and the user drags it immediately,
+   * exactly as they do with a pasted card.
+   *
+   * This is a `create_placement`: the same item, so editing it on the new canvas edits every
+   * other placement of it.
+   */
+  async function placeUnplacedItem(itemId: number) {
+    const canvasId = canvasStore.activeCanvasId;
+    const item = unplacedItems().find((i) => i.id === itemId);
+    if (canvasId === null || !item) return;
+    await guard(async () => {
+      const size = defaultSizeForItem(item);
+      // `pointerWorld()` is the viewport centre in world units — the surface already
+      // exports it for zoom-about, and it is exactly the position wanted here.
+      const centre = canvas?.pointerWorld() ?? { x: 0, y: 0 };
+      const card = await placeUnplaced(
+        item,
+        canvasId,
+        centre.x - size.width / 2,
+        centre.y - size.height / 2,
+        size.width,
+        size.height,
+      );
+      if (!card) return;
+      canvasStore.setSelection([card.placement.id]);
+      undoStack.push(createCardCommand(card));
+    });
+  }
+
+  /** Delete an unplaced record for good. One undo step brings the row and its files back. */
+  async function deleteUnplacedItem(itemId: number) {
+    const item = unplacedItems().find((i) => i.id === itemId);
+    if (!item) return;
+    await guard(async () => {
+      const effect = await deleteUnplaced(item);
+      if (effect) undoStack.push(deleteUnplacedCommand(effect));
+    });
+  }
+
+  function openUnplacedMenu(event: MouseEvent, item: Item) {
+    event.preventDefault();
+    event.stopPropagation();
+    menuUnplacedId = item.id;
+    openMenu = { kind: 'unplaced', x: event.clientX, y: event.clientY, itemId: item.id };
+  }
+
   function openCanvasMenu(event: MouseEvent, canvasId: number) {
     event.preventDefault();
     event.stopPropagation();
@@ -1448,8 +1864,18 @@
         redoDepth={undoStack.redoDepth}
         onNewNote={() => void createNote(pointerWorld)}
         onNewImage={() => void addFromPicker()}
-        onUndo={() => void guard(() => undoStack.undo())}
-        onRedo={() => void guard(() => undoStack.redo())}
+        onNewWritingCard={(blueprint) => void createWritingCard(blueprint)}
+        showWritingCards={getSettings().showWritingCards}
+        onUndo={() =>
+          void guard(async () => {
+            await undoStack.undo();
+            await refreshUnplaced();
+          })}
+        onRedo={() =>
+          void guard(async () => {
+            await undoStack.redo();
+            await refreshUnplaced();
+          })}
         onCloseProject={() => void closeProject()}
         onSettings={() => (settingsOpen = true)}
         settingsActive={settingsOpen}
@@ -1478,12 +1904,83 @@
             onOpenMenu={openCanvasMenu}
           />
         {/snippet}
+        {#snippet unplaced()}
+          <UnplacedList
+            onPlace={(item) => void placeUnplacedItem(item.id)}
+            onDeleteForGood={(item) => void deleteUnplacedItem(item.id)}
+            onOpenMenu={openUnplacedMenu}
+          />
+        {/snippet}
       </LeftColumn>
 
       <!-- §9.11: the Settings page replaces the canvas, the empty state, the drop target
            and the properties panel. The title bar and the left column stay. -->
       {#if settingsOpen}
         <SettingsPage {folderPath} onBack={() => (settingsOpen = false)} />
+      {:else if sheetOpen()}
+        <!-- §9.30: the sheet replaces the CANVAS. The title bar, the rail and the properties
+             panel all stay, and it takes no stacking rung — it is not a dialog. Leaving it
+             returns to exactly the canvas the user left, with the selection and the view
+             untouched, because nothing here clears either. -->
+        {@const openBlueprint = sheetBlueprint()}
+        {@const openItem = sheetItem()}
+        {#if openBlueprint && openItem}
+          {#if openBlueprint.id === 'chapter'}
+            <ChapterSheet
+              blueprint={openBlueprint}
+              item={openItem}
+              context={itemContext}
+              onBack={closeSheet}
+              onFieldChange={(key, value, added) =>
+                void changeField(openItem.id, key, value, added)}
+              onExpandIntoCanvas={() => void expandIntoCanvas(openItem.id)}
+              onDelete={() => void deleteSelection()}
+            />
+          {:else if openBlueprint.id === 'book'}
+            <BookSheet
+              blueprint={openBlueprint}
+              item={openItem}
+              context={itemContext}
+              onBack={closeSheet}
+              onFieldChange={(key, value, added) =>
+                void changeField(openItem.id, key, value, added)}
+              onReplaceFieldImage={(key) => void replaceFieldImage(openItem.id, key)}
+              onExpandIntoCanvas={() => void expandIntoCanvas(openItem.id)}
+              onDelete={() => void deleteSelection()}
+              onOpenPlacement={(canvasId, placementId) => {
+                closeSheet();
+                void openPlacement(canvasId, placementId);
+              }}
+              onOpenItem={(canvasId, id) => {
+                closeSheet();
+                void openItemOnCanvas(canvasId, id);
+              }}
+            />
+          {:else}
+            <CharacterSheet
+              blueprint={openBlueprint}
+              item={openItem}
+              context={itemContext}
+              onBack={closeSheet}
+              onFieldChange={(key, value, added) =>
+                void changeField(openItem.id, key, value, added)}
+              onScaleChange={(key, next, before) =>
+                void changeScale(openItem.id, key, next, before)}
+              onReplaceFieldImage={(key) => void replaceFieldImage(openItem.id, key)}
+              onRandomize={() => void randomizeCard(openItem.id)}
+              onExpandIntoCanvas={() => void expandIntoCanvas(openItem.id)}
+              onDelete={() => void deleteSelection()}
+              onOpenPlacement={(canvasId, placementId) => {
+                closeSheet();
+                void openPlacement(canvasId, placementId);
+              }}
+              onOpenItem={(canvasId, id) => {
+                closeSheet();
+                void openItemOnCanvas(canvasId, id);
+              }}
+            />
+          {/if}
+        {/if}
       {:else}
         <CanvasSurface
           bind:this={canvas}
@@ -1512,6 +2009,7 @@
             onGeometryCommitted={(before, after, label) =>
               void commitGeometry(before, after, label)}
             onOpenElementMenu={openElementMenu}
+            onOpenSheet={(placementId) => openSheetFor(placementId)}
             onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
             onSelect={selectCard}
             onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
@@ -1546,6 +2044,33 @@
           onImageTitleVisibleChange={(visible) => void commitImageTitleVisible(visible)}
           onNoteTitleChange={(title) => void commitNoteTitle(title)}
           onReplaceImage={() => void replaceImage()}
+          {itemContext}
+          reserved={sheetBlueprint()?.id === 'chapter'}
+          onFieldChange={(key, value, added) => {
+            const item = selectedItem();
+            if (item) void changeField(item.id, key, value, added);
+          }}
+          onScaleChange={(key, next, before) => {
+            const item = selectedItem();
+            if (item) void changeScale(item.id, key, next, before);
+          }}
+          onReplaceFieldImage={(key) => {
+            const item = selectedItem();
+            if (item) void replaceFieldImage(item.id, key);
+          }}
+          onOpenPlacement={(canvasId, placementId) => void openPlacement(canvasId, placementId)}
+          onOpenItem={(canvasId, itemId) => void openItemOnCanvas(canvasId, itemId)}
+          onExpandIntoCanvas={() => {
+            const item = selectedItem();
+            if (!item) return;
+            // The mark on the face and this action are one route: a card that already has a
+            // canvas of its own opens it rather than making a second one.
+            if (parseBlueprintPayload(item.payload).detail_canvas_id !== null) {
+              void openDetailCanvas(item.id);
+              return;
+            }
+            void expandIntoCanvas(item.id);
+          }}
           onShowInFolder={() => void showAssetsFolder()}
           onRefetch={() => {
             const item = selectedItem();
@@ -1602,12 +2127,16 @@
         ? ELEMENT_MENU_WIDTH
         : openMenu.kind === 'canvas'
           ? CANVAS_MENU_WIDTH
-          : BACKGROUND_MENU_WIDTH}
+          : openMenu.kind === 'unplaced'
+            ? UNPLACED_MENU_WIDTH
+            : BACKGROUND_MENU_WIDTH}
       entries={openMenu.kind === 'element'
         ? elementMenu
         : openMenu.kind === 'canvas'
           ? canvasMenu
-          : backgroundMenu}
+          : openMenu.kind === 'unplaced'
+            ? unplacedMenu
+            : backgroundMenu}
       onClose={() => (openMenu = null)}
     />
   {/if}

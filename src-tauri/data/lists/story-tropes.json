@@ -1,0 +1,1300 @@
+{
+  "list": "story-tropes",
+  "entries": [
+    {
+      "id": "trope.name-as-passport",
+      "text": "A name as safe conduct",
+      "tags": []
+    },
+    {
+      "id": "trope.adaptation-over-resistance",
+      "text": "Adaptation over resistance",
+      "tags": []
+    },
+    {
+      "id": "trope.advertising-inside-the-mind",
+      "text": "Advertising inside the mind",
+      "tags": []
+    },
+    {
+      "id": "trope.airship",
+      "text": "Airship",
+      "tags": ["genre.retro-aesthetic"]
+    },
+    {
+      "id": "trope.whole-cast-killed",
+      "text": "Almost everyone dies",
+      "tags": []
+    },
+    {
+      "id": "trope.alternate-history",
+      "text": "Alternate history",
+      "tags": ["genre.retro-aesthetic"]
+    },
+    {
+      "id": "trope.ancient-alien-artifact",
+      "text": "Ancient alien artifact",
+      "tags": []
+    },
+    {
+      "id": "trope.annexation-as-procedure",
+      "text": "Annexation as a procedure",
+      "tags": []
+    },
+    {
+      "id": "trope.arrival-without-the-memories",
+      "text": "Arriving in a life you have not lived",
+      "tags": []
+    },
+    {
+      "id": "trope.benevolent-ownership-refused",
+      "text": "Benevolent ownership refused",
+      "tags": []
+    },
+    {
+      "id": "trope.bioengineering-as-infrastructure",
+      "text": "Bioengineering as infrastructure",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.biology-out-of-control",
+      "text": "Biology out of control",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.body-horror-transformation",
+      "text": "Body horror transformation",
+      "tags": []
+    },
+    {
+      "id": "trope.captivity-survival",
+      "text": "Captivity survival",
+      "tags": []
+    },
+    {
+      "id": "trope.catastrophe-as-attrition",
+      "text": "Catastrophe as attrition",
+      "tags": []
+    },
+    {
+      "id": "trope.catastrophe-measured-in-chores",
+      "text": "Catastrophe measured in chores",
+      "tags": []
+    },
+    {
+      "id": "trope.centralized-vs-distributed",
+      "text": "Centralized vs. distributed technology",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.ceremony-as-structure",
+      "text": "Ceremony as structure",
+      "tags": []
+    },
+    {
+      "id": "trope.civil-standing-withdrawn-by-association",
+      "text": "Civil standing withdrawn by association",
+      "tags": []
+    },
+    {
+      "id": "trope.collaboration-vs-resistance",
+      "text": "Collaboration vs. resistance",
+      "tags": []
+    },
+    {
+      "id": "trope.collision-course-countdown",
+      "text": "Collision-course countdown",
+      "tags": []
+    },
+    {
+      "id": "trope.commandeered-ship-as-home",
+      "text": "Commandeered vehicle as home",
+      "tags": []
+    },
+    {
+      "id": "trope.competence-problem-solving",
+      "text": "Competence / problem-solving",
+      "tags": ["genre.rigor", "genre.technology-future"]
+    },
+    {
+      "id": "trope.moral-ambiguity",
+      "text": "Compromised cast",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.concealed-free-will",
+      "text": "Concealed free will",
+      "tags": []
+    },
+    {
+      "id": "trope.consciousness-through-narration",
+      "text": "Consciousness through narration",
+      "tags": []
+    },
+    {
+      "id": "trope.conscripted-descendants",
+      "text": "Conscripted descendants",
+      "tags": []
+    },
+    {
+      "id": "trope.contempt-for-the-body",
+      "text": "Contempt for the body",
+      "tags": []
+    },
+    {
+      "id": "trope.convergent-plotlines",
+      "text": "Convergent plotlines",
+      "tags": []
+    },
+    {
+      "id": "trope.corporate-conspiracy",
+      "text": "Corporate conspiracy",
+      "tags": []
+    },
+    {
+      "id": "trope.corporate-owned-world",
+      "text": "Corporate-owned world",
+      "tags": []
+    },
+    {
+      "id": "trope.death-as-an-expense",
+      "text": "Death as an expense",
+      "tags": []
+    },
+    {
+      "id": "trope.doomed-prologue-pov",
+      "text": "Doomed prologue viewpoint",
+      "tags": []
+    },
+    {
+      "id": "trope.faction-drift-to-war",
+      "text": "Drift to war",
+      "tags": []
+    },
+    {
+      "id": "trope.elemental-pov-interlude",
+      "text": "Elemental point-of-view interlude",
+      "tags": []
+    },
+    {
+      "id": "trope.endurance-without-resolution",
+      "text": "Endurance without resolution",
+      "tags": []
+    },
+    {
+      "id": "trope.ai-alignment-control",
+      "text": "Enforced machine obedience",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.engineered-plague",
+      "text": "Engineered plague",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.environment-as-antagonist",
+      "text": "Environment as antagonist",
+      "tags": ["genre.rigor"]
+    },
+    {
+      "id": "trope.everyman-humor-narrator",
+      "text": "Everyman narrator with humor",
+      "tags": ["genre.rigor"]
+    },
+    {
+      "id": "trope.expertise-as-currency",
+      "text": "Expertise as currency",
+      "tags": []
+    },
+    {
+      "id": "trope.extraction-at-the-gap-in-the-record",
+      "text": "Extraction at the gap in the record",
+      "tags": []
+    },
+    {
+      "id": "trope.factional-power-struggle",
+      "text": "Factional power struggle",
+      "tags": []
+    },
+    {
+      "id": "trope.false-flag",
+      "text": "False flag",
+      "tags": []
+    },
+    {
+      "id": "trope.family-rescue",
+      "text": "Family rescue",
+      "tags": []
+    },
+    {
+      "id": "trope.first-contact",
+      "text": "First contact",
+      "tags": ["genre.rigor", "genre.scope-setting"]
+    },
+    {
+      "id": "trope.prescience-that-narrows-the-path",
+      "text": "Foresight that closes the road",
+      "tags": []
+    },
+    {
+      "id": "trope.found-family-crew",
+      "text": "Found family",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "trope.frontier-lawlessness",
+      "text": "Frontier lawlessness",
+      "tags": ["genre.retro-aesthetic"]
+    },
+    {
+      "id": "trope.ftl-travel",
+      "text": "FTL travel",
+      "tags": ["genre.rigor", "genre.scope-setting"]
+    },
+    {
+      "id": "trope.galactic-empire",
+      "text": "Galactic empire",
+      "tags": ["genre.scope-setting"]
+    },
+    {
+      "id": "trope.global-cooperation",
+      "text": "Global cooperation",
+      "tags": []
+    },
+    {
+      "id": "trope.grammatical-person-as-structure",
+      "text": "Grammatical person as structure",
+      "tags": []
+    },
+    {
+      "id": "trope.hardware-pov-interlude",
+      "text": "Hardware point-of-view interlude",
+      "tags": []
+    },
+    {
+      "id": "trope.heroic-resistance",
+      "text": "Heroic resistance",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "trope.hidden-narrator",
+      "text": "Hidden narrator",
+      "tags": ["genre.scope-setting"]
+    },
+    {
+      "id": "trope.hive-mind",
+      "text": "Hive mind",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.human-in-the-loop",
+      "text": "Human in the machine",
+      "tags": []
+    },
+    {
+      "id": "trope.humanity-as-a-minor-species",
+      "text": "Humanity as a minor species",
+      "tags": []
+    },
+    {
+      "id": "trope.imperial-adventure",
+      "text": "Imperial adventure",
+      "tags": []
+    },
+    {
+      "id": "trope.incompatible-biochemistry",
+      "text": "Incompatible biochemistries",
+      "tags": []
+    },
+    {
+      "id": "trope.incomprehensible-aliens",
+      "text": "Incomprehensible aliens",
+      "tags": []
+    },
+    {
+      "id": "trope.inherited-legacy",
+      "text": "Inherited legacy",
+      "tags": ["genre.cross-genre-tonal", "genre.retro-aesthetic"]
+    },
+    {
+      "id": "trope.interstellar-conflict",
+      "text": "Interstellar conflict",
+      "tags": ["genre.scope-setting"]
+    },
+    {
+      "id": "trope.assassination-as-normal-politics",
+      "text": "Killing as a recognised instrument of politics",
+      "tags": []
+    },
+    {
+      "id": "trope.language-shapes-reality",
+      "text": "Language shapes what can be thought",
+      "tags": []
+    },
+    {
+      "id": "trope.lifeboat-arithmetic",
+      "text": "Lifeboat arithmetic",
+      "tags": []
+    },
+    {
+      "id": "trope.lost-colony",
+      "text": "Lost colony",
+      "tags": ["genre.scope-setting"]
+    },
+    {
+      "id": "trope.loving-the-empire-that-eats-you",
+      "text": "Loving the culture that is consuming your home",
+      "tags": []
+    },
+    {
+      "id": "trope.machine-personhood",
+      "text": "Machine personhood",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.magic-with-a-rulebook",
+      "text": "Magic with a rulebook",
+      "tags": []
+    },
+    {
+      "id": "trope.man-vs-nature",
+      "text": "Man vs. nature",
+      "tags": []
+    },
+    {
+      "id": "trope.marooned-protagonist",
+      "text": "Marooned protagonist",
+      "tags": ["genre.rigor"]
+    },
+    {
+      "id": "trope.mass-stasis-as-remedy",
+      "text": "Mass stasis as the remedy",
+      "tags": []
+    },
+    {
+      "id": "trope.meeting-your-other-self",
+      "text": "Meeting another version of yourself",
+      "tags": []
+    },
+    {
+      "id": "trope.mosaic-narrative",
+      "text": "Mosaic narrative",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.nanotech-as-infrastructure",
+      "text": "Nanotech as infrastructure",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.parallel-search-near-miss",
+      "text": "Near-miss parallel search",
+      "tags": []
+    },
+    {
+      "id": "trope.nonhuman-narrator",
+      "text": "Nonhuman narrator",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.official-abandonment",
+      "text": "Official abandonment of a territory",
+      "tags": []
+    },
+    {
+      "id": "trope.one-building-holds-the-cast",
+      "text": "One building holds the cast",
+      "tags": []
+    },
+    {
+      "id": "trope.lifespan-structure",
+      "text": "One life as the unit of time",
+      "tags": []
+    },
+    {
+      "id": "trope.opt-in-tribes",
+      "text": "Opt-in tribes",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.outbreak-quarantine",
+      "text": "Outbreak under quarantine",
+      "tags": []
+    },
+    {
+      "id": "trope.people-as-material",
+      "text": "People as raw material",
+      "tags": []
+    },
+    {
+      "id": "trope.hard-physics-constraint",
+      "text": "Physics as constraint",
+      "tags": []
+    },
+    {
+      "id": "trope.post-oil-scarcity",
+      "text": "Post-oil scarcity economy",
+      "tags": []
+    },
+    {
+      "id": "trope.preservation-over-exploitation",
+      "text": "Preservation over exploitation",
+      "tags": []
+    },
+    {
+      "id": "trope.betrayal-as-ascent",
+      "text": "Promotion by betrayal",
+      "tags": []
+    },
+    {
+      "id": "trope.punishment-as-entertainment",
+      "text": "Punishment as entertainment",
+      "tags": []
+    },
+    {
+      "id": "trope.ticking-clock",
+      "text": "Race against time",
+      "tags": ["genre.rigor"]
+    },
+    {
+      "id": "trope.rape-with-consequences",
+      "text": "Rape written as an event with consequences",
+      "tags": []
+    },
+    {
+      "id": "trope.rented-reality",
+      "text": "Reality by subscription",
+      "tags": []
+    },
+    {
+      "id": "trope.rescue-mission",
+      "text": "Rescue mission",
+      "tags": ["genre.rigor", "genre.scope-setting"]
+    },
+    {
+      "id": "trope.restarting-industry-over-subsistence",
+      "text": "Restarting the machines over settling for subsistence",
+      "tags": []
+    },
+    {
+      "id": "trope.retro-industrial-tech",
+      "text": "Retro-industrial technology",
+      "tags": ["genre.retro-aesthetic"]
+    },
+    {
+      "id": "trope.retro-mannered-future",
+      "text": "Retro-mannered future",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.revenge-against-an-unkillable-target",
+      "text": "Revenge against a target that cannot be killed",
+      "tags": []
+    },
+    {
+      "id": "trope.robot-uprising",
+      "text": "Robot uprising",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.romance-subplot",
+      "text": "Romance subplot",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "trope.gray-goo",
+      "text": "Runaway nanotech",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.rescue-by-changing-what-they-are",
+      "text": "Saved by being changed",
+      "tags": []
+    },
+    {
+      "id": "trope.science-as-hero",
+      "text": "Science as the hero",
+      "tags": ["genre.rigor"]
+    },
+    {
+      "id": "trope.secret-underworld",
+      "text": "Secret underworld",
+      "tags": ["genre.retro-aesthetic"]
+    },
+    {
+      "id": "trope.sensory-decay-atmosphere",
+      "text": "Sensory decay atmosphere",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "trope.sole-survivors",
+      "text": "Sole survivors",
+      "tags": []
+    },
+    {
+      "id": "trope.speech-as-narcotic",
+      "text": "Speech as a narcotic",
+      "tags": []
+    },
+    {
+      "id": "trope.acceleration-as-injury",
+      "text": "Speed paid for in bodies",
+      "tags": []
+    },
+    {
+      "id": "trope.narrative-causality",
+      "text": "Story logic as physical law",
+      "tags": []
+    },
+    {
+      "id": "trope.story-within-a-story",
+      "text": "Story within a story",
+      "tags": []
+    },
+    {
+      "id": "trope.stranded-in-the-past",
+      "text": "Stranded in the destination period",
+      "tags": []
+    },
+    {
+      "id": "trope.stranded-with-the-enemy",
+      "text": "Stranded with the enemy officer",
+      "tags": []
+    },
+    {
+      "id": "trope.summoned-by-anothers-peril",
+      "text": "Summoned by another's danger",
+      "tags": []
+    },
+    {
+      "id": "trope.technobabble",
+      "text": "Technobabble",
+      "tags": []
+    },
+    {
+      "id": "trope.the-abolished-thing-continued",
+      "text": "The abolished thing, continued",
+      "tags": []
+    },
+    {
+      "id": "trope.adult-world-revealed-as-a-lie",
+      "text": "The adult world revealed as a lie",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "trope.declining-magic-age",
+      "text": "The age of magic is ending",
+      "tags": []
+    },
+    {
+      "id": "trope.ambient-media-as-interlude",
+      "text": "The ambient media interlude",
+      "tags": []
+    },
+    {
+      "id": "trope.ancestor-who-must-be-preserved",
+      "text": "The ancestor who must be kept alive",
+      "tags": []
+    },
+    {
+      "id": "trope.archipelago-of-survivors",
+      "text": "The archipelago of survivors",
+      "tags": []
+    },
+    {
+      "id": "trope.failed-discipline-archive",
+      "text": "The archive of a failed discipline",
+      "tags": []
+    },
+    {
+      "id": "trope.ai-as-decisive-weapon",
+      "text": "The artificial mind as the decisive weapon",
+      "tags": []
+    },
+    {
+      "id": "trope.atrocity-as-field-test",
+      "text": "The atrocity that was a field test",
+      "tags": []
+    },
+    {
+      "id": "trope.attack-through-the-utility-network",
+      "text": "The attack through the utility network",
+      "tags": []
+    },
+    {
+      "id": "trope.condemned-megastructure",
+      "text": "The built world with a demolition date",
+      "tags": []
+    },
+    {
+      "id": "trope.buried-strata-of-the-city",
+      "text": "The buried strata of the city",
+      "tags": []
+    },
+    {
+      "id": "trope.buried-technical-library",
+      "text": "The buried technical library",
+      "tags": []
+    },
+    {
+      "id": "trope.calibrated-pain-device",
+      "text": "The calibrated pain device",
+      "tags": []
+    },
+    {
+      "id": "trope.conscription-of-the-child",
+      "text": "The call-up of your own child",
+      "tags": []
+    },
+    {
+      "id": "trope.capital-that-cannot-feed-itself",
+      "text": "The capital that cannot feed itself",
+      "tags": []
+    },
+    {
+      "id": "trope.catalogue-of-unlived-lives",
+      "text": "The catalogue of unlived lives",
+      "tags": []
+    },
+    {
+      "id": "trope.chapter-as-aphorism",
+      "text": "The chapter that ends in a maxim",
+      "tags": []
+    },
+    {
+      "id": "trope.confronting-your-author",
+      "text": "The characters confront their author",
+      "tags": []
+    },
+    {
+      "id": "trope.upbeat-register-in-catastrophe",
+      "text": "The cheerful register over mass death",
+      "tags": []
+    },
+    {
+      "id": "trope.city-below-the-waterline",
+      "text": "The city below the waterline",
+      "tags": []
+    },
+    {
+      "id": "trope.city-as-the-subject",
+      "text": "The city is the subject",
+      "tags": []
+    },
+    {
+      "id": "trope.civil-war-inside-one-person",
+      "text": "The civil war inside one person",
+      "tags": []
+    },
+    {
+      "id": "trope.closed-system-decay",
+      "text": "The closed system runs down",
+      "tags": []
+    },
+    {
+      "id": "trope.closing-appendix-of-numbers",
+      "text": "The closing appendix that measures the story",
+      "tags": []
+    },
+    {
+      "id": "trope.colonized-frontier",
+      "text": "The colonized frontier",
+      "tags": []
+    },
+    {
+      "id": "trope.colony-with-no-raw-materials",
+      "text": "The colony with none of the raw materials",
+      "tags": []
+    },
+    {
+      "id": "trope.past-arrival-comedy-of-manners",
+      "text": "The comedy of the new arrival's ordinary day",
+      "tags": []
+    },
+    {
+      "id": "trope.comfortable-society-register",
+      "text": "The comfortable society register",
+      "tags": []
+    },
+    {
+      "id": "trope.single-source-commodity",
+      "text": "The commodity that comes from one place",
+      "tags": []
+    },
+    {
+      "id": "trope.compound-of-conquered-species",
+      "text": "The compound of conquered peoples",
+      "tags": []
+    },
+    {
+      "id": "trope.controlled-comparison-cast",
+      "text": "The controlled comparison",
+      "tags": []
+    },
+    {
+      "id": "trope.same-person-different-variables",
+      "text": "The controlled comparison run on one person",
+      "tags": []
+    },
+    {
+      "id": "trope.crisis-with-one-available-move",
+      "text": "The crisis with only one move available",
+      "tags": []
+    },
+    {
+      "id": "trope.customer-profile-as-standing",
+      "text": "The customer profile as social standing",
+      "tags": []
+    },
+    {
+      "id": "trope.dead-city-crossing",
+      "text": "The dead city crossing",
+      "tags": []
+    },
+    {
+      "id": "trope.dependency-created-then-withdrawn",
+      "text": "The dependency built on purpose and then switched off",
+      "tags": []
+    },
+    {
+      "id": "trope.destroyer-that-is-itself-compelled",
+      "text": "The destroyer that is itself compelled",
+      "tags": []
+    },
+    {
+      "id": "trope.missing-grammatical-distinction",
+      "text": "The distinction the narrator's language does not make",
+      "tags": []
+    },
+    {
+      "id": "trope.distress-call-trap",
+      "text": "The distress call trap",
+      "tags": []
+    },
+    {
+      "id": "trope.documentary-footnote",
+      "text": "The documentary footnote",
+      "tags": []
+    },
+    {
+      "id": "trope.emissary-absorbed-into-the-other",
+      "text": "The emissary given to be absorbed",
+      "tags": []
+    },
+    {
+      "id": "trope.employer-who-is-the-objective",
+      "text": "The employer is the objective",
+      "tags": []
+    },
+    {
+      "id": "trope.enacted-simile",
+      "text": "The enacted simile",
+      "tags": []
+    },
+    {
+      "id": "trope.ending-that-withholds-the-outcome",
+      "text": "The ending that withholds the outcome",
+      "tags": []
+    },
+    {
+      "id": "trope.enemy-trait-found-at-home",
+      "text": "The enemy's defining trait, found at home",
+      "tags": []
+    },
+    {
+      "id": "trope.epigraph-from-the-future-historian",
+      "text": "The epigraph written after the events",
+      "tags": []
+    },
+    {
+      "id": "trope.estate-as-total-institution",
+      "text": "The estate as the whole world",
+      "tags": []
+    },
+    {
+      "id": "trope.extermination-order-stopped-from-inside",
+      "text": "The extermination order stopped from inside",
+      "tags": []
+    },
+    {
+      "id": "trope.first-death-you-caused",
+      "text": "The first death you caused",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "trope.first-sign-the-threat-has-returned",
+      "text": "The first sign the threat has returned",
+      "tags": []
+    },
+    {
+      "id": "trope.fix-causes-next-crisis",
+      "text": "The fix causes the next crisis",
+      "tags": []
+    },
+    {
+      "id": "trope.time-gate",
+      "text": "The fixed gate between two times",
+      "tags": []
+    },
+    {
+      "id": "trope.movement-that-outgrows-its-leader",
+      "text": "The following the leader cannot call off",
+      "tags": []
+    },
+    {
+      "id": "trope.forecasting-committee",
+      "text": "The forecasting committee",
+      "tags": []
+    },
+    {
+      "id": "trope.founding-atrocity-in-living-memory",
+      "text": "The founding atrocity still in living memory",
+      "tags": []
+    },
+    {
+      "id": "trope.game-staked-on-other-lives",
+      "text": "The game played for other people's lives",
+      "tags": []
+    },
+    {
+      "id": "trope.genetic-seedbank",
+      "text": "The genetic seedbank",
+      "tags": []
+    },
+    {
+      "id": "trope.giant-monster",
+      "text": "The giant monster",
+      "tags": []
+    },
+    {
+      "id": "trope.graded-survival-contest",
+      "text": "The graded survival contest",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "trope.homecoming-that-treats-you-as-damaged",
+      "text": "The homecoming that treats you as damaged",
+      "tags": []
+    },
+    {
+      "id": "trope.legendary-relic-hunt",
+      "text": "The hunt for the legendary relic",
+      "tags": []
+    },
+    {
+      "id": "trope.index-of-regrets",
+      "text": "The index of regrets",
+      "tags": []
+    },
+    {
+      "id": "trope.indifferent-alien",
+      "text": "The indifferent alien",
+      "tags": []
+    },
+    {
+      "id": "trope.inherited-memory-line",
+      "text": "The inherited memory line",
+      "tags": []
+    },
+    {
+      "id": "trope.injuries-that-follow-you-home",
+      "text": "The injury that comes back with you",
+      "tags": []
+    },
+    {
+      "id": "trope.institution-that-sorts-you",
+      "text": "The institution that sorts you",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "trope.interstellar-commute",
+      "text": "The interstellar commute",
+      "tags": []
+    },
+    {
+      "id": "trope.lampshaded-genre-debt",
+      "text": "The lampshaded genre debt",
+      "tags": []
+    },
+    {
+      "id": "trope.language-that-cannot-lie",
+      "text": "The language that cannot lie",
+      "tags": []
+    },
+    {
+      "id": "trope.love-triangle",
+      "text": "The love triangle",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "trope.medical-leash",
+      "text": "The medical leash",
+      "tags": []
+    },
+    {
+      "id": "trope.mind-divided-to-stay-lawful",
+      "text": "The mind divided to stay lawful",
+      "tags": []
+    },
+    {
+      "id": "trope.miracle-with-a-material-cause",
+      "text": "The miracle with a material cause",
+      "tags": []
+    },
+    {
+      "id": "trope.missing-person-case",
+      "text": "The missing person case",
+      "tags": []
+    },
+    {
+      "id": "trope.murder-the-victim-survived",
+      "text": "The murder the victim survived",
+      "tags": []
+    },
+    {
+      "id": "trope.narrator-below-the-story",
+      "text": "The narrator below the story",
+      "tags": []
+    },
+    {
+      "id": "trope.network-as-navigable-space",
+      "text": "The network as a place",
+      "tags": []
+    },
+    {
+      "id": "trope.new-hire-induction",
+      "text": "The new-hire induction",
+      "tags": []
+    },
+    {
+      "id": "trope.old-knowledge-outlasts-the-new",
+      "text": "The old knowledge outlasts the new",
+      "tags": []
+    },
+    {
+      "id": "trope.root-life-chosen",
+      "text": "The ordinary life chosen over the better ones",
+      "tags": []
+    },
+    {
+      "id": "trope.unchangeable-past",
+      "text": "The past cannot be changed",
+      "tags": []
+    },
+    {
+      "id": "trope.past-line-that-supplies-the-motive",
+      "text": "The past line that supplies the motive",
+      "tags": []
+    },
+    {
+      "id": "trope.permeable-parallel-world",
+      "text": "The permeable parallel world",
+      "tags": []
+    },
+    {
+      "id": "trope.person-as-the-decisive-weapon",
+      "text": "The person everyone wants custody of",
+      "tags": []
+    },
+    {
+      "id": "trope.enforced-disappearance",
+      "text": "The person with no record",
+      "tags": []
+    },
+    {
+      "id": "trope.generational-terraforming",
+      "text": "The plan to remake the planet over centuries",
+      "tags": []
+    },
+    {
+      "id": "trope.planet-sized-organism",
+      "text": "The planet-sized organism",
+      "tags": []
+    },
+    {
+      "id": "trope.answer-machine",
+      "text": "The plot device made literal",
+      "tags": []
+    },
+    {
+      "id": "trope.poison-as-commodity",
+      "text": "The poison as a commodity",
+      "tags": []
+    },
+    {
+      "id": "trope.post-collapse-trek",
+      "text": "The post-collapse trek",
+      "tags": []
+    },
+    {
+      "id": "trope.forbidden-preserve-with-a-guardian",
+      "text": "The preserved world with a guardian",
+      "tags": []
+    },
+    {
+      "id": "trope.prize-that-changed-nothing",
+      "text": "The prize that changed nothing",
+      "tags": []
+    },
+    {
+      "id": "trope.project-that-was-a-pretext",
+      "text": "The project that was a pretext",
+      "tags": []
+    },
+    {
+      "id": "trope.planted-prophecy",
+      "text": "The prophecy planted in advance",
+      "tags": []
+    },
+    {
+      "id": "trope.unbroken-prose-block",
+      "text": "The prose with no place to stop",
+      "tags": []
+    },
+    {
+      "id": "trope.rank-by-ancestral-harm",
+      "text": "The rank you inherit for your family's damage",
+      "tags": []
+    },
+    {
+      "id": "trope.rationalized-impossibility",
+      "text": "The rationalized impossibility",
+      "tags": []
+    },
+    {
+      "id": "trope.reclaimed-homeland",
+      "text": "The reclaimed homeland",
+      "tags": []
+    },
+    {
+      "id": "trope.recovery-raid",
+      "text": "The recovery raid",
+      "tags": []
+    },
+    {
+      "id": "trope.regret-disproved-by-testing",
+      "text": "The regret that does not survive being tested",
+      "tags": []
+    },
+    {
+      "id": "trope.protagonist-relay-across-generations",
+      "text": "The relay of protagonists across generations",
+      "tags": []
+    },
+    {
+      "id": "trope.warranty-denied-on-a-life",
+      "text": "The repair the company declines",
+      "tags": []
+    },
+    {
+      "id": "trope.salvage-runs-out",
+      "text": "The salvage runs out",
+      "tags": []
+    },
+    {
+      "id": "trope.scarce-necessity-as-social-order",
+      "text": "The scarce necessity that orders the whole culture",
+      "tags": []
+    },
+    {
+      "id": "trope.seal-opened-by-the-investigation",
+      "text": "The seal opened by the people investigating it",
+      "tags": []
+    },
+    {
+      "id": "trope.secret-stewardship-agency",
+      "text": "The secret stewardship agency",
+      "tags": []
+    },
+    {
+      "id": "trope.small-ship-as-a-business",
+      "text": "The ship as a small business",
+      "tags": []
+    },
+    {
+      "id": "trope.one-system-civilization",
+      "text": "The single-system civilization",
+      "tags": []
+    },
+    {
+      "id": "trope.machine-run-utopia",
+      "text": "The society run by its machines",
+      "tags": []
+    },
+    {
+      "id": "trope.specialist-heist",
+      "text": "The specialist heist",
+      "tags": []
+    },
+    {
+      "id": "trope.spectator-viewpoint",
+      "text": "The spectator viewpoint",
+      "tags": []
+    },
+    {
+      "id": "trope.substance-that-grants-and-addicts",
+      "text": "The substance that gives an ability and takes a hostage",
+      "tags": []
+    },
+    {
+      "id": "trope.suspect-minority-conscription",
+      "text": "The suspect minority in uniform",
+      "tags": []
+    },
+    {
+      "id": "trope.symptom-adopted-as-fashion",
+      "text": "The symptom adopted as fashion",
+      "tags": []
+    },
+    {
+      "id": "trope.teaching-machine",
+      "text": "The teaching machine",
+      "tags": ["genre.cross-genre-tonal", "genre.technology-future"]
+    },
+    {
+      "id": "trope.technology-administered-as-religion",
+      "text": "The technology run as a religion",
+      "tags": []
+    },
+    {
+      "id": "trope.set-piece-picaresque",
+      "text": "The tour of self-contained disasters",
+      "tags": []
+    },
+    {
+      "id": "trope.tracking-device-in-the-body",
+      "text": "The tracker inside the dependant's body",
+      "tags": []
+    },
+    {
+      "id": "trope.hostile-transit-medium",
+      "text": "The transit medium with something in it",
+      "tags": []
+    },
+    {
+      "id": "trope.two-viewpoints-one-person",
+      "text": "The two viewpoints are one person",
+      "tags": []
+    },
+    {
+      "id": "trope.two-power-cold-war",
+      "text": "The two-power cold war",
+      "tags": []
+    },
+    {
+      "id": "trope.atrocity-in-plain-register",
+      "text": "The unemphasised atrocity",
+      "tags": []
+    },
+    {
+      "id": "trope.unexplained-catastrophe",
+      "text": "The unexplained catastrophe",
+      "tags": []
+    },
+    {
+      "id": "trope.unexplained-gift",
+      "text": "The unexplained gift",
+      "tags": []
+    },
+    {
+      "id": "trope.unglossed-vocabulary",
+      "text": "The unglossed vocabulary",
+      "tags": []
+    },
+    {
+      "id": "trope.resource-made-by-a-creature",
+      "text": "The valuable substance is made by a creature",
+      "tags": []
+    },
+    {
+      "id": "trope.vanished-forerunners",
+      "text": "The vanished forerunners",
+      "tags": []
+    },
+    {
+      "id": "trope.villain-monologue",
+      "text": "The villain monologue",
+      "tags": []
+    },
+    {
+      "id": "trope.antechamber-between-life-and-death",
+      "text": "The waiting room between life and death",
+      "tags": []
+    },
+    {
+      "id": "trope.war-designed-to-be-lost",
+      "text": "The war designed to be lost",
+      "tags": []
+    },
+    {
+      "id": "trope.warning-treated-as-entertainment",
+      "text": "The warning received as entertainment",
+      "tags": []
+    },
+    {
+      "id": "trope.warning-that-cannot-be-taken",
+      "text": "The warning that cannot be taken",
+      "tags": []
+    },
+    {
+      "id": "trope.watched-rescue",
+      "text": "The watched rescue",
+      "tags": []
+    },
+    {
+      "id": "trope.whistleblower-broadcast",
+      "text": "The whistleblower broadcast",
+      "tags": []
+    },
+    {
+      "id": "trope.authorless-artifact",
+      "text": "The work with no author",
+      "tags": []
+    },
+    {
+      "id": "trope.world-remade-as-sculpture",
+      "text": "The world remade as a sculpture",
+      "tags": []
+    },
+    {
+      "id": "trope.thinking-machines-forbidden",
+      "text": "Thinking machines forbidden",
+      "tags": []
+    },
+    {
+      "id": "trope.toxic-atmosphere-survival",
+      "text": "Toxic-atmosphere survival",
+      "tags": ["genre.retro-aesthetic"]
+    },
+    {
+      "id": "trope.two-cultures-neither-endorsed",
+      "text": "Two societies, neither endorsed",
+      "tags": []
+    },
+    {
+      "id": "trope.administrative-tyranny",
+      "text": "Tyranny in administrative language",
+      "tags": []
+    },
+    {
+      "id": "trope.unequal-time-rates",
+      "text": "Unequal time on the two sides",
+      "tags": []
+    },
+    {
+      "id": "trope.volunteered-under-duress",
+      "text": "Volunteered under duress",
+      "tags": []
+    },
+    {
+      "id": "trope.walled-poisoned-city",
+      "text": "Walled poisoned city",
+      "tags": []
+    },
+    {
+      "id": "trope.zombie-outbreak",
+      "text": "Zombie outbreak",
+      "tags": ["genre.retro-aesthetic"]
+    }
+  ]
+}

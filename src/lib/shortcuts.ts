@@ -27,7 +27,14 @@ export type Action =
   | 'new-image'
   | 'connect'
   | 'result-up'
-  | 'result-down';
+  | 'result-down'
+  // The writing pack (Phase 6). One key per card type, in rail order.
+  | 'new-book'
+  | 'new-chapter'
+  | 'new-scene'
+  | 'new-beat'
+  | 'new-character'
+  | 'new-location';
 
 /** The label each shortcut prints in a menu. Menus read these; they never retype a key. */
 export const SHORTCUT_LABELS: Record<Action, string> = {
@@ -49,9 +56,34 @@ export const SHORTCUT_LABELS: Record<Action, string> = {
   connect: 'C',
   'result-up': 'Up',
   'result-down': 'Down',
+  'new-book': '2',
+  'new-chapter': '3',
+  'new-scene': '4',
+  'new-beat': '5',
+  'new-character': '6',
+  'new-location': '7',
 };
 
-function isTextEntry(target: EventTarget | null): boolean {
+/**
+ * The card type each writing-pack key makes. The rail's submenu reads this, so the rows and
+ * the keys can never disagree, and `SHORTCUT_LABELS` above is still the only place a key is
+ * written down.
+ */
+export const WRITING_ACTIONS: readonly { action: Action; blueprint: string }[] = [
+  { action: 'new-book', blueprint: 'book' },
+  { action: 'new-chapter', blueprint: 'chapter' },
+  { action: 'new-scene', blueprint: 'scene' },
+  { action: 'new-beat', blueprint: 'beat' },
+  { action: 'new-character', blueprint: 'character' },
+  { action: 'new-location', blueprint: 'location' },
+];
+
+/**
+ * Whether a key came from a text box. Exported because a full-screen sheet asks it directly:
+ * `matchAction` returns 'cancel' for Escape *before* its own text bail, deliberately, so a
+ * note editor can cancel — which is why the sheet's two-press Esc lives in its handler.
+ */
+export function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName.toLowerCase();
   return tag === 'input' || tag === 'textarea' || target.isContentEditable;
@@ -106,6 +138,25 @@ export function matchAction(event: KeyboardEvent): Action | null {
       return 'result-up';
     case 'ArrowDown':
       return 'result-down';
+    default:
+      break;
+  }
+
+  // The writing pack's 2–7, AFTER the `inText` bail above, so typing a 4 into a field never
+  // makes a Scene.
+  switch (event.key) {
+    case '2':
+      return 'new-book';
+    case '3':
+      return 'new-chapter';
+    case '4':
+      return 'new-scene';
+    case '5':
+      return 'new-beat';
+    case '6':
+      return 'new-character';
+    case '7':
+      return 'new-location';
     default:
       break;
   }

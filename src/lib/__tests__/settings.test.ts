@@ -45,7 +45,7 @@ describe('the settings module', () => {
     expect(sanitizeSettings({ font: 'marker' }).font).toBe('marker');
   });
 
-  it('sanitizeSettings_oneBadField_keepsTheOtherFour', () => {
+  it('sanitizeSettings_oneBadField_keepsTheOtherFive', () => {
     const cleaned = sanitizeSettings({
       autoSaveMs: 10000,
       snapToGrid: true,
@@ -59,6 +59,8 @@ describe('the settings module', () => {
       zoomWith: 'scroll',
       theme: 'dark',
       font: 'marker',
+      // Absent from the input entirely — anything that is not literally `false` is on.
+      showWritingCards: true,
     });
   });
 
@@ -106,6 +108,7 @@ describe('the settings module', () => {
         zoomWith: 'scroll',
         theme: 'light',
         font: 'serif',
+        showWritingCards: true,
       },
     });
     const sent = invoke.mock.calls[0][1].settings;

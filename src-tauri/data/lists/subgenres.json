@@ -1,0 +1,230 @@
+{
+  "list": "subgenres",
+  "entries": [
+    {
+      "id": "genre.ai-fiction",
+      "text": "AI Fiction",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "genre.alien-invasion",
+      "text": "Alien Invasion",
+      "tags": ["genre.encounter-scale"]
+    },
+    {
+      "id": "genre.alternate-history",
+      "text": "Alternate History",
+      "tags": ["genre.time-reality"]
+    },
+    {
+      "id": "genre.apocalyptic",
+      "text": "Apocalyptic",
+      "tags": ["genre.catastrophe-aftermath"]
+    },
+    {
+      "id": "genre.biopunk",
+      "text": "Biopunk",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "genre.captivity-sf",
+      "text": "Captivity SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.climate-fiction",
+      "text": "Climate Fiction",
+      "tags": ["genre.catastrophe-aftermath"]
+    },
+    {
+      "id": "genre.colonization",
+      "text": "Colonization",
+      "tags": ["genre.scope-setting"]
+    },
+    {
+      "id": "genre.comedic-sf",
+      "text": "Comedic SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.consolation-fiction",
+      "text": "Consolation Fiction",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.corporate-sf",
+      "text": "Corporate SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.cosmic-horror",
+      "text": "Cosmic Horror",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.cyberpunk",
+      "text": "Cyberpunk",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "genre.detective-sf",
+      "text": "Detective SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.domestic-catastrophe",
+      "text": "Domestic Catastrophe",
+      "tags": ["genre.catastrophe-aftermath"]
+    },
+    {
+      "id": "genre.dystopian",
+      "text": "Dystopian",
+      "tags": ["genre.catastrophe-aftermath"]
+    },
+    {
+      "id": "genre.first-contact",
+      "text": "First Contact",
+      "tags": ["genre.encounter-scale"]
+    },
+    {
+      "id": "genre.hard-sf",
+      "text": "Hard SF",
+      "tags": ["genre.rigor"]
+    },
+    {
+      "id": "genre.linguistic-sf",
+      "text": "Linguistic SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.metafiction-sf",
+      "text": "Metafiction SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.military-sf",
+      "text": "Military SF",
+      "tags": ["genre.scope-setting"]
+    },
+    {
+      "id": "genre.multiverse",
+      "text": "Multiverse",
+      "tags": ["genre.time-reality"]
+    },
+    {
+      "id": "genre.mundane-sf",
+      "text": "Mundane SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.nanopunk",
+      "text": "Nanopunk",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "genre.new-weird",
+      "text": "New Weird",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.pedagogical-sf",
+      "text": "Pedagogical SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.post-apocalyptic",
+      "text": "Post-Apocalyptic",
+      "tags": ["genre.catastrophe-aftermath"]
+    },
+    {
+      "id": "genre.post-cyberpunk",
+      "text": "Post-Cyberpunk",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "genre.retrofuturism",
+      "text": "Retrofuturism",
+      "tags": ["genre.retro-aesthetic"]
+    },
+    {
+      "id": "genre.science-fantasy",
+      "text": "Science Fantasy",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.secret-history",
+      "text": "Secret History",
+      "tags": ["genre.time-reality"]
+    },
+    {
+      "id": "genre.slipstream",
+      "text": "Slipstream",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.soft-sf",
+      "text": "Soft SF",
+      "tags": ["genre.rigor"]
+    },
+    {
+      "id": "genre.solarpunk",
+      "text": "Solarpunk",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "genre.space-opera",
+      "text": "Space Opera",
+      "tags": ["genre.scope-setting"]
+    },
+    {
+      "id": "genre.space-western",
+      "text": "Space Western",
+      "tags": ["genre.scope-setting"]
+    },
+    {
+      "id": "genre.spectacle-sf",
+      "text": "Spectacle SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.steampunk",
+      "text": "Steampunk",
+      "tags": ["genre.retro-aesthetic"]
+    },
+    {
+      "id": "genre.survival-sf",
+      "text": "Survival SF",
+      "tags": ["genre.cross-genre-tonal"]
+    },
+    {
+      "id": "genre.time-travel",
+      "text": "Time Travel",
+      "tags": ["genre.time-reality"]
+    },
+    {
+      "id": "genre.transhumanism",
+      "text": "Transhumanism",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "genre.utopian",
+      "text": "Utopian",
+      "tags": ["genre.catastrophe-aftermath"]
+    },
+    {
+      "id": "genre.virtual-world-sf",
+      "text": "Virtual-World SF",
+      "tags": ["genre.technology-future"]
+    },
+    {
+      "id": "genre.xenofiction",
+      "text": "Xenofiction",
+      "tags": ["genre.encounter-scale"]
+    },
+    {
+      "id": "genre.young-adult",
+      "text": "Young Adult",
+      "tags": ["genre.cross-genre-tonal"]
+    }
+  ]
+}

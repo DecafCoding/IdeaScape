@@ -12,6 +12,8 @@
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
+  import { getBlueprint } from '../../lib/blueprints.svelte';
+  import type { Glyph } from '../../lib/glyphs';
   import { relativeTime } from '../../lib/relativeTime';
   import { SHORTCUT_LABELS } from '../../lib/shortcuts';
   import { splitOnMatch } from './highlight';
@@ -37,16 +39,21 @@
   }
 
   /**
-   * Only `note` items are searched (`search-method` names exactly three queries), so this is
-   * always `ph-note` in the MVP. The branch is kept because `CardHit.kind` is carried so a
-   * later phase can widen the search without changing a shape.
+   * The row's icon. A writing card carries its own TYPE KICKER glyph, so a Chapter hit is
+   * visibly a Chapter; every other kind keeps the note or image glyph it always had.
    */
-  function glyphFor(kind: string): 'note' | 'image' {
-    return kind === 'image' ? 'image' : 'note';
+  function glyphFor(hit: CardHit): Glyph {
+    if (hit.blueprint) return getBlueprint(hit.blueprint)?.glyph ?? 'note';
+    return hit.kind === 'image' ? 'image' : 'note';
   }
 
-  function kindLabel(kind: string): string {
-    return kind.charAt(0).toUpperCase() + kind.slice(1);
+  /** The row's sub-line: the card TYPE, which for a writing card is its blueprint's label. */
+  function kindLabel(hit: CardHit): string {
+    if (hit.blueprint) {
+      const found = getBlueprint(hit.blueprint);
+      if (found) return found.label;
+    }
+    return hit.kind.charAt(0).toUpperCase() + hit.kind.slice(1);
   }
 </script>
 
@@ -101,14 +108,14 @@
         aria-selected={canvasCount + index === highlighted}
         onclick={() => onOpenCard?.(hit)}
       >
-        <Icon glyph={glyphFor(hit.kind)} size={14} />
+        <Icon glyph={glyphFor(hit)} size={14} />
         <span class="text">
           <span class="title">
             {#each splitOnMatch(hit.title, query) as part, partIndex (partIndex)}
               {#if part.match}<b>{part.text}</b>{:else}{part.text}{/if}
             {/each}
           </span>
-          <span class="sub">{kindLabel(hit.kind)} · {hit.canvas_name}</span>
+          <span class="sub">{kindLabel(hit)} · {hit.canvas_name}</span>
           {#if hit.snippet}
             <span class="snippet">
               {#each splitOnMatch(hit.snippet, query) as part, partIndex (partIndex)}

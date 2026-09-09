@@ -7,6 +7,13 @@
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
+  import { blueprintForPayload, parseBlueprintPayload } from '../../lib/blueprints.svelte';
+  import FieldControl from '../../lib/fields/FieldControl.svelte';
+  import { ROLES, roleLabel } from '../../lib/roles';
+  import CardContext from '../../lib/fields/CardContext.svelte';
+  import Combo from '../../lib/fields/Combo.svelte';
+  import type { FieldValue, PickEntry } from '../../lib/blueprints.svelte';
+  import type { ItemContext } from '../../lib/types';
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import { assetStatus } from '../../lib/assets.svelte';
   import {
@@ -58,6 +65,22 @@
     onNoteTitleChange?: (title: string) => void;
     /** Replace the selected image card's picture, keeping its alt text. */
     onReplaceImage?: () => void;
+    /** Where else the selected writing card is, and what it is wired to (§9.28). */
+    itemContext?: ItemContext | null;
+    /**
+     * §9.33: while the Chapter sheet is open the panel is RESERVED — the type name, the card
+     * id and one line, and nothing else. There is no AI glyph and none is held back.
+     */
+    reserved?: boolean;
+    /** Write one field of the selected writing card. The root pushes the undo command. */
+    onFieldChange?: (key: string, value: FieldValue, listAdded?: boolean) => void;
+    /** A Scale reports where the change started, so a whole drag is one undo entry. */
+    onScaleChange?: (key: string, next: number, before: number) => void;
+    /** Replace the picture in one Image FIELD of a writing card. */
+    onReplaceFieldImage?: (key: string) => void;
+    onExpandIntoCanvas?: () => void;
+    onOpenPlacement?: (canvasId: number, placementId: number) => void;
+    onOpenItem?: (canvasId: number, itemId: number) => void;
     /** Reveal the project's `assets/` folder in the system shell. */
     onShowInFolder?: () => void;
     /** Read the selected link or video card's address again. */
@@ -80,6 +103,14 @@
     onImageTitleChange,
     onImageTitleVisibleChange,
     onReplaceImage,
+    itemContext = null,
+    reserved = false,
+    onFieldChange,
+    onScaleChange,
+    onReplaceFieldImage,
+    onExpandIntoCanvas,
+    onOpenPlacement,
+    onOpenItem,
     onShowInFolder,
     onRefetch,
   }: Props = $props();
@@ -105,6 +136,30 @@
     if (next === connection.label) return;
     commitConnection({ label: next });
   }
+
+  /**
+   * The Role group. It commits through the same `commitConnection` path every other
+   * connection field uses, so setting a role is ONE `editConnectionCommand` and no new
+   * command class is needed.
+   *
+   * A typed role is accepted like any other combo value. NULL is never written back as
+   * 'relates-to': the two are indistinguishable on screen, and normalising one into the
+   * other would rewrite every old row for no visible gain.
+   */
+  function commitRole(role: string | null) {
+    if (!connection || connection.role === role) return;
+    commitConnection({ role });
+  }
+
+  /** The seven roles as combo entries. A role the user typed is not in this list, and is
+   *  accepted anyway — that is the point of the control. */
+  const roleEntries = $derived(ROLES.map((role) => ({ id: role.key, text: role.label, tags: [] })));
+
+  /** The current role as a pick entry, so the combo shows its name rather than its key. */
+  const roleValue = $derived.by(() => {
+    if (!connection?.role) return null;
+    return { id: connection.role, text: roleLabel(connection.role), sources: ['roles'] };
+  });
 
   function commitDirection(directed: number) {
     if (!connection || connection.directed === directed) return;
@@ -177,10 +232,18 @@
 
   const KIND_LABELS = { note: 'Note', image: 'Image', link: 'Link', video: 'Video' } as const;
 
+  /** The blueprint of the one selected writing card, or null for every other kind. */
+  const soleBlueprint = $derived(
+    soleItem?.kind === 'blueprint' ? blueprintForPayload(soleItem.payload) : null,
+  );
+
   const headerKind = $derived.by(() => {
     if (selected.length === 0) return '';
     if (selected.length > 1) return `${selected.length} Cards`;
-    return soleItem ? KIND_LABELS[soleItem.kind] : 'Card';
+    if (!soleItem) return 'Card';
+    // A writing card is headed by its own type name, which the blueprint carries.
+    if (soleItem.kind === 'blueprint') return soleBlueprint?.label ?? 'Card';
+    return KIND_LABELS[soleItem.kind];
   });
 
   const headerId = $derived.by(() => {
@@ -232,6 +295,44 @@
     return null;
   });
 
+  // --- the generated writing-card panel (§9.25, §9.28) --------------------
+
+  /** The one selected writing card's payload, or null for every other kind. */
+  const blueprintPayload = $derived(
+    soleItem?.kind === 'blueprint' ? parseBlueprintPayload(soleItem.payload) : null,
+  );
+
+  /**
+   * The fields this panel draws.
+   *
+   * For a type WITH a sheet (Book, Chapter, Character) the panel still draws — §9.30 keeps
+   * the 177px panel beside the sheet — but only the identity fields, because the rest of the
+   * card has a whole screen of its own. That is driven by the blueprint's `sheet` flag; NO
+   * CARD TYPE IS EVER NAMED IN THIS COMPONENT.
+   */
+  const panelFields = $derived.by(() => {
+    if (!soleBlueprint) return [];
+    if (!soleBlueprint.sheet) return soleBlueprint.fields;
+    // The identity fields: everything up to and including the first long-form field, which
+    // is where a sheet's own layout takes over.
+    const firstLong = soleBlueprint.fields.findIndex(
+      (field) => field.kind === 'long-text' || field.kind === 'scale',
+    );
+    return firstLong === -1 ? soleBlueprint.fields : soleBlueprint.fields.slice(0, firstLong);
+  });
+
+  /** The value of a field named by another field's `filter_by`. One hop, never a chain. */
+  function parentFor(key: string | undefined): PickEntry | null {
+    if (!key || !blueprintPayload) return null;
+    const raw = blueprintPayload.fields[key];
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as PickEntry) : null;
+  }
+
+  function parentLabelFor(key: string | undefined): string {
+    const value = parentFor(key);
+    return value?.text ?? '';
+  }
+
   const fetching = $derived(
     soleItem !== null && canvasStore.fetchStatusFor(soleItem.id) === 'fetching',
   );
@@ -246,10 +347,30 @@
 
 {#if expanded}
   <aside class="panel scroll-thin" data-testid="properties-panel" aria-label="Properties">
-    {#if connection}
+    {#if reserved}
+      <header class="header">
+        <span class="kind">{headerKind}</span>
+        <span class="item-id">{headerId}</span>
+      </header>
+      <p class="footer-note" data-testid="panel-reserved">Reserved for AI options</p>
+    {:else if connection}
       <header class="header">
         <span class="kind">Connection</span>
       </header>
+
+      <!-- §9.13 places Role ABOVE Label. -->
+      <section class="group" data-testid="panel-role-group">
+        <p class="group-label">Role</p>
+        <Combo
+          list="roles"
+          entries={roleEntries}
+          value={roleValue}
+          placeholder="Relates To"
+          onCommit={(entry) =>
+            commitRole(entry.text === 'Relates To' ? null : (entry.id ?? entry.text))}
+          onClear={() => commitRole(null)}
+        />
+      </section>
 
       <section class="group">
         <p class="group-label">Label</p>
@@ -451,6 +572,26 @@
         </section>
       {/if}
 
+      {#if soleBlueprint && blueprintPayload}
+        <!-- ONE CONTROL PER FIELD, IN BLUEPRINT ORDER. There is no per-card-type branch
+             here and there must never be one: if a branch on one card type's id is ever
+             needed, the blueprint format is missing a member and the fix belongs in the
+             data file, not in this component. -->
+        <section class="group" data-testid="panel-blueprint-fields">
+          {#each panelFields as field (field.key)}
+            <FieldControl
+              {field}
+              value={blueprintPayload.fields[field.key]}
+              parent={parentFor(field.filter_by)}
+              parentLabel={parentLabelFor(field.filter_by)}
+              onCommit={(value, added) => onFieldChange?.(field.key, value, added)}
+              onCommitScale={(next, before) => onScaleChange?.(field.key, next, before)}
+              onReplaceImage={() => onReplaceFieldImage?.(field.key)}
+            />
+          {/each}
+        </section>
+      {/if}
+
       {#each ['position', 'size'] as const as group}
         <section class="group">
           <p class="group-label">{group === 'position' ? 'Position' : 'Size'}</p>
@@ -566,15 +707,36 @@
         </section>
       {/if}
 
+      <!-- §9.28. Both groups are drawn for writing cards ONLY: the four original kinds'
+           panel states are untouched, which is a regression line in PRD §11. -->
+      {#if soleBlueprint}
+        <CardContext context={itemContext} {onOpenPlacement} {onOpenItem} />
+      {/if}
+
       <footer class="footer">
-        <div class="footer-row">
-          <button type="button" class="icon-button duplicate" onclick={onDuplicate}>
-            <Icon glyph="copy" size={13} label="Duplicate" />
-          </button>
-          <button type="button" class="icon-button delete" onclick={onDelete}>
-            <Icon glyph="trash" size={13} label="Delete" />
-          </button>
-        </div>
+        {#if soleBlueprint}
+          <!-- §9.28: for a writing type the Card group REPLACES the Duplicate/Delete pair
+               rather than being drawn beside it, and the delete is named for the type. -->
+          <div class="card-actions">
+            <button type="button" class="card-action" onclick={onExpandIntoCanvas}>
+              <Icon glyph="square-half" size={13} />
+              Expand Into A Canvas
+            </button>
+            <button type="button" class="card-action destructive" onclick={onDelete}>
+              <Icon glyph="trash" size={13} />
+              Delete {soleBlueprint.label}
+            </button>
+          </div>
+        {:else}
+          <div class="footer-row">
+            <button type="button" class="icon-button duplicate" onclick={onDuplicate}>
+              <Icon glyph="copy" size={13} label="Duplicate" />
+            </button>
+            <button type="button" class="icon-button delete" onclick={onDelete}>
+              <Icon glyph="trash" size={13} label="Delete" />
+            </button>
+          </div>
+        {/if}
         <p class="footer-note">Edits here are undoable · {autoSaveFooterText().split('· ')[1]}</p>
       </footer>
     {:else}
@@ -824,6 +986,41 @@
     width: 26px;
     border-radius: 2px;
     background: var(--color-text);
+  }
+
+  .card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  .card-action {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    width: 100%;
+    padding: var(--space-5) var(--space-6);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--text-11);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .card-action:hover {
+    background: var(--tint-accent-hover);
+  }
+
+  .card-action.destructive {
+    border-color: var(--color-accent-2);
+    color: var(--color-accent-2-tint-text);
+  }
+
+  .card-action.destructive:hover {
+    background: var(--color-accent-2-tint-fill);
   }
 
   .footer {

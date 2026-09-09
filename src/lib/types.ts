@@ -3,6 +3,8 @@
  * typed item payloads from PRD §6.9. Field names must stay in step with the Rust side.
  */
 
+import { imageKeys, parseBlueprintPayload } from './blueprints.svelte';
+
 export interface Project {
   id: number;
   name: string;
@@ -61,6 +63,8 @@ export interface CardHit {
   title: string;
   snippet: string;
   matched_title: boolean;
+  /** The card type, for a `blueprint` hit only, so the row carries its kicker glyph. */
+  blueprint?: string | null;
 }
 
 export interface SearchResults {
@@ -68,7 +72,7 @@ export interface SearchResults {
   cards: CardHit[];
 }
 
-export type ItemKind = 'note' | 'image' | 'link' | 'video';
+export type ItemKind = 'note' | 'image' | 'link' | 'video' | 'blueprint';
 
 export interface Item {
   id: number;
@@ -130,6 +134,20 @@ export interface CanvasDeleteEffect {
   items: Item[];
   connections: Connection[];
   assets: string[];
+  /**
+   * The items whose `detail_canvas_id` pointed at the deleted canvas, as they were before it
+   * was cleared — so restoring the canvas puts the pointers back too.
+   */
+  detail_pointers: Item[];
+}
+
+/** Everything `expand_into_canvas` created, so one undo step reverses all three. */
+export interface ExpandEffect {
+  canvas: Canvas;
+  placement: Placement;
+  /** What the pointer was before, so undo restores it rather than assuming null. */
+  previous_detail_canvas_id: number | null;
+  item: Item;
 }
 
 /**
@@ -166,6 +184,12 @@ export interface Connection {
    * see `parseBend` in `lib/connectionGeometry.ts`.
    */
   bend: string;
+  /**
+   * What the line means: a key from `lib/roles.ts`, any text the user typed, or null. NULL
+   * reads as *Relates To* and draws no glyph — which is how every line made before Phase 6
+   * already looks, and why no back-fill was needed. It is never normalised on write.
+   */
+  role: string | null;
 }
 
 /**
@@ -182,6 +206,7 @@ export interface ConnectionEdit {
   fromAnchor: string;
   toAnchor: string;
   bend: string;
+  role: string | null;
 }
 
 /**
@@ -199,6 +224,7 @@ export function connectionEdit(connection: Connection): ConnectionEdit {
     fromAnchor: connection.from_anchor,
     toAnchor: connection.to_anchor,
     bend: connection.bend,
+    role: connection.role,
   };
 }
 
@@ -363,6 +389,8 @@ export function cardTitle(item: Item): string {
       const payload = parseVideoPayload(item.payload);
       return payload.title || urlHost(payload.url) || fallback;
     }
+    case 'blueprint':
+      return parseBlueprintPayload(item.payload).name || fallback;
     default:
       return fallback;
   }
@@ -376,7 +404,15 @@ export function payloadAssetNames(kind: ItemKind, payload: string): string[] {
     const value = parseLinkPayload(payload);
     names.push(value.favicon_asset, value.thumbnail_asset);
   }
-  if (kind === 'video') names.push(parseVideoPayload(payload).thumbnail_asset);
+  if (kind === 'blueprint') {
+    // Mirrors the `"blueprint"` arm of `asset_names` in Rust: which keys are Image is a
+    // blueprint question, so the registry answers it rather than a list written twice.
+    const value = parseBlueprintPayload(payload);
+    for (const key of imageKeys(value.blueprint)) {
+      const name = value.fields[key];
+      if (typeof name === 'string') names.push(name);
+    }
+  }
   return names.filter((n): n is string => n !== null && n.length > 0);
 }
 
@@ -418,4 +454,35 @@ export interface VideoPreviewResult {
   title: string;
   author_name: string;
   thumbnail_asset: string | null;
+}
+
+/** One placement of a writing card, for the panel's *Placed on* group (§9.28). */
+export interface ItemPlacement {
+  placement_id: number;
+  canvas_id: number;
+  canvas_name: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * One line touching a writing card, for the panel's *Joined to* group.
+ *
+ * `reversed` says which end this card is, which is what lets *Part Of* read *Contains* from
+ * the other end — a display decision, never a stored value and never an eighth role.
+ */
+export interface ItemJoin {
+  connection_id: number;
+  canvas_id: number;
+  other_item_id: number;
+  other_name: string;
+  other_blueprint: string | null;
+  role: string | null;
+  reversed: boolean;
+}
+
+/** Where else a writing card is, and what it is wired to. Mirrors the Rust struct. */
+export interface ItemContext {
+  placements: ItemPlacement[];
+  joined: ItemJoin[];
 }

@@ -2,6 +2,7 @@
 //! surface the front end can reach.
 
 pub mod assets;
+pub mod blueprints;
 pub mod commands;
 pub mod db;
 pub mod error;
@@ -25,6 +26,15 @@ pub fn run() {
         commands::project::close_project,
         commands::project::list_recent_projects,
         commands::project::default_project_parent,
+        commands::blueprint::list_blueprints,
+        commands::blueprint::create_blueprint_card,
+        commands::blueprint::set_item_field,
+        commands::blueprint::list_unplaced_items,
+        commands::blueprint::item_context,
+        commands::blueprint::expand_into_canvas,
+        commands::lists::list_entries,
+        commands::lists::add_list_entry,
+        commands::lists::remove_list_entry,
         commands::canvas::list_canvases,
         commands::canvas::create_canvas,
         commands::canvas::rename_canvas,
@@ -52,6 +62,7 @@ pub fn run() {
         commands::item::create_item,
         commands::item::update_item_payload,
         commands::item::delete_item,
+        commands::item::restore_item,
         commands::placement::list_placements,
         commands::placement::create_placement,
         commands::placement::create_note_card,
@@ -62,7 +73,9 @@ pub fn run() {
         commands::placement::delete_placements,
         commands::placement::seed_note_cards,
         commands::placement::seed_mixed_cards,
+        commands::placement::seed_blueprint_cards,
         commands::project::perf_gate_requested,
+        commands::project::perf_gate_writing,
         commands::project::perf_gate_project_path,
         commands::project::record_perf_result,
     ]);
@@ -75,6 +88,15 @@ pub fn run() {
         commands::project::close_project,
         commands::project::list_recent_projects,
         commands::project::default_project_parent,
+        commands::blueprint::list_blueprints,
+        commands::blueprint::create_blueprint_card,
+        commands::blueprint::set_item_field,
+        commands::blueprint::list_unplaced_items,
+        commands::blueprint::item_context,
+        commands::blueprint::expand_into_canvas,
+        commands::lists::list_entries,
+        commands::lists::add_list_entry,
+        commands::lists::remove_list_entry,
         commands::canvas::list_canvases,
         commands::canvas::create_canvas,
         commands::canvas::rename_canvas,
@@ -102,6 +124,7 @@ pub fn run() {
         commands::item::create_item,
         commands::item::update_item_payload,
         commands::item::delete_item,
+        commands::item::restore_item,
         commands::placement::list_placements,
         commands::placement::create_placement,
         commands::placement::create_note_card,

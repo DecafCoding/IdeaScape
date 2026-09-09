@@ -29,6 +29,7 @@ function connection(id: number, from = 1, to = 2): Connection {
     from_anchor: 'auto',
     to_anchor: 'auto',
     bend: '',
+    role: null,
   };
 }
 

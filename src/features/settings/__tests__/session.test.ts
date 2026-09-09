@@ -286,6 +286,7 @@ describe('the Settings screen in the shell', () => {
       zoomWith: 'ctrl-scroll',
       theme: 'dark',
       font: 'serif',
+      showWritingCards: true,
     });
     // The settings read is the very first thing the application does.
     expect(order[0]).toBe('read_settings');

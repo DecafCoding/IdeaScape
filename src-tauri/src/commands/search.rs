@@ -40,6 +40,10 @@ pub struct CardHit {
     pub title: String,
     pub snippet: String,
     pub matched_title: bool,
+    /// The card type, for a `blueprint` hit only — so the row can carry that type's kicker
+    /// glyph and be visibly a Chapter. `None` for the four original kinds.
+    #[serde(default)]
+    pub blueprint: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -189,6 +193,7 @@ pub fn search_project_for(state: &AppState, query: String) -> AppResult<SearchRe
                             title: r.get("title")?,
                             snippet: String::new(),
                             matched_title,
+                            blueprint: None,
                         },
                         body,
                     ))
@@ -206,6 +211,99 @@ pub fn search_project_for(state: &AppState, query: String) -> AppResult<SearchRe
                 cards.push(hit);
             }
         }
+        // (4) Writing cards, by name and by the text of any Long Text field.
+        //
+        // The SQL is one more LIKE prefilter and Rust then filters the rows precisely,
+        // because WHICH KEYS ARE LONG TEXT IS A BLUEPRINT QUESTION and SQLite cannot answer
+        // it. `i.payload LIKE ?2` matches field KEYS and blueprint ids as well as values, so
+        // searching "prose" would otherwise return every Chapter — THE RUST FILTER BELOW IS
+        // NOT AN OPTIMISATION, IT IS THE CORRECTNESS STEP. Do not drop it.
+        {
+            let mut stmt = conn.prepare(
+                "SELECT p.id AS placement_id, c.id AS canvas_id, c.name AS canvas_name,
+                        i.id AS item_id, i.kind AS kind, i.payload AS payload
+                 FROM item i
+                 JOIN placement p ON p.item_id = i.id
+                 JOIN canvas c ON c.id = p.canvas_id
+                 WHERE c.project_id = ?1 AND i.kind = 'blueprint'
+                   AND (json_extract(i.payload, '$.name') LIKE ?2 ESCAPE '\\'
+                        OR i.payload LIKE ?2 ESCAPE '\\')
+                 ORDER BY c.sort_order, p.z_order, p.id",
+            )?;
+            let rows = stmt
+                .query_map(rusqlite::params![project_id, pattern], |r| {
+                    Ok((
+                        CardHit {
+                            placement_id: r.get("placement_id")?,
+                            canvas_id: r.get("canvas_id")?,
+                            canvas_name: r.get("canvas_name")?,
+                            item_id: r.get("item_id")?,
+                            kind: r.get("kind")?,
+                            title: String::new(),
+                            snippet: String::new(),
+                            matched_title: false,
+                            blueprint: None,
+                        },
+                        r.get::<_, String>("payload")?,
+                    ))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+
+            let lowered = needle.to_lowercase();
+            let mut written = 0i64;
+            for (mut hit, payload) in rows {
+                if written >= GROUP_LIMIT {
+                    break;
+                }
+                if seen_items.contains(&hit.item_id) {
+                    continue;
+                }
+                let Ok(value) = serde_json::from_str::<serde_json::Value>(&payload) else {
+                    continue;
+                };
+                let name = value.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let blueprint = value
+                    .get("blueprint")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let fields = value.get("fields");
+
+                // The name pass runs first, so a card matching on both is one result named
+                // by its name.
+                let name_matched = name.to_lowercase().contains(&lowered);
+                let mut body = String::new();
+                if !name_matched {
+                    for key in crate::blueprints::long_text_keys(blueprint) {
+                        let text = fields
+                            .and_then(|f| f.get(key))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        if text.to_lowercase().contains(&lowered) {
+                            body = text.to_string();
+                            break;
+                        }
+                    }
+                    if body.is_empty() {
+                        continue;
+                    }
+                }
+
+                seen_items.push(hit.item_id);
+                hit.title = if name.is_empty() {
+                    format!("blueprint-{:03}", hit.item_id)
+                } else {
+                    name.to_string()
+                };
+                hit.matched_title = name_matched;
+                hit.blueprint = Some(blueprint.to_string());
+                hit.snippet = snippet(&body, &needle, SNIPPET_WIDTH);
+                cards.push(hit);
+                written += 1;
+            }
+        }
+
+        // GROUP_LIMIT is applied per pass and the combined list is truncated afterwards, so
+        // the popover's header count never claims fewer rows than it returns.
         cards.truncate(GROUP_LIMIT as usize);
 
         Ok(SearchResults { canvases, cards })
@@ -373,5 +471,153 @@ mod tests {
         let results = search_project_for(&state, "100%".into()).unwrap();
         assert_eq!(results.canvases.len(), 1, "% must not act as a wildcard");
         assert_eq!(results.canvases[0].name, "100% done");
+    }
+
+    // ---- Task 25: the fourth pass, over writing cards ----
+
+    /// A project holding one Chapter with a name and some prose.
+    fn project_with_a_chapter() -> (tempfile::TempDir, AppState, i64) {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        let project = crate::commands::project::open_project_at(&state, dir.path()).unwrap();
+        let canvas = crate::commands::canvas::list_canvases_for(&state, project.id).unwrap()[0].id;
+        let card = crate::commands::blueprint::create_blueprint_card_for(
+            &state,
+            canvas,
+            0.0,
+            0.0,
+            264.0,
+            168.0,
+            String::from("chapter"),
+        )
+        .unwrap();
+        crate::commands::blueprint::set_item_field_for(
+            &state,
+            card.item.id,
+            String::from("name"),
+            "The Archivist".into(),
+        )
+        .unwrap();
+        crate::commands::blueprint::set_item_field_for(
+            &state,
+            card.item.id,
+            String::from("prose"),
+            "She woke in the hull, and the becalmed ark ship hummed around her.".into(),
+        )
+        .unwrap();
+        (dir, state, card.item.id)
+    }
+
+    #[test]
+    fn search_finds_a_blueprint_card_by_its_name() {
+        let (_dir, state, item_id) = project_with_a_chapter();
+        let results = search_project_for(&state, String::from("archivist")).unwrap();
+        assert_eq!(results.cards.len(), 1);
+        assert_eq!(results.cards[0].item_id, item_id);
+        assert_eq!(results.cards[0].title, "The Archivist");
+        assert!(results.cards[0].matched_title);
+        assert_eq!(results.cards[0].kind, "blueprint");
+    }
+
+    #[test]
+    fn search_finds_a_chapter_by_a_phrase_inside_its_prose() {
+        let (_dir, state, _item) = project_with_a_chapter();
+        let results = search_project_for(&state, String::from("becalmed ark")).unwrap();
+        assert_eq!(results.cards.len(), 1);
+        // Named by the card's NAME, with the snippet cut from the matching Long Text field.
+        assert_eq!(results.cards[0].title, "The Archivist");
+        assert!(!results.cards[0].matched_title);
+        assert!(results.cards[0]
+            .snippet
+            .to_lowercase()
+            .contains("becalmed ark"));
+    }
+
+    #[test]
+    fn search_does_not_return_a_chapter_for_the_word_prose() {
+        // The SQL prefilter matches field KEYS as well as values; the Rust filter after it is
+        // the correctness step, not an optimisation.
+        let (_dir, state, _item) = project_with_a_chapter();
+        assert!(search_project_for(&state, String::from("prose"))
+            .unwrap()
+            .cards
+            .is_empty());
+        assert!(search_project_for(&state, String::from("chapter"))
+            .unwrap()
+            .cards
+            .is_empty());
+        assert!(search_project_for(&state, String::from("word_target"))
+            .unwrap()
+            .cards
+            .is_empty());
+    }
+
+    #[test]
+    fn search_a_short_text_field_is_not_searched() {
+        let (_dir, state, item_id) = project_with_a_chapter();
+        crate::commands::blueprint::set_item_field_for(
+            &state,
+            item_id,
+            String::from("summary"),
+            "A quiet corridor".into(),
+        )
+        .unwrap();
+        // Only the name and the Long Text fields are searched.
+        assert!(search_project_for(&state, String::from("corridor"))
+            .unwrap()
+            .cards
+            .is_empty());
+    }
+
+    #[test]
+    fn search_a_card_matching_name_and_body_is_one_result_named_by_its_name() {
+        let (_dir, state, item_id) = project_with_a_chapter();
+        crate::commands::blueprint::set_item_field_for(
+            &state,
+            item_id,
+            String::from("prose"),
+            "The archivist wrote nothing down.".into(),
+        )
+        .unwrap();
+        let results = search_project_for(&state, String::from("archivist")).unwrap();
+        assert_eq!(results.cards.len(), 1, "one result, not two");
+        assert!(results.cards[0].matched_title, "the name pass wins");
+    }
+
+    #[test]
+    fn search_still_ranks_canvas_names_first() {
+        let (_dir, state, _item) = project_with_a_chapter();
+        crate::commands::canvas::rename_canvas_for(&state, 1, String::from("The Archivist"))
+            .unwrap();
+        let results = search_project_for(&state, String::from("archivist")).unwrap();
+        // Canvases are their own group and always come before card hits. That ranking is the
+        // requirement, not the indexing.
+        assert_eq!(results.canvases.len(), 1);
+        assert_eq!(results.canvases[0].name, "The Archivist");
+        assert_eq!(results.cards.len(), 1);
+    }
+
+    #[test]
+    fn search_a_term_holding_a_wildcard_still_escapes_on_the_fourth_pass() {
+        let (_dir, state, item_id) = project_with_a_chapter();
+        crate::commands::blueprint::set_item_field_for(
+            &state,
+            item_id,
+            String::from("prose"),
+            "Ninety per cent, or 90%_done.".into(),
+        )
+        .unwrap();
+        // `%` and `_` are literal text, not wildcards.
+        assert_eq!(
+            search_project_for(&state, String::from("90%_done"))
+                .unwrap()
+                .cards
+                .len(),
+            1
+        );
+        assert!(search_project_for(&state, String::from("90%zdone"))
+            .unwrap()
+            .cards
+            .is_empty());
     }
 }

@@ -14,6 +14,8 @@
   import ImageCard from './ImageCard.svelte';
   import LinkCard from './LinkCard.svelte';
   import VideoCard from './VideoCard.svelte';
+  import BlueprintCard from './BlueprintCard.svelte';
+  import { getBlueprint, parseBlueprintPayload } from '../../lib/blueprints.svelte';
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import { assetStatus } from '../../lib/assets.svelte';
   import { cullWithCounts, recordCullCounts } from '../../lib/culling';
@@ -25,6 +27,7 @@
     parseLinkPayload,
     parseNotePayload,
     parseVideoPayload,
+    type Item,
     type Placement,
   } from '../../lib/types';
 
@@ -53,6 +56,12 @@
     onRefetch?: (itemId: number) => void;
     /** A stationary click on a video card: open the address in the system browser. */
     onOpenVideo?: (itemId: number) => void;
+    /**
+     * A double click on a writing card. It opens the card's full-screen sheet where the
+     * blueprint has one; THE FACE NEVER BECOMES AN EDITOR. The root owns the sheet, so this
+     * layer only reports the gesture.
+     */
+    onOpenSheet?: (placementId: number) => void;
     /** The item just pasted, which carries the §9.7 caption under its card while fetching. */
     pastePendingItemId?: number | null;
   }
@@ -66,6 +75,7 @@
     onImageDecoded,
     onRefetch,
     onOpenVideo,
+    onOpenSheet,
     pastePendingItemId = null,
   }: Props = $props();
 
@@ -198,6 +208,21 @@
     }
   }
 
+  /**
+   * What a double click on a card means, by kind. A note opens its editor in place; a
+   * writing card opens its sheet where the blueprint has one and does nothing otherwise —
+   * there is no editing on a writing card's face.
+   */
+  function doubleClickFor(item: Item | null, placementId: number): (() => void) | undefined {
+    if (!item) return undefined;
+    if (item.kind === 'note') return () => startEditing(placementId);
+    if (item.kind === 'blueprint') {
+      const blueprint = getBlueprint(parseBlueprintPayload(item.payload).blueprint);
+      if (blueprint?.sheet) return () => onOpenSheet?.(placementId);
+    }
+    return undefined;
+  }
+
   function startEditing(placementId: number) {
     const placement = canvasStore.placements.get(placementId);
     if (!placement) return;
@@ -243,7 +268,7 @@
       onPointerDown={(event) => beginMove(event, placement)}
       onContextMenu={(event) => onOpenElementMenu(event, placement.id)}
       onResizeStart={(handle, event) => beginResize(handle, event, placement)}
-      onDoubleClick={item?.kind === 'note' ? () => startEditing(placement.id) : undefined}
+      onDoubleClick={doubleClickFor(item, placement.id)}
     >
       {#if item && item.kind === 'note'}
         {#if editing && draft}
@@ -289,6 +314,14 @@
           zoom={canvasStore.view.zoom}
           onOpen={() => onOpenVideo?.(item.id)}
         />
+      {:else if item && item.kind === 'blueprint'}
+        {@const blueprintPayload = parseBlueprintPayload(item.payload)}
+        {@const blueprint = getBlueprint(blueprintPayload.blueprint)}
+        {#if blueprint}
+          <!-- A writing card is a real page element in the same world layer as every other
+               card, so `cullWithCounts` needs no change and it culls exactly like a note. -->
+          <BlueprintCard {blueprint} payload={blueprintPayload} zoom={canvasStore.view.zoom} />
+        {/if}
       {/if}
     </CardShell>
 

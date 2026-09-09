@@ -4,11 +4,11 @@
 
 use crate::commands::project::AppState;
 use crate::db::connection::now_iso8601;
-use crate::db::models::{row_to_item, Item};
+use crate::db::models::{row_to_item, DeleteEffect, Item};
 use crate::error::{AppError, AppResult};
 use rusqlite::Connection;
 
-pub const KINDS: [&str; 4] = ["note", "image", "link", "video"];
+pub const KINDS: [&str; 5] = ["note", "image", "link", "video", "blueprint"];
 
 /// Reject a kind outside the schema's CHECK list, and a payload that is not a JSON object,
 /// before either reaches the database.
@@ -40,6 +40,39 @@ pub fn validate_payload(kind: &str, payload: &str) -> AppResult<()> {
             "a video payload needs a provider",
         )));
     }
+    if kind == "blueprint" {
+        // A blueprint card needs a card TYPE that ships, a name, and nothing else. No field
+        // is ever required and nothing blocks a save: a card carrying only its default name
+        // is a complete card (`feature-writing-pack.html` §3, "Never").
+        let id = value
+            .get("blueprint")
+            .and_then(|b| b.as_str())
+            .ok_or_else(|| AppError::Invalid(String::from("a card payload needs a card type")))?;
+        if crate::blueprints::get(id).is_none() {
+            return Err(AppError::Invalid(format!("card type {id}")));
+        }
+        if !value.get("name").is_some_and(|n| n.is_string()) {
+            return Err(AppError::Invalid(String::from(
+                "a card payload needs a name",
+            )));
+        }
+        if value
+            .get("fields")
+            .is_some_and(|f| !f.is_object() && !f.is_null())
+        {
+            return Err(AppError::Invalid(String::from(
+                "a card payload's fields must be an object",
+            )));
+        }
+        if value
+            .get("detail_canvas_id")
+            .is_some_and(|d| !d.is_i64() && !d.is_null())
+        {
+            return Err(AppError::Invalid(String::from(
+                "detail_canvas_id must be a canvas id or nothing",
+            )));
+        }
+    }
     // An asset value names a file inside `assets/` and nothing else. Refusing a separator
     // or a `..` here is what stops a hand-edited payload naming a file outside the folder.
     for name in asset_names(kind, payload) {
@@ -65,6 +98,25 @@ pub fn asset_names(kind: &str, payload: &str) -> Vec<String> {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
         return Vec::new();
     };
+    // A blueprint's image fields are nested one level deeper, inside `fields`, and WHICH
+    // keys they are is a blueprint question — so the blueprint answers it. That is the whole
+    // reason an Image field reuses the assets module, the content hash, the reference count
+    // and the trash with no change to any of them.
+    if kind == "blueprint" {
+        let Some(id) = value.get("blueprint").and_then(|b| b.as_str()) else {
+            return Vec::new();
+        };
+        let Some(fields) = value.get("fields") else {
+            return Vec::new();
+        };
+        return crate::blueprints::image_keys(id)
+            .iter()
+            .filter_map(|key| fields.get(key).and_then(|v| v.as_str()))
+            .filter(|name| !name.is_empty())
+            .map(String::from)
+            .collect();
+    }
+
     let fields: &[&str] = match kind {
         "image" => &["asset"],
         "link" => &["favicon_asset", "thumbnail_asset"],
@@ -178,12 +230,86 @@ pub fn update_item_payload(
     })
 }
 
+/// Delete an item for good — the *Unplaced* list's "Delete For Good", and the one path that
+/// removes a record the corrected last-placement rule deliberately kept.
+///
+/// One transaction collects the item's asset names, checks each against the reference count,
+/// deletes the row, and returns a `DeleteEffect` naming the item and the files, so one undo
+/// step restores both together. Trashing happens AFTER the commit, exactly as
+/// `delete_placements_for` does it: a rolled-back delete must not have moved a file.
+pub fn delete_item_for(state: &AppState, item_id: i64) -> AppResult<DeleteEffect> {
+    // Clone the folder out of its mutex before taking the db lock — never the other way
+    // round, or two commands can deadlock.
+    let folder = state.project_folder();
+
+    let effect = state.with_db(|conn| {
+        let tx = conn.transaction()?;
+        let mut effect = DeleteEffect::default();
+
+        let item = tx
+            .query_row("SELECT * FROM item WHERE id = ?1", [item_id], row_to_item)
+            .map_err(|_| AppError::NotFound(format!("item {item_id}")))?;
+
+        for name in asset_names(&item.kind, &item.payload) {
+            if reference_count(&tx, &name, item.id)? == 0 && !effect.assets.contains(&name) {
+                effect.assets.push(name);
+            }
+        }
+        tx.execute("DELETE FROM item WHERE id = ?1", [item_id])?;
+        effect.items.push(item);
+
+        tx.commit()?;
+        Ok(effect)
+    })?;
+
+    if let Some(folder) = folder.as_deref() {
+        for name in &effect.assets {
+            crate::assets::trash(folder, name)?;
+        }
+    }
+    Ok(effect)
+}
+
 #[tauri::command]
-pub fn delete_item(state: tauri::State<'_, AppState>, item_id: i64) -> AppResult<()> {
+pub fn delete_item(state: tauri::State<'_, AppState>, item_id: i64) -> AppResult<DeleteEffect> {
+    delete_item_for(&state, item_id)
+}
+
+/// Put an item back under the id it had, with no placement — the inverse of `delete_item`.
+///
+/// `restore_card` cannot do this: it needs a canvas to put a placement on, and an unplaced
+/// record has none. The asset half is the same though — untrash before the row goes in, so
+/// a restored card never points at a file still in the trash.
+pub fn restore_item_for(
+    state: &AppState,
+    item_id: i64,
+    project_id: i64,
+    kind: String,
+    payload: String,
+) -> AppResult<Item> {
+    let folder = state.project_folder();
+    if let Some(folder) = folder.as_deref() {
+        for name in asset_names(&kind, &payload) {
+            crate::assets::untrash(folder, &name)?;
+        }
+    }
     state.with_db(|conn| {
-        conn.execute("DELETE FROM item WHERE id = ?1", [item_id])?;
-        Ok(())
+        if let Some(live) = find_item(conn, item_id)? {
+            return Ok(live);
+        }
+        insert_item_with_id(conn, Some(item_id), project_id, &kind, &payload)
     })
+}
+
+#[tauri::command]
+pub fn restore_item(
+    state: tauri::State<'_, AppState>,
+    item_id: i64,
+    project_id: i64,
+    kind: String,
+    payload: String,
+) -> AppResult<Item> {
+    restore_item_for(&state, item_id, project_id, kind, payload)
 }
 
 #[cfg(test)]

@@ -14,6 +14,8 @@ import { invokeSafe } from '../../lib/ipc';
 import { writeNow, type SaveHooks } from '../../lib/save';
 import { canvasStore } from '../../stores/canvasStore.svelte';
 import type { Point } from '../../lib/geometry';
+import { parseBlueprintPayload } from '../../lib/blueprints.svelte';
+import { suggestRole } from '../../lib/roles';
 import { DIRECTED_FORWARD, type Connection, type ConnectionEdit } from '../../lib/types';
 
 /**
@@ -100,6 +102,12 @@ export async function completeLink(
   const canvasId = canvasStore.activeCanvasId;
   if (canvasId === null) return null;
 
+  // THE ONLY PLACE A ROLE IS EVER SUGGESTED. It is a default the user can always change,
+  // never a rule: no pair is refused, and every unlisted pair — including any pair holding a
+  // note, image, link or video card — suggests null, which reads as *Relates To* and leaves
+  // the line looking exactly as it did before this phase.
+  const role = suggestRole(blueprintIdOf(fromPlacementId), blueprintIdOf(toPlacementId));
+
   const created = await writeNow(
     () =>
       invokeSafe<Connection>('create_connection', {
@@ -108,12 +116,22 @@ export async function completeLink(
         toPlacementId,
         label: null,
         directed: DIRECTED_FORWARD,
+        role,
       }),
     hooks,
   );
   canvasStore.upsertConnection(created);
   canvasStore.selectConnection(created.id);
   return created;
+}
+
+/** The card type at one end of a line, or null for a note, image, link or video card. */
+function blueprintIdOf(placementId: number): string | null {
+  const placement = canvasStore.placements.get(placementId);
+  if (!placement) return null;
+  const item = canvasStore.itemFor(placement);
+  if (!item || item.kind !== 'blueprint') return null;
+  return parseBlueprintPayload(item.payload).blueprint || null;
 }
 
 /**

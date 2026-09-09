@@ -180,6 +180,28 @@
         />
       </div>
     </section>
+
+    <!-- §9.11: the SEVENTH row, in a new Packs group that sits UNDER the two-column grid as
+         a single full-width row, because it governs the whole application. The Font row of
+         2026-09-07 took the sixth. -->
+    <section class="full-width" data-testid="settings-packs">
+      <p class="section-label">Packs</p>
+
+      <div class="row">
+        <div class="text">
+          <span class="label">Show Writing Cards</span>
+          <span class="helper">
+            Off hides Book, Chapter, Scene, Beat, Character and Location from the Cards menu. Cards
+            already on a canvas stay.
+          </span>
+        </div>
+        <Toggle
+          checked={settings.showWritingCards}
+          label="Show Writing Cards"
+          onChange={(checked) => void setSetting('showWritingCards', checked)}
+        />
+      </div>
+    </section>
   </div>
 
   <footer data-testid="settings-footer">
@@ -251,6 +273,12 @@
 
   section {
     min-width: 0;
+  }
+
+  /* The Packs group governs the whole application, so it spans both columns rather than
+     sitting beside Appearance. */
+  section.full-width {
+    grid-column: 1 / -1;
   }
 
   .section-label {

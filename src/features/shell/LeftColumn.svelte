@@ -11,6 +11,9 @@
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
+  import { SHORTCUT_LABELS, WRITING_ACTIONS } from '../../lib/shortcuts';
+  import { getBlueprint } from '../../lib/blueprints.svelte';
+  import type { Glyph } from '../../lib/glyphs';
   import { canvasStore, type Tool } from '../../stores/canvasStore.svelte';
   import type { Snippet } from 'svelte';
 
@@ -19,10 +22,20 @@
     search?: Snippet;
     /** The canvas list, filled the same way. */
     canvases?: Snippet;
+    /** The Unplaced list, filled the same way. It draws nothing when there is nothing in it. */
+    unplaced?: Snippet;
     undoDepth?: number;
     redoDepth?: number;
     onNewNote?: () => void;
     onNewImage?: () => void;
+    /** Make one writing card at the pointer. The root owns the create command. */
+    onNewWritingCard?: (blueprint: string) => void;
+    /**
+     * The *Show Writing Cards* setting. Off, the Writing Pack parent is NOT DRAWN AT ALL —
+     * not dimmed — and the 2–7 keys are disabled with it, because a key printed on a menu row
+     * that is not there has nothing to be printed on.
+     */
+    showWritingCards?: boolean;
     onUndo?: () => void;
     onRedo?: () => void;
     onCloseProject?: () => void;
@@ -34,10 +47,13 @@
   const {
     search,
     canvases,
+    unplaced,
     undoDepth = 0,
     redoDepth = 0,
     onNewNote,
     onNewImage,
+    onNewWritingCard,
+    showWritingCards = true,
     onUndo,
     onRedo,
     onCloseProject,
@@ -56,12 +72,84 @@
   function chooseTool(tool: Tool) {
     canvasStore.activeTool = tool;
   }
+
+  // --- the Cards group (design-system §8.3) -------------------------------
+  //
+  // Eight card kinds do not fit as flat rows in a 168px rail, so `Add` becomes `Cards` with
+  // two submenu parents. The rule underneath is unchanged: one flat pack, no pack picker, no
+  // project types.
+
+  /** Which submenu is open, or null. Only one at a time. */
+  let openSubmenu = $state<'general' | 'writing' | null>(null);
+
+  interface CardRow {
+    label: string;
+    glyph: Glyph;
+    /** The printed key. DERIVED from SHORTCUT_LABELS — a menu never retypes a key. */
+    shortcut: string;
+    run: () => void;
+  }
+
+  const generalRows = $derived<CardRow[]>([
+    {
+      label: 'Note',
+      glyph: 'note',
+      shortcut: SHORTCUT_LABELS['new-note'],
+      run: () => onNewNote?.(),
+    },
+    {
+      label: 'Image',
+      glyph: 'image',
+      shortcut: SHORTCUT_LABELS['new-image'],
+      run: () => onNewImage?.(),
+    },
+  ]);
+
+  /** One row per shipped writing type, named and iconed by its own blueprint. */
+  const writingRows = $derived<CardRow[]>(
+    WRITING_ACTIONS.flatMap(({ action, blueprint }) => {
+      const found = getBlueprint(blueprint);
+      if (!found) return [];
+      return [
+        {
+          label: found.label,
+          glyph: found.glyph,
+          shortcut: SHORTCUT_LABELS[action],
+          run: () => onNewWritingCard?.(blueprint),
+        },
+      ];
+    }),
+  );
+
+  function toggleSubmenu(which: 'general' | 'writing') {
+    openSubmenu = openSubmenu === which ? null : which;
+  }
+
+  function choose(row: CardRow) {
+    openSubmenu = null;
+    row.run();
+  }
 </script>
+
+<!-- §9.9's menu grammar, at §8.3's 206px. One snippet, both parents. -->
+{#snippet flyout(rows: CardRow[], label: string)}
+  <div class="flyout" role="menu" aria-label={label} data-testid="cards-flyout">
+    {#each rows as row (row.label)}
+      <button type="button" class="flyout-row" role="menuitem" onclick={() => choose(row)}>
+        <Icon glyph={row.glyph} size={14} />
+        <span class="flyout-label">{row.label}</span>
+        <span class="flyout-shortcut">{row.shortcut}</span>
+      </button>
+    {/each}
+  </div>
+{/snippet}
 
 <nav class="left-column scroll-thin" data-testid="left-column" aria-label="Canvases And Tools">
   {@render search?.()}
 
   {@render canvases?.()}
+
+  {@render unplaced?.()}
 
   <p class="section-label">Tools</p>
   <ul class="rows">
@@ -103,20 +191,44 @@
     </li>
   </ul>
 
-  <p class="section-label">Add</p>
-  <ul class="rows">
-    <li>
-      <button type="button" class="action-row" onclick={onNewNote}>
-        <Icon glyph="note" size={13} />
-        Note
+  <p class="section-label">Cards</p>
+  <ul class="rows" data-testid="cards-group">
+    <li class="submenu-holder">
+      <button
+        type="button"
+        class="action-row parent"
+        class:active={openSubmenu === 'general'}
+        aria-expanded={openSubmenu === 'general'}
+        data-testid="cards-parent-general"
+        onclick={() => toggleSubmenu('general')}
+      >
+        <Icon glyph="squares-four" size={13} />
+        General
+        <span class="caret"><Icon glyph="caret-right" size={12} /></span>
       </button>
+      {#if openSubmenu === 'general'}
+        {@render flyout(generalRows, 'General Cards')}
+      {/if}
     </li>
-    <li>
-      <button type="button" class="action-row" onclick={onNewImage}>
-        <Icon glyph="image" size={13} />
-        Image
-      </button>
-    </li>
+    {#if showWritingCards}
+      <li class="submenu-holder">
+        <button
+          type="button"
+          class="action-row parent"
+          class:active={openSubmenu === 'writing'}
+          aria-expanded={openSubmenu === 'writing'}
+          data-testid="cards-parent-writing"
+          onclick={() => toggleSubmenu('writing')}
+        >
+          <Icon glyph="book-open" size={13} />
+          Writing Pack
+          <span class="caret"><Icon glyph="caret-right" size={12} /></span>
+        </button>
+        {#if openSubmenu === 'writing'}
+          {@render flyout(writingRows, 'Writing Pack Cards')}
+        {/if}
+      </li>
+    {/if}
   </ul>
 
   <p class="section-label">History</p>
@@ -234,6 +346,71 @@
 
   .action-row.active:hover {
     background: var(--color-accent-hover);
+  }
+
+  .submenu-holder {
+    position: relative;
+  }
+
+  .action-row.parent .caret {
+    display: inline-flex;
+    margin-left: auto;
+    opacity: 0.5;
+  }
+
+  /* An open parent takes the pressed appearance — the same appearance as the active tool,
+     which is correct: it IS the thing currently acting. */
+  .action-row.parent.active .caret {
+    opacity: 0.8;
+  }
+
+  .flyout {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    z-index: var(--z-context-menu);
+    width: 206px;
+    padding: var(--space-5) 0;
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-context-menu);
+  }
+
+  .flyout-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-9);
+    width: 100%;
+    padding: var(--space-5) var(--space-12);
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--text-12);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .flyout-row:hover {
+    background: var(--tint-accent-hover);
+  }
+
+  .flyout-row :global(i) {
+    opacity: 0.7;
+  }
+
+  .flyout-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .flyout-shortcut {
+    font-size: var(--text-10);
+    opacity: 0.45;
+    font-variant-numeric: tabular-nums;
   }
 
   .depth {
