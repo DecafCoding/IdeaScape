@@ -63,6 +63,8 @@ export interface CardHit {
   title: string;
   snippet: string;
   matched_title: boolean;
+  /** The card type, for a `blueprint` hit only, so the row carries its kicker glyph. */
+  blueprint?: string | null;
 }
 
 export interface SearchResults {
@@ -132,6 +134,20 @@ export interface CanvasDeleteEffect {
   items: Item[];
   connections: Connection[];
   assets: string[];
+  /**
+   * The items whose `detail_canvas_id` pointed at the deleted canvas, as they were before it
+   * was cleared — so restoring the canvas puts the pointers back too.
+   */
+  detail_pointers: Item[];
+}
+
+/** Everything `expand_into_canvas` created, so one undo step reverses all three. */
+export interface ExpandEffect {
+  canvas: Canvas;
+  placement: Placement;
+  /** What the pointer was before, so undo restores it rather than assuming null. */
+  previous_detail_canvas_id: number | null;
+  item: Item;
 }
 
 /**

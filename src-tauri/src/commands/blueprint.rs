@@ -314,6 +314,118 @@ pub fn item_context_for(state: &AppState, item_id: i64) -> AppResult<ItemContext
     })
 }
 
+/// Everything `expand_into_canvas` created, so ONE undo step reverses all three.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ExpandEffect {
+    pub canvas: crate::db::models::Canvas,
+    pub placement: crate::db::models::Placement,
+    /// What `detail_canvas_id` was before, so undo puts the previous pointer back rather
+    /// than assuming it was null.
+    pub previous_detail_canvas_id: Option<i64>,
+    pub item: Item,
+}
+
+/// Give a card a canvas of its own.
+///
+/// In ONE transaction: a canvas named after the card, a placement of **the same item** on
+/// it, and `payload.detail_canvas_id` set to point at it.
+///
+/// THE CARD ON THE BOOK CANVAS AND THE CARD ON THE NEW ONE ARE ONE ITEM. There is no copy
+/// and nothing to keep in step; an implementation that created a second item would break the
+/// feature's central claim.
+///
+/// A CYCLE IS ALLOWED and must not be prevented: canvas A may hold a card whose detail canvas
+/// is B while B holds a card whose detail canvas is A. Nothing is drawn inside anything, so
+/// nothing recurses — there is deliberately no cycle check here.
+#[allow(clippy::too_many_arguments)]
+pub fn expand_into_canvas_for(
+    state: &AppState,
+    item_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> AppResult<ExpandEffect> {
+    state.with_db(|conn| {
+        let tx = conn.transaction()?;
+
+        let item = tx
+            .query_row("SELECT * FROM item WHERE id = ?1", [item_id], row_to_item)
+            .map_err(|_| AppError::NotFound(format!("item {item_id}")))?;
+        if item.kind != "blueprint" {
+            return Err(AppError::Invalid(format!(
+                "a {} card has no canvas of its own",
+                item.kind
+            )));
+        }
+
+        let mut root: serde_json::Value = serde_json::from_str(&item.payload)?;
+        let object = root
+            .as_object_mut()
+            .ok_or_else(|| AppError::Invalid(String::from("a card payload must be an object")))?;
+        let previous = object.get("detail_canvas_id").and_then(|v| v.as_i64());
+        let name = object
+            .get("name")
+            .and_then(|v| v.as_str())
+            .filter(|n| !n.is_empty())
+            .unwrap_or("Untitled")
+            .to_string();
+
+        let now = now_iso8601();
+        let next_order: i64 = tx.query_row(
+            "SELECT coalesce(max(sort_order), -1) + 1 FROM canvas WHERE project_id = ?1",
+            [item.project_id],
+            |r| r.get(0),
+        )?;
+        tx.execute(
+            "INSERT INTO canvas (project_id, name, sort_order, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?4)",
+            rusqlite::params![item.project_id, name, next_order, now],
+        )?;
+        let canvas_id = tx.last_insert_rowid();
+        let canvas = tx.query_row(
+            "SELECT * FROM canvas WHERE id = ?1",
+            [canvas_id],
+            crate::db::models::row_to_canvas,
+        )?;
+
+        let placement = insert_placement(&tx, canvas_id, item.id, x, y, width, height)?;
+
+        object.insert(
+            String::from("detail_canvas_id"),
+            serde_json::Value::from(canvas_id),
+        );
+        let payload = root.to_string();
+        validate_payload("blueprint", &payload)?;
+        tx.execute(
+            "UPDATE item SET payload = ?2, updated_at = ?3 WHERE id = ?1",
+            rusqlite::params![item_id, payload, now],
+        )?;
+        let updated = tx.query_row("SELECT * FROM item WHERE id = ?1", [item_id], row_to_item)?;
+
+        tx.commit()?;
+        Ok(ExpandEffect {
+            canvas,
+            placement,
+            previous_detail_canvas_id: previous,
+            item: updated,
+        })
+    })
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn expand_into_canvas(
+    state: tauri::State<'_, AppState>,
+    item_id: i64,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> AppResult<ExpandEffect> {
+    expand_into_canvas_for(&state, item_id, x, y, width, height)
+}
+
 #[tauri::command]
 pub fn item_context(state: tauri::State<'_, AppState>, item_id: i64) -> AppResult<ItemContext> {
     item_context_for(&state, item_id)
@@ -880,5 +992,182 @@ mod tests {
         delete_placements_for(&state, vec![card.placement.id]).unwrap();
         let context = item_context_for(&state, card.item.id).unwrap();
         assert!(context.placements.is_empty());
+    }
+
+    // ---- Task 24: Expand Into A Canvas ----
+
+    #[test]
+    fn expand_into_canvas_creates_a_canvas_holding_the_same_item() {
+        let (_dir, state, _project) = open();
+        let canvas = first_canvas(&state);
+        let card = make(&state, canvas, "chapter");
+        set_item_field_for(
+            &state,
+            card.item.id,
+            String::from("name"),
+            "Chapter One".into(),
+        )
+        .unwrap();
+
+        let effect = expand_into_canvas_for(&state, card.item.id, 0.0, 0.0, 264.0, 168.0).unwrap();
+
+        // Named after the card.
+        assert_eq!(effect.canvas.name, "Chapter One");
+        // THE SAME ITEM. There is no copy.
+        assert_eq!(effect.placement.item_id, card.item.id);
+        assert_eq!(effect.placement.canvas_id, effect.canvas.id);
+        assert_eq!(effect.previous_detail_canvas_id, None);
+
+        let value: serde_json::Value = serde_json::from_str(&effect.item.payload).unwrap();
+        assert_eq!(value["detail_canvas_id"], effect.canvas.id);
+
+        let items: i64 = state
+            .with_db(|conn| Ok(conn.query_row("SELECT count(*) FROM item", [], |r| r.get(0))?))
+            .unwrap();
+        assert_eq!(items, 1, "one item, two placements");
+    }
+
+    #[test]
+    fn expand_into_canvas_editing_either_placement_edits_one_item() {
+        let (_dir, state, _project) = open();
+        let canvas = first_canvas(&state);
+        let card = make(&state, canvas, "chapter");
+        let effect = expand_into_canvas_for(&state, card.item.id, 0.0, 0.0, 264.0, 168.0).unwrap();
+
+        // Edit through the item the second placement points at.
+        set_item_field_for(
+            &state,
+            effect.placement.item_id,
+            String::from("summary"),
+            "The archivist wakes".into(),
+        )
+        .unwrap();
+
+        // The card on the original canvas sees it, because it is the same row.
+        let payload: String = state
+            .with_db(|conn| {
+                Ok(conn.query_row(
+                    "SELECT i.payload FROM placement p JOIN item i ON i.id = p.item_id
+                     WHERE p.id = ?1",
+                    [card.placement.id],
+                    |r| r.get(0),
+                )?)
+            })
+            .unwrap();
+        assert!(payload.contains("The archivist wakes"));
+    }
+
+    #[test]
+    fn delete_canvas_clears_detail_canvas_id_on_every_card_that_pointed_at_it() {
+        let (_dir, state, _project) = open();
+        let canvas = first_canvas(&state);
+        let a = make(&state, canvas, "chapter");
+        let b = make(&state, canvas, "chapter");
+        let effect = expand_into_canvas_for(&state, a.item.id, 0.0, 0.0, 264.0, 168.0).unwrap();
+        // Point a second card at the same canvas.
+        set_item_field_for(
+            &state,
+            b.item.id,
+            String::from("detail_canvas_id"),
+            effect.canvas.id.into(),
+        )
+        .unwrap();
+
+        let deleted = crate::commands::canvas::delete_canvas_for(&state, effect.canvas.id).unwrap();
+        assert_eq!(deleted.detail_pointers.len(), 2);
+
+        for id in [a.item.id, b.item.id] {
+            let payload: String = state
+                .with_db(|conn| {
+                    Ok(conn
+                        .query_row("SELECT payload FROM item WHERE id = ?1", [id], |r| r.get(0))?)
+                })
+                .unwrap();
+            let value: serde_json::Value = serde_json::from_str(&payload).unwrap();
+            assert!(
+                value["detail_canvas_id"].is_null(),
+                "item {id} still points at a canvas that is gone"
+            );
+        }
+    }
+
+    #[test]
+    fn restore_canvas_puts_the_detail_pointers_back() {
+        let (_dir, state, _project) = open();
+        let canvas = first_canvas(&state);
+        let card = make(&state, canvas, "chapter");
+        let effect = expand_into_canvas_for(&state, card.item.id, 0.0, 0.0, 264.0, 168.0).unwrap();
+
+        let deleted = crate::commands::canvas::delete_canvas_for(&state, effect.canvas.id).unwrap();
+        crate::commands::canvas::restore_canvas_for(&state, deleted).unwrap();
+
+        let payload: String = state
+            .with_db(|conn| {
+                Ok(conn.query_row(
+                    "SELECT payload FROM item WHERE id = ?1",
+                    [card.item.id],
+                    |r| r.get(0),
+                )?)
+            })
+            .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        assert_eq!(value["detail_canvas_id"], effect.canvas.id);
+    }
+
+    #[test]
+    fn expand_into_canvas_a_cycle_between_two_canvases_saves_and_reopens() {
+        // A cycle is ALLOWED and must not be prevented: nothing is drawn inside anything, so
+        // nothing recurses. There is deliberately no cycle check.
+        let (dir, state, _project) = open();
+        let one = first_canvas(&state);
+        let a = make(&state, one, "chapter");
+        let expanded = expand_into_canvas_for(&state, a.item.id, 0.0, 0.0, 264.0, 168.0).unwrap();
+
+        // A card on the NEW canvas whose detail canvas is the first one.
+        let b = make(&state, expanded.canvas.id, "chapter");
+        set_item_field_for(
+            &state,
+            b.item.id,
+            String::from("detail_canvas_id"),
+            one.into(),
+        )
+        .unwrap();
+
+        // Save, reopen, and navigate both ways.
+        let state2 = AppState::default();
+        open_project_at(&state2, dir.path()).expect("reopen");
+        let read = |id: i64| -> serde_json::Value {
+            let payload: String = state2
+                .with_db(|conn| {
+                    Ok(conn
+                        .query_row("SELECT payload FROM item WHERE id = ?1", [id], |r| r.get(0))?)
+                })
+                .unwrap();
+            serde_json::from_str(&payload).unwrap()
+        };
+        assert_eq!(read(a.item.id)["detail_canvas_id"], expanded.canvas.id);
+        assert_eq!(read(b.item.id)["detail_canvas_id"], one);
+    }
+
+    #[test]
+    fn expand_into_canvas_a_second_time_replaces_the_pointer_and_reports_the_first() {
+        let (_dir, state, _project) = open();
+        let canvas = first_canvas(&state);
+        let card = make(&state, canvas, "chapter");
+        let first = expand_into_canvas_for(&state, card.item.id, 0.0, 0.0, 264.0, 168.0).unwrap();
+        let second = expand_into_canvas_for(&state, card.item.id, 0.0, 0.0, 264.0, 168.0).unwrap();
+        // The effect names the PREVIOUS pointer, so undo restores it rather than assuming null.
+        assert_eq!(second.previous_detail_canvas_id, Some(first.canvas.id));
+    }
+
+    #[test]
+    fn expand_into_canvas_on_a_note_is_refused() {
+        let (_dir, state, project) = open();
+        let note = state
+            .with_db(|conn| {
+                crate::commands::item::insert_item(conn, project.id, "note", r#"{"title":"T"}"#)
+            })
+            .unwrap();
+        assert!(expand_into_canvas_for(&state, note.id, 0.0, 0.0, 100.0, 100.0).is_err());
     }
 }

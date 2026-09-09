@@ -9,11 +9,11 @@
   import Icon from '../../lib/Icon.svelte';
   import { blueprintForPayload, parseBlueprintPayload } from '../../lib/blueprints.svelte';
   import FieldControl from '../../lib/fields/FieldControl.svelte';
-  import { ROLES, roleGlyph, roleLabel } from '../../lib/roles';
+  import { ROLES, roleLabel } from '../../lib/roles';
+  import CardContext from '../../lib/fields/CardContext.svelte';
   import Combo from '../../lib/fields/Combo.svelte';
-  import { countInWords } from '../../lib/countInWords';
   import type { FieldValue, PickEntry } from '../../lib/blueprints.svelte';
-  import type { ItemContext, ItemJoin } from '../../lib/types';
+  import type { ItemContext } from '../../lib/types';
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import { assetStatus } from '../../lib/assets.svelte';
   import {
@@ -326,33 +326,6 @@
     const value = parentFor(key);
     return value?.text ?? '';
   }
-
-  /**
-   * *Joined to* rows, with several connections of one role collapsed to a count —
-   * "2 beats" over "Feed". `reversed` is what lets Part Of read Contains from the far end.
-   */
-  const joinedRows = $derived.by(() => {
-    const context = itemContext;
-    if (!context) return [];
-    const byLabel = new Map<
-      string,
-      { label: string; role: string | null; names: string[]; first: ItemJoin }
-    >();
-    for (const join of context.joined) {
-      const label = roleLabel(join.role, join.reversed);
-      const group = byLabel.get(label) ?? { label, role: join.role, names: [], first: join };
-      group.names.push(join.other_name);
-      byLabel.set(label, group);
-    }
-    return [...byLabel.values()].map((group) => ({
-      label: group.label,
-      role: group.role,
-      name: group.names.length === 1 ? group.names[0] : `${group.names.length} cards`,
-      count: group.names.length,
-      canvasId: group.first.canvas_id,
-      itemId: group.first.other_item_id,
-    }));
-  });
 
   const fetching = $derived(
     soleItem !== null && canvasStore.fetchStatusFor(soleItem.id) === 'fetching',
@@ -724,48 +697,8 @@
 
       <!-- §9.28. Both groups are drawn for writing cards ONLY: the four original kinds'
            panel states are untouched, which is a regression line in PRD §11. -->
-      {#if soleBlueprint && itemContext && itemContext.placements.length > 0}
-        <section class="group" data-testid="panel-placed-on">
-          <p class="group-label">Placed On</p>
-          {#each itemContext.placements as placement (placement.placement_id)}
-            <button
-              type="button"
-              class="context-row"
-              onclick={() => onOpenPlacement?.(placement.canvas_id, placement.placement_id)}
-            >
-              <Icon glyph="square-half" size={13} />
-              <span class="context-name">{placement.canvas_name}</span>
-              <span class="coords">{Math.round(placement.x)}, {Math.round(placement.y)}</span>
-            </button>
-          {/each}
-          {#if itemContext.placements.length > 1}
-            <!-- The count is stated IN WORDS: this is helper text, and it stays sentence
-                 case. Beyond ten it falls back to digits. -->
-            <p class="footer-note">
-              One record, {countInWords(itemContext.placements.length)} places. Editing here changes all
-              {countInWords(itemContext.placements.length)}.
-            </p>
-          {/if}
-        </section>
-      {/if}
-
-      {#if soleBlueprint && joinedRows.length > 0}
-        <section class="group" data-testid="panel-joined-to">
-          <p class="group-label">Joined To</p>
-          {#each joinedRows as row (row.label)}
-            <button
-              type="button"
-              class="context-row joined"
-              onclick={() => onOpenItem?.(row.canvasId, row.itemId)}
-              disabled={row.count > 1}
-            >
-              <span class="role-disc"><Icon glyph={roleGlyph(row.role)} size={9} /></span>
-              <span class="context-name">{row.name}</span>
-            </button>
-            <!-- The role sits on its own line beneath the far card's name (§9.28). -->
-            <p class="role-line">{row.label}</p>
-          {/each}
-        </section>
+      {#if soleBlueprint}
+        <CardContext context={itemContext} {onOpenPlacement} {onOpenItem} />
       {/if}
 
       <footer class="footer">
@@ -1041,65 +974,6 @@
     width: 26px;
     border-radius: 2px;
     background: var(--color-text);
-  }
-
-  /* §9.28's two context groups. */
-  .context-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-6);
-    width: 100%;
-    padding: 3px 0;
-    border: none;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    font-size: var(--text-11);
-    text-align: left;
-    cursor: pointer;
-    min-width: 0;
-  }
-
-  .context-row:disabled {
-    cursor: default;
-  }
-
-  .context-row :global(i) {
-    opacity: 0.55;
-    flex: none;
-  }
-
-  .context-name {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .coords {
-    font-size: var(--text-10);
-    opacity: 0.4;
-    font-variant-numeric: tabular-nums;
-    flex: none;
-  }
-
-  .role-disc {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 15px;
-    height: 15px;
-    flex: none;
-    border: 1px solid var(--color-divider);
-    border-radius: 50%;
-  }
-
-  .role-line {
-    margin: -3px 0 0;
-    padding-left: 22px;
-    font-size: var(--text-10);
-    opacity: 0.45;
   }
 
   .card-actions {

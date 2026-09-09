@@ -130,7 +130,7 @@ describe('Placed on and Joined to', () => {
     const group = view.placedOn();
     expect(group?.querySelectorAll('.context-row')).toHaveLength(3);
     // The counts are WORDS, not digits — this is helper text and stays sentence case.
-    const helper = (group?.querySelector('.footer-note')?.textContent ?? '').replace(/\s+/g, ' ');
+    const helper = (group?.querySelector('.helper')?.textContent ?? '').replace(/\s+/g, ' ');
     expect(helper).toContain('One record, three places');
     expect(helper).toContain('Editing here changes all three');
     expect(helper).not.toMatch(/\b3\b/);
@@ -140,7 +140,7 @@ describe('Placed on and Joined to', () => {
   it('placedOn_onePlacement_statesNoCount', () => {
     selectCard('blueprint');
     const view = render({ placements: [placement(1, 1, 'Chapter One')], joined: [] });
-    expect(view.placedOn()?.querySelector('.footer-note')).toBeNull();
+    expect(view.placedOn()?.querySelector('.helper')).toBeNull();
     view.destroy();
   });
 

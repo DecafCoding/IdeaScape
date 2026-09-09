@@ -23,6 +23,7 @@ import type {
   Connection,
   ConnectionEdit,
   DeleteEffect,
+  ExpandEffect,
   Item,
   Placement,
   PlacementUpdate,
@@ -328,6 +329,7 @@ export function createCanvasCommand(canvas: Canvas, hooks: CanvasCommandHooks): 
     items: [],
     connections: [],
     assets: [],
+    detail_pointers: [],
   };
   return {
     label: 'New Canvas',
@@ -483,6 +485,49 @@ export function deleteUnplacedCommand(effect: DeleteEffect): UndoableCommand {
       if (!item) return;
       await invokeSafe<DeleteEffect>('delete_item', { itemId: item.id });
       await refreshAssetStatuses(payloadAssetNames(item.kind, item.payload));
+    },
+  };
+}
+
+/**
+ * Giving a card a canvas of its own.
+ *
+ * The effect names the canvas, the placement and the previous `detail_canvas_id`, so ONE
+ * undo step reverses all three. Redo goes back through `restore_canvas`, which puts the
+ * canvas back under its original id — which is what keeps the rest of the stack valid.
+ */
+export function expandCommand(effect: ExpandEffect): UndoableCommand {
+  return {
+    label: 'Expand Into A Canvas',
+    async undo() {
+      await invokeSafe<CanvasDeleteEffect>('delete_canvas', { canvasId: effect.canvas.id });
+      const item = await invokeSafe<Item>('set_item_field', {
+        itemId: effect.item.id,
+        key: 'detail_canvas_id',
+        value: effect.previous_detail_canvas_id,
+      });
+      canvasStore.upsertItem(item);
+      canvasStore.canvases = canvasStore.canvases.filter((c) => c.id !== effect.canvas.id);
+      canvasStore.removePlacement(effect.placement.id);
+    },
+    async redo() {
+      await invokeSafe<Canvas>('restore_canvas', {
+        effect: {
+          canvas: effect.canvas,
+          placements: [effect.placement],
+          items: [],
+          connections: [],
+          assets: [],
+          detail_pointers: [],
+        },
+      });
+      const item = await invokeSafe<Item>('set_item_field', {
+        itemId: effect.item.id,
+        key: 'detail_canvas_id',
+        value: effect.canvas.id,
+      });
+      canvasStore.upsertItem(item);
+      canvasStore.canvases = [...canvasStore.canvases, effect.canvas];
     },
   };
 }

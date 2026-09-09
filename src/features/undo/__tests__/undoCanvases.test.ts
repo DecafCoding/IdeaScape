@@ -62,6 +62,7 @@ function effectFor(id: number): CanvasDeleteEffect {
       },
     ],
     assets: ['pic.png'],
+    detail_pointers: [],
   };
 }
 

@@ -126,6 +126,12 @@ pub struct CanvasDeleteEffect {
     pub items: Vec<Item>,
     pub connections: Vec<Connection>,
     pub assets: Vec<String>,
+    /// The items whose `detail_canvas_id` pointed at the deleted canvas, as they were
+    /// BEFORE it was cleared — so `restore_canvas` can put the pointers back. Clearing them
+    /// happens in the same transaction as the delete: a crash between the two would leave a
+    /// card pointing at a canvas that is not there.
+    #[serde(default)]
+    pub detail_pointers: Vec<Item>,
 }
 
 impl Default for Canvas {

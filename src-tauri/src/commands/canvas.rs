@@ -117,6 +117,31 @@ pub fn delete_canvas_for(state: &AppState, canvas_id: i64) -> AppResult<CanvasDe
         };
         let inner = delete_placements_tx(&tx, &placement_ids)?;
 
+        // Every card that pointed at this canvas as its own falls back to no canvas, in the
+        // SAME transaction as the delete. The rows are captured first so `restore_canvas`
+        // can put the pointers back.
+        let detail_pointers: Vec<crate::db::models::Item> = {
+            let mut stmt = tx.prepare(
+                "SELECT * FROM item
+                 WHERE kind = 'blueprint'
+                   AND json_extract(payload, '$.detail_canvas_id') = ?1",
+            )?;
+            let rows = stmt
+                .query_map([canvas_id], crate::db::models::row_to_item)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        };
+        for item in &detail_pointers {
+            let mut root: serde_json::Value = serde_json::from_str(&item.payload)?;
+            if let Some(object) = root.as_object_mut() {
+                object.insert(String::from("detail_canvas_id"), serde_json::Value::Null);
+            }
+            tx.execute(
+                "UPDATE item SET payload = ?2 WHERE id = ?1",
+                rusqlite::params![item.id, root.to_string()],
+            )?;
+        }
+
         tx.execute("DELETE FROM canvas WHERE id = ?1", [canvas_id])?;
         tx.commit()?;
 
@@ -126,6 +151,7 @@ pub fn delete_canvas_for(state: &AppState, canvas_id: i64) -> AppResult<CanvasDe
             items: inner.items,
             connections: inner.connections,
             assets: inner.assets,
+            detail_pointers,
         })
     })?;
 
@@ -220,16 +246,27 @@ pub fn restore_canvas_for(state: &AppState, effect: CanvasDeleteEffect) -> AppRe
         for connection in &effect.connections {
             tx.execute(
                 "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id, label,
-                                         directed)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                                         directed, role)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 rusqlite::params![
                     connection.id,
                     canvas_id,
                     connection.from_placement_id,
                     connection.to_placement_id,
                     connection.label,
-                    connection.directed
+                    connection.directed,
+                    connection.role
                 ],
+            )?;
+        }
+
+        // Put the detail pointers back. A card that pointed at this canvas before the delete
+        // points at it again, so undoing a canvas delete restores the whole relationship and
+        // not only the rows.
+        for item in &effect.detail_pointers {
+            tx.execute(
+                "UPDATE item SET payload = ?2 WHERE id = ?1",
+                rusqlite::params![item.id, item.payload],
             )?;
         }
 

@@ -183,7 +183,14 @@ function backend() {
           db.connections.delete(id);
         }
         db.canvases = db.canvases.filter((c) => c.id !== canvasId);
-        const effect: CanvasDeleteEffect = { canvas, placements, items, connections, assets: [] };
+        const effect: CanvasDeleteEffect = {
+          canvas,
+          placements,
+          items,
+          connections,
+          assets: [],
+          detail_pointers: [],
+        };
         return Promise.resolve(effect);
       }
       case 'restore_canvas': {

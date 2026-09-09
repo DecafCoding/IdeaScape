@@ -10,6 +10,16 @@
   import PropertiesPanel from './features/shell/PropertiesPanel.svelte';
   import ContextMenu from './features/shell/ContextMenu.svelte';
   import UnplacedList from './features/canvases/UnplacedList.svelte';
+  import CharacterSheet from './features/writing/CharacterSheet.svelte';
+  import BookSheet from './features/writing/BookSheet.svelte';
+  import ChapterSheet from './features/writing/ChapterSheet.svelte';
+  import {
+    closeSheet,
+    openSheetFor,
+    sheetBlueprint,
+    sheetItem,
+    sheetOpen,
+  } from './features/writing/writing.svelte';
   import CanvasSurface from './features/canvas/CanvasSurface.svelte';
   import EmptyCanvas from './features/canvas/EmptyCanvas.svelte';
   import CardLayer from './features/cards/CardLayer.svelte';
@@ -54,6 +64,8 @@
     createCanvasCommand,
     createCardCommand,
     deleteUnplacedCommand,
+    expandCommand,
+    randomizeCommand,
     setFieldCommand,
     createConnectionCommand,
     deleteCanvasCommand,
@@ -70,10 +82,11 @@
   import { getAssetsFolder, noteAssetPresent, setAssetsFolder } from './lib/assets.svelte';
   import { LINK_SIZE, NOTE_SIZE, VIDEO_SIZE } from './lib/cardKinds';
   import { decidePaste, type UrlClassification } from './lib/paste';
-  import { registerShortcuts } from './lib/shortcuts';
+  import { isTextEntry, registerShortcuts } from './lib/shortcuts';
   import { getSettings, loadSettings } from './lib/settings.svelte';
   import { loadBlueprints } from './lib/blueprints.svelte';
   import { clearListCache } from './lib/lists';
+  import { rollSpread } from './lib/randomize';
   import {
     clearUnplaced,
     deleteUnplaced,
@@ -86,12 +99,13 @@
     blueprintForPayload,
     getBlueprint,
     parseBlueprintPayload,
+    scaleValue,
     type BlueprintField,
     type FieldValue,
   } from './lib/blueprints.svelte';
   import { logWarn } from './lib/logger';
   import { listEntryCommand } from './features/undo/commands';
-  import type { ItemContext } from './lib/types';
+  import type { ExpandEffect, ItemContext } from './lib/types';
   import { applyFont, applyTheme } from './lib/theme';
   import {
     debounce,
@@ -277,6 +291,7 @@
       // The project's own vocabulary goes with the project, not with the application.
       clearListCache();
       clearUnplaced();
+      closeSheet();
       clipboard = [];
       folderPath = null;
       openMenu = null;
@@ -1255,6 +1270,78 @@
     });
   }
 
+  /**
+   * Give a card a canvas of its own.
+   *
+   * One transaction creates the canvas, a placement of THE SAME ITEM on it, and the pointer;
+   * one undo step reverses all three. There is no copy — the card on this canvas and the
+   * card on the new one are one item, so editing either edits both.
+   */
+  async function expandIntoCanvas(itemId: number) {
+    const item = findItemById(itemId);
+    if (!item) return;
+    await guard(async () => {
+      const size = defaultSizeForItem(item);
+      const effect = await writeNow(
+        () =>
+          invokeSafe<ExpandEffect>('expand_into_canvas', {
+            itemId,
+            x: 0,
+            y: 0,
+            width: size.width,
+            height: size.height,
+          }),
+        saveHooks,
+      );
+      canvasStore.upsertItem(effect.item);
+      await refreshCanvases();
+      undoStack.push(expandCommand(effect));
+    });
+  }
+
+  /** Open the canvas a card was expanded into, from the mark on its face or the panel. */
+  async function openDetailCanvas(itemId: number) {
+    const item = findItemById(itemId);
+    if (!item) return;
+    const canvasId = parseBlueprintPayload(item.payload).detail_canvas_id;
+    if (canvasId === null) return;
+    closeSheet();
+    await switchCanvas(canvasId);
+  }
+
+  /**
+   * Reroll every randomizable Scale field on a card, as ONE undo entry carrying five
+   * effects. Five separate commands would need five Ctrl+Z presses and would fail the gate.
+   *
+   * The roll is local random numbers. No network call, no AI, permanently. It touches the
+   * sliders and NOTHING else — not the name, not the tropes, not the notes.
+   */
+  async function randomizeCard(itemId: number) {
+    const item = findItemById(itemId);
+    if (!item) return;
+    const blueprint = blueprintForPayload(item.payload);
+    if (!blueprint) return;
+    const keys = blueprint.fields.filter((f) => f.randomizable).map((f) => f.key);
+    if (keys.length === 0) return;
+
+    const payload = parseBlueprintPayload(item.payload);
+    const before = keys.map((key) => scaleValue(payload.fields[key]));
+    const after = rollSpread(keys.length);
+
+    await guard(async () => {
+      let updated: Item | null = null;
+      for (let i = 0; i < keys.length; i += 1) {
+        updated = await invokeSafe<Item>('set_item_field', {
+          itemId,
+          key: keys[i],
+          value: after[i],
+        });
+      }
+      if (updated) canvasStore.upsertItem(updated);
+      undoStack.push(randomizeCommand(itemId, keys, before, after));
+    });
+  }
+
   /** Replace the picture in one Image FIELD of a writing card. */
   async function replaceFieldImage(itemId: number, key: string) {
     await guard(async () => {
@@ -1391,8 +1478,29 @@
   $effect(() => {
     if (canvasStore.project === null) return registerShortcuts(pickerShortcuts);
     if (settingsOpen) return registerShortcuts(settingsShortcuts);
+    if (sheetOpen()) return registerShortcuts(sheetShortcuts);
     return registerShortcuts(shellShortcuts);
   });
+
+  /**
+   * A sheet's own key map (§9.30). `Esc` BLURS A FOCUSED TEXT BOX FIRST and leaves the sheet
+   * otherwise — so on the Chapter sheet, where almost the whole screen is a text field, the
+   * first press gets you out of the prose and the second gets you out of the sheet.
+   *
+   * It lives here rather than in `matchAction`, which deliberately returns `cancel` for
+   * Escape BEFORE its own text bail so a note editor can cancel; changing that would break
+   * note editing.
+   */
+  const sheetShortcuts = {
+    cancel: () => {
+      const focused = document.activeElement;
+      if (isTextEntry(focused) && focused instanceof HTMLElement) {
+        focused.blur();
+        return;
+      }
+      closeSheet();
+    },
+  };
 
   const shellShortcuts = $derived({
     'new-note': () => void createNote(pointerWorld),
@@ -1797,6 +1905,70 @@
            and the properties panel. The title bar and the left column stay. -->
       {#if settingsOpen}
         <SettingsPage {folderPath} onBack={() => (settingsOpen = false)} />
+      {:else if sheetOpen()}
+        <!-- §9.30: the sheet replaces the CANVAS. The title bar, the rail and the properties
+             panel all stay, and it takes no stacking rung — it is not a dialog. Leaving it
+             returns to exactly the canvas the user left, with the selection and the view
+             untouched, because nothing here clears either. -->
+        {@const openBlueprint = sheetBlueprint()}
+        {@const openItem = sheetItem()}
+        {#if openBlueprint && openItem}
+          {#if openBlueprint.id === 'chapter'}
+            <ChapterSheet
+              blueprint={openBlueprint}
+              item={openItem}
+              context={itemContext}
+              onBack={closeSheet}
+              onFieldChange={(key, value, added) =>
+                void changeField(openItem.id, key, value, added)}
+              onExpandIntoCanvas={() => void expandIntoCanvas(openItem.id)}
+              onDelete={() => void deleteSelection()}
+            />
+          {:else if openBlueprint.id === 'book'}
+            <BookSheet
+              blueprint={openBlueprint}
+              item={openItem}
+              context={itemContext}
+              onBack={closeSheet}
+              onFieldChange={(key, value, added) =>
+                void changeField(openItem.id, key, value, added)}
+              onReplaceFieldImage={(key) => void replaceFieldImage(openItem.id, key)}
+              onExpandIntoCanvas={() => void expandIntoCanvas(openItem.id)}
+              onDelete={() => void deleteSelection()}
+              onOpenPlacement={(canvasId, placementId) => {
+                closeSheet();
+                void openPlacement(canvasId, placementId);
+              }}
+              onOpenItem={(canvasId, id) => {
+                closeSheet();
+                void openItemOnCanvas(canvasId, id);
+              }}
+            />
+          {:else}
+            <CharacterSheet
+              blueprint={openBlueprint}
+              item={openItem}
+              context={itemContext}
+              onBack={closeSheet}
+              onFieldChange={(key, value, added) =>
+                void changeField(openItem.id, key, value, added)}
+              onScaleChange={(key, next, before) =>
+                void changeScale(openItem.id, key, next, before)}
+              onReplaceFieldImage={(key) => void replaceFieldImage(openItem.id, key)}
+              onRandomize={() => void randomizeCard(openItem.id)}
+              onExpandIntoCanvas={() => void expandIntoCanvas(openItem.id)}
+              onDelete={() => void deleteSelection()}
+              onOpenPlacement={(canvasId, placementId) => {
+                closeSheet();
+                void openPlacement(canvasId, placementId);
+              }}
+              onOpenItem={(canvasId, id) => {
+                closeSheet();
+                void openItemOnCanvas(canvasId, id);
+              }}
+            />
+          {/if}
+        {/if}
       {:else}
         <CanvasSurface
           bind:this={canvas}
@@ -1825,6 +1997,7 @@
             onGeometryCommitted={(before, after, label) =>
               void commitGeometry(before, after, label)}
             onOpenElementMenu={openElementMenu}
+            onOpenSheet={(placementId) => openSheetFor(placementId)}
             onCommitEdit={(id, title, text) => void commitEdit(id, title, text)}
             onSelect={selectCard}
             onConnectFrom={(placementId) => beginLink(placementId, pointerWorld)}
@@ -1874,6 +2047,17 @@
           }}
           onOpenPlacement={(canvasId, placementId) => void openPlacement(canvasId, placementId)}
           onOpenItem={(canvasId, itemId) => void openItemOnCanvas(canvasId, itemId)}
+          onExpandIntoCanvas={() => {
+            const item = selectedItem();
+            if (!item) return;
+            // The mark on the face and this action are one route: a card that already has a
+            // canvas of its own opens it rather than making a second one.
+            if (parseBlueprintPayload(item.payload).detail_canvas_id !== null) {
+              void openDetailCanvas(item.id);
+              return;
+            }
+            void expandIntoCanvas(item.id);
+          }}
           onShowInFolder={() => void showAssetsFolder()}
           onRefetch={() => {
             const item = selectedItem();
