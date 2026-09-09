@@ -39,6 +39,12 @@ export interface PickEntry {
 /** What one field's slot in `BlueprintPayload.fields` may hold. */
 export type FieldValue = string | number | PickEntry | PickEntry[] | null;
 
+/**
+ * How the properties panel treats one field: the full control, plain printed text, or not
+ * drawn. Absent in the data file means `edit`.
+ */
+export type PanelMode = 'edit' | 'text' | 'hidden';
+
 export interface BlueprintField {
   /** Permanent. The payload stores against this, so nothing may ever key off `label`. */
   key: string;
@@ -49,6 +55,8 @@ export interface BlueprintField {
   meaning: string;
   /** Whether the card face prints it. A `long-text` field is never true here. */
   show_on_face: boolean;
+  /** What the properties panel does with it. Absent means `edit` — see the Rust mirror. */
+  panel?: PanelMode;
   /** For `pick` / `pick-many`: which shipped list the combo offers. */
   list?: string;
   /** For `pick` / `pick-many`: the key of an EARLIER `pick` field on the same blueprint

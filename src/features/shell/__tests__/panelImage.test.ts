@@ -88,7 +88,7 @@ describe('the properties panel for an image card', () => {
     const labels = [...getByTestId('properties-panel').querySelectorAll('.group-label')].map(
       (el) => el.textContent,
     );
-    expect(labels).toEqual(['Image Title', 'Position', 'Size', 'Description', 'Order', 'File']);
+    expect(labels).toEqual(['Image Title', 'Position / Size', 'Description', 'Order', 'File']);
   });
 
   it('panel_aMissingAsset_printsMissingTheCardIsKeptAndNoDimensions', async () => {

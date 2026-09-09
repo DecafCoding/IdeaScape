@@ -30,6 +30,20 @@ pub enum FieldKind {
     Scale,
 }
 
+/// How the properties panel treats one field. `Edit` is the default and needs no key in
+/// the data file.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PanelMode {
+    /// The full control, the same one the sheet draws.
+    #[default]
+    Edit,
+    /// Printed as plain wrapped text, with no label and no control.
+    Text,
+    /// Not drawn at all. The field still exists and the sheet still edits it.
+    Hidden,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Size {
     pub width: f64,
@@ -46,6 +60,10 @@ pub struct Field {
     pub meaning: String,
     #[serde(default)]
     pub show_on_face: bool,
+    /// What the properties panel does with this field. Used by the types that own a full
+    /// screen: the panel is a summary, and the screen does the editing.
+    #[serde(default)]
+    pub panel: PanelMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub list: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

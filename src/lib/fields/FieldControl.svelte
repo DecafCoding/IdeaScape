@@ -3,7 +3,9 @@
 
   Given a blueprint field, a value and an `onCommit`, it draws the field in three parts,
   always in this order: the LABEL, the CONTROL, and the blueprint's MEANING line. The meaning
-  is authored once in the data file — it is never written per card.
+  is authored once in the data file — it is never written per card. `showMeaning` turns that
+  line off where the type has a sheet of its own: the properties panel is a summary there,
+  and the wording belongs on the screen that owns the field.
 
   This component knows the seven field kinds and NOTHING ELSE. It has never heard of a
   Character. If a per-card-type branch is ever needed here, the blueprint format is missing a
@@ -31,6 +33,10 @@
     longTextHeight?: number;
     /** A sheet draws a bigger picture box; the panel takes 52px. */
     imageSize?: number;
+    /** The blueprint's meaning line. Off in the panel of a type that has its own sheet. */
+    showMeaning?: boolean;
+    /** Draw an Image field full width and read only. See `ImageField`'s `full`. */
+    imageFull?: boolean;
     /** `added` is true when a combo wrote a row to the project's own vocabulary. */
     onCommit?: (value: FieldValue, added: boolean) => void;
     /** A Scale reports the value it started from, so a whole drag is one undo entry. */
@@ -48,6 +54,8 @@
     ground = 'var(--color-surface)',
     longTextHeight = 44,
     imageSize = 52,
+    showMeaning = true,
+    imageFull = false,
     onCommit,
     onCommitScale,
     onReplaceImage,
@@ -60,10 +68,14 @@
 </script>
 
 <div class="field" data-testid="field" data-field-key={field.key} data-field-kind={field.kind}>
-  <p class="label">
-    <span>{field.label}</span>
-    {@render labelAfter?.()}
-  </p>
+  <!-- A full-width picture needs no label: it is the only thing it can be, and the panel
+       it sits in is a summary. -->
+  {#if !imageFull || field.kind !== 'image'}
+    <p class="label">
+      <span>{field.label}</span>
+      {@render labelAfter?.()}
+    </p>
+  {/if}
 
   {#if field.kind === 'short-text'}
     <ShortTextField {field} {value} onCommit={(next) => commit(next)} />
@@ -78,6 +90,7 @@
       {field}
       {value}
       size={imageSize}
+      full={imageFull}
       onReplace={onReplaceImage}
       onCommit={(next) => commit(next)}
     />
@@ -95,7 +108,9 @@
     />
   {/if}
 
-  <p class="meaning">{field.meaning}</p>
+  {#if showMeaning}
+    <p class="meaning">{field.meaning}</p>
+  {/if}
 </div>
 
 <style>

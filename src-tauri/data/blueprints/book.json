@@ -3,7 +3,10 @@
   "label": "Book",
   "glyph": "book",
   "sheet": true,
-  "default_size": { "width": 300, "height": 210 },
+  "default_size": {
+    "width": 300,
+    "height": 210
+  },
   "fields": [
     {
       "key": "name",
@@ -24,7 +27,8 @@
       "label": "Logline",
       "kind": "short-text",
       "meaning": "The one sentence the card face shows.",
-      "show_on_face": true
+      "show_on_face": true,
+      "panel": "text"
     },
     {
       "key": "genre",
@@ -32,7 +36,8 @@
       "kind": "pick",
       "meaning": "Sorted by Genre. Stores an id, your words, and where it came from.",
       "show_on_face": true,
-      "list": "genres"
+      "list": "genres",
+      "panel": "hidden"
     },
     {
       "key": "subgenre",
@@ -41,7 +46,8 @@
       "meaning": "Sorted by Genre. Stores an id, your words, and where it came from.",
       "show_on_face": true,
       "list": "subgenres",
-      "filter_by": "genre"
+      "filter_by": "genre",
+      "panel": "hidden"
     },
     {
       "key": "synopsis",

@@ -3,7 +3,10 @@
   "label": "Character",
   "glyph": "user-circle",
   "sheet": true,
-  "default_size": { "width": 220, "height": 210 },
+  "default_size": {
+    "width": 220,
+    "height": 210
+  },
   "fields": [
     {
       "key": "name",
@@ -20,18 +23,20 @@
       "show_on_face": true
     },
     {
-      "key": "role",
-      "label": "Role",
-      "kind": "short-text",
-      "meaning": "What they are to the story — protagonist, rival, witness.",
-      "show_on_face": true
-    },
-    {
       "key": "one_liner",
       "label": "One-liner",
       "kind": "short-text",
       "meaning": "The character in one sentence.",
-      "show_on_face": false
+      "show_on_face": false,
+      "panel": "text"
+    },
+    {
+      "key": "role",
+      "label": "Role",
+      "kind": "short-text",
+      "meaning": "What they are to the story — protagonist, rival, witness.",
+      "show_on_face": true,
+      "panel": "text"
     },
     {
       "key": "description",

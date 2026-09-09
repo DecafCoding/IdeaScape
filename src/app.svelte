@@ -2058,6 +2058,7 @@
             const item = selectedItem();
             if (item) void replaceFieldImage(item.id, key);
           }}
+          onOpenSheet={(placementId) => openSheetFor(placementId)}
           onOpenPlacement={(canvasId, placementId) => void openPlacement(canvasId, placementId)}
           onOpenItem={(canvasId, itemId) => void openItemOnCanvas(canvasId, itemId)}
           onExpandIntoCanvas={() => {
