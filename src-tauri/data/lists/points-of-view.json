@@ -1,0 +1,30 @@
+{
+  "list": "points-of-view",
+  "entries": [
+    {
+      "id": "pov.epistolary",
+      "text": "Epistolary",
+      "tags": []
+    },
+    {
+      "id": "pov.first",
+      "text": "First person",
+      "tags": []
+    },
+    {
+      "id": "pov.second",
+      "text": "Second person",
+      "tags": []
+    },
+    {
+      "id": "pov.third-limited",
+      "text": "Third person limited",
+      "tags": []
+    },
+    {
+      "id": "pov.third-omniscient",
+      "text": "Third person omniscient",
+      "tags": []
+    }
+  ]
+}

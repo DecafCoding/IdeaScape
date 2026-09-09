@@ -14,6 +14,7 @@
 import { invokeSafe } from '../../lib/ipc';
 import { assetStatus, refreshAssetStatuses } from '../../lib/assets.svelte';
 import { logWarn } from '../../lib/logger';
+import { addListEntry, removeListEntry } from '../../lib/lists';
 import { payloadAssetNames } from '../../lib/types';
 import { canvasStore } from '../../stores/canvasStore.svelte';
 import type {
@@ -388,5 +389,26 @@ export function deleteCanvasCommand(
       await invokeSafe<CanvasDeleteEffect>('delete_canvas', { canvasId: effect.canvas.id });
       await hooks.refresh();
     },
+  };
+}
+
+/**
+ * Adding or removing a value in the project's own vocabulary.
+ *
+ * Pushed only when `add_list_entry` reported it actually wrote a row: typing a value the
+ * shipped list already holds changes nothing, so there is nothing to reverse. Both
+ * directions invalidate the cache, or the combo would keep offering a word that is gone.
+ */
+export function listEntryCommand(list: string, text: string, added: boolean): UndoableCommand {
+  async function add() {
+    await addListEntry(list, text);
+  }
+  async function remove() {
+    await removeListEntry(list, text);
+  }
+  return {
+    label: added ? 'Add List Entry' : 'Remove List Entry',
+    undo: added ? remove : add,
+    redo: added ? add : remove,
   };
 }

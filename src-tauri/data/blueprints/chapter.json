@@ -1,0 +1,52 @@
+{
+  "id": "chapter",
+  "label": "Chapter",
+  "glyph": "file-text",
+  "sheet": true,
+  "default_size": { "width": 264, "height": 168 },
+  "fields": [
+    {
+      "key": "number",
+      "label": "Number",
+      "kind": "number",
+      "meaning": "Empty is not zero. An empty number field is simply unanswered.",
+      "show_on_face": true
+    },
+    {
+      "key": "name",
+      "label": "Name",
+      "kind": "short-text",
+      "meaning": "What the chapter is called.",
+      "show_on_face": true
+    },
+    {
+      "key": "summary",
+      "label": "Summary",
+      "kind": "short-text",
+      "meaning": "What happens, in a line. This is what the card face shows.",
+      "show_on_face": true
+    },
+    {
+      "key": "word_target",
+      "label": "Word Target",
+      "kind": "number",
+      "meaning": "Empty is not zero. An empty number field is simply unanswered.",
+      "show_on_face": false
+    },
+    {
+      "key": "themes",
+      "label": "Themes",
+      "kind": "pick-many",
+      "meaning": "Drag a chip to reorder. The order is yours and is kept.",
+      "show_on_face": true,
+      "list": "themes"
+    },
+    {
+      "key": "prose",
+      "label": "Prose",
+      "kind": "long-text",
+      "meaning": "Never shown on the card face.",
+      "show_on_face": false
+    }
+  ]
+}

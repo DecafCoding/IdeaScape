@@ -3,10 +3,12 @@
 //! `db/` never calls back.
 
 pub mod asset;
+pub mod blueprint;
 pub mod canvas;
 pub mod connection;
 pub mod fetch;
 pub mod item;
+pub mod lists;
 pub mod placement;
 pub mod project;
 pub mod search;

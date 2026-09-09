@@ -8,7 +8,7 @@ use crate::db::models::{row_to_item, Item};
 use crate::error::{AppError, AppResult};
 use rusqlite::Connection;
 
-pub const KINDS: [&str; 4] = ["note", "image", "link", "video"];
+pub const KINDS: [&str; 5] = ["note", "image", "link", "video", "blueprint"];
 
 /// Reject a kind outside the schema's CHECK list, and a payload that is not a JSON object,
 /// before either reaches the database.

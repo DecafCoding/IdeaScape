@@ -95,6 +95,10 @@ pub struct Connection {
     /// position in the frame of the two card centres, never a canvas coordinate, so the
     /// bend moves with the cards. The front end owns that arithmetic.
     pub bend: String,
+    /// What the line means: a key from the front end's role table, any text the user typed,
+    /// or NULL. NULL reads as *Relates To* and draws no glyph, which is how every line made
+    /// before Phase 6 already looks — so NULL is never normalised into 'relates-to'.
+    pub role: Option<String>,
 }
 
 /// Everything `delete_placements` actually removed, so one undo command can restore the
@@ -202,5 +206,6 @@ pub fn row_to_connection(row: &rusqlite::Row<'_>) -> rusqlite::Result<Connection
         from_anchor: row.get("from_anchor")?,
         to_anchor: row.get("to_anchor")?,
         bend: row.get("bend")?,
+        role: row.get::<_, Option<String>>("role")?,
     })
 }

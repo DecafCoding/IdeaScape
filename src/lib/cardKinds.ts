@@ -7,7 +7,8 @@
  * reasoning. Contract 1 forbids the application choosing a *position*, not a default size.
  */
 import { MIN_CARD_SIZE } from './geometry';
-import type { ItemKind } from './types';
+import { getBlueprint, parseBlueprintPayload } from './blueprints.svelte';
+import type { Item, ItemKind } from './types';
 
 export interface CardSize {
   width: number;
@@ -34,6 +35,23 @@ export function defaultSizeFor(kind: ItemKind): CardSize {
     default:
       return { ...NOTE_SIZE };
   }
+}
+
+/**
+ * The default size for one item. A blueprint card reads its own type's authored size — no
+ * document draws a card face height (§9.27 gives every width and `auto`), and
+ * `placement.height` is NOT NULL, so a number has to be authored somewhere; the blueprint is
+ * where it belongs. Every other kind falls through to `defaultSizeFor`, which stays in place
+ * for the callers that only have a kind to hand.
+ */
+export function defaultSizeForItem(item: Item): CardSize {
+  if (item.kind === 'blueprint') {
+    const blueprint = getBlueprint(parseBlueprintPayload(item.payload).blueprint);
+    if (blueprint) {
+      return { width: blueprint.default_size.width, height: blueprint.default_size.height };
+    }
+  }
+  return defaultSizeFor(item.kind);
 }
 
 /**

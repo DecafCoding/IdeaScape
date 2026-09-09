@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
+  import { blueprintForPayload } from '../../lib/blueprints.svelte';
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import { assetStatus } from '../../lib/assets.svelte';
   import {
@@ -177,10 +178,18 @@
 
   const KIND_LABELS = { note: 'Note', image: 'Image', link: 'Link', video: 'Video' } as const;
 
+  /** The blueprint of the one selected writing card, or null for every other kind. */
+  const soleBlueprint = $derived(
+    soleItem?.kind === 'blueprint' ? blueprintForPayload(soleItem.payload) : null,
+  );
+
   const headerKind = $derived.by(() => {
     if (selected.length === 0) return '';
     if (selected.length > 1) return `${selected.length} Cards`;
-    return soleItem ? KIND_LABELS[soleItem.kind] : 'Card';
+    if (!soleItem) return 'Card';
+    // A writing card is headed by its own type name, which the blueprint carries.
+    if (soleItem.kind === 'blueprint') return soleBlueprint?.label ?? 'Card';
+    return KIND_LABELS[soleItem.kind];
   });
 
   const headerId = $derived.by(() => {

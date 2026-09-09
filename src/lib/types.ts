@@ -3,6 +3,8 @@
  * typed item payloads from PRD §6.9. Field names must stay in step with the Rust side.
  */
 
+import { imageKeys, parseBlueprintPayload } from './blueprints.svelte';
+
 export interface Project {
   id: number;
   name: string;
@@ -68,7 +70,7 @@ export interface SearchResults {
   cards: CardHit[];
 }
 
-export type ItemKind = 'note' | 'image' | 'link' | 'video';
+export type ItemKind = 'note' | 'image' | 'link' | 'video' | 'blueprint';
 
 export interface Item {
   id: number;
@@ -363,6 +365,8 @@ export function cardTitle(item: Item): string {
       const payload = parseVideoPayload(item.payload);
       return payload.title || urlHost(payload.url) || fallback;
     }
+    case 'blueprint':
+      return parseBlueprintPayload(item.payload).name || fallback;
     default:
       return fallback;
   }
@@ -376,7 +380,15 @@ export function payloadAssetNames(kind: ItemKind, payload: string): string[] {
     const value = parseLinkPayload(payload);
     names.push(value.favicon_asset, value.thumbnail_asset);
   }
-  if (kind === 'video') names.push(parseVideoPayload(payload).thumbnail_asset);
+  if (kind === 'blueprint') {
+    // Mirrors the `"blueprint"` arm of `asset_names` in Rust: which keys are Image is a
+    // blueprint question, so the registry answers it rather than a list written twice.
+    const value = parseBlueprintPayload(payload);
+    for (const key of imageKeys(value.blueprint)) {
+      const name = value.fields[key];
+      if (typeof name === 'string') names.push(name);
+    }
+  }
   return names.filter((n): n is string => n !== null && n.length > 0);
 }
 

@@ -1,0 +1,78 @@
+{
+  "id": "book",
+  "label": "Book",
+  "glyph": "book",
+  "sheet": true,
+  "default_size": { "width": 300, "height": 210 },
+  "fields": [
+    {
+      "key": "name",
+      "label": "Name",
+      "kind": "short-text",
+      "meaning": "What the book is called.",
+      "show_on_face": true
+    },
+    {
+      "key": "cover",
+      "label": "Cover",
+      "kind": "image",
+      "meaning": "Copied into assets/ under its content hash. Never a path.",
+      "show_on_face": false
+    },
+    {
+      "key": "logline",
+      "label": "Logline",
+      "kind": "short-text",
+      "meaning": "The one sentence the card face shows.",
+      "show_on_face": true
+    },
+    {
+      "key": "genre",
+      "label": "Genre",
+      "kind": "pick",
+      "meaning": "Sorted by Genre. Stores an id, your words, and where it came from.",
+      "show_on_face": true,
+      "list": "genres"
+    },
+    {
+      "key": "subgenre",
+      "label": "Sub-genre",
+      "kind": "pick",
+      "meaning": "Sorted by Genre. Stores an id, your words, and where it came from.",
+      "show_on_face": true,
+      "list": "subgenres",
+      "filter_by": "genre"
+    },
+    {
+      "key": "synopsis",
+      "label": "Synopsis",
+      "kind": "long-text",
+      "meaning": "Never shown on the card face.",
+      "show_on_face": false
+    },
+    {
+      "key": "story_tropes",
+      "label": "Story Tropes",
+      "kind": "pick-many",
+      "meaning": "Drag a chip to reorder. The order is yours and is kept.",
+      "show_on_face": true,
+      "list": "story-tropes",
+      "filter_by": "genre"
+    },
+    {
+      "key": "themes",
+      "label": "Themes",
+      "kind": "pick-many",
+      "meaning": "Drag a chip to reorder. The order is yours and is kept.",
+      "show_on_face": false,
+      "list": "themes"
+    },
+    {
+      "key": "notes",
+      "label": "Notes",
+      "kind": "long-text",
+      "meaning": "Never shown on the card face.",
+      "show_on_face": false
+    }
+  ]
+}

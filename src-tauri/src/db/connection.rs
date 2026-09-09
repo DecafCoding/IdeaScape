@@ -28,10 +28,38 @@ pub fn open_project_db(folder: &Path) -> AppResult<Connection> {
     let _: String = conn
         .query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))
         .map_err(|e| AppError::DatabaseOpen(format!("{shown} — {e}")))?;
-    conn.pragma_update(None, "foreign_keys", "ON")
+    // Foreign keys are OFF for the migration run and ON afterwards, and both are per
+    // connection. Migration 0007 rebuilds `item`, and `DROP TABLE` with foreign keys on
+    // fires `placement`'s ON DELETE CASCADE and empties the project. `PRAGMA foreign_keys`
+    // is a no-op inside a transaction and each migration runs in one, so the pragma cannot
+    // live in the .sql file — it has to be this order, here.
+    conn.pragma_update(None, "foreign_keys", "OFF")
         .map_err(|e| AppError::DatabaseOpen(format!("{shown} — {e}")))?;
 
     migrations::apply(&mut conn).map_err(|e| AppError::Migration(format!("{shown} — {e}")))?;
+
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .map_err(|e| AppError::DatabaseOpen(format!("{shown} — {e}")))?;
+
+    // A rebuild that left a dangling reference is a damaged project, not a working one.
+    // Failing here draws design-system §15.2's "database damaged" message instead of handing
+    // back a connection whose rows quietly point at nothing.
+    let mut check = conn
+        .prepare("PRAGMA foreign_key_check")
+        .map_err(|e| AppError::Migration(format!("{shown} — {e}")))?;
+    let broken = check
+        .query_map([], |r| r.get::<_, String>(0))
+        .map_err(|e| AppError::Migration(format!("{shown} — {e}")))?
+        .next()
+        .transpose()
+        .map_err(|e| AppError::Migration(format!("{shown} — {e}")))?;
+    if let Some(table) = broken {
+        return Err(AppError::Migration(format!(
+            "{shown} — 0007_item_blueprint_kind.sql left a broken reference in {table}"
+        )));
+    }
+    drop(check);
+
     Ok(conn)
 }
 

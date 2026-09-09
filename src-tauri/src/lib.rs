@@ -2,6 +2,7 @@
 //! surface the front end can reach.
 
 pub mod assets;
+pub mod blueprints;
 pub mod commands;
 pub mod db;
 pub mod error;
@@ -25,6 +26,11 @@ pub fn run() {
         commands::project::close_project,
         commands::project::list_recent_projects,
         commands::project::default_project_parent,
+        commands::blueprint::list_blueprints,
+        commands::blueprint::list_unplaced_items,
+        commands::lists::list_entries,
+        commands::lists::add_list_entry,
+        commands::lists::remove_list_entry,
         commands::canvas::list_canvases,
         commands::canvas::create_canvas,
         commands::canvas::rename_canvas,
@@ -75,6 +81,11 @@ pub fn run() {
         commands::project::close_project,
         commands::project::list_recent_projects,
         commands::project::default_project_parent,
+        commands::blueprint::list_blueprints,
+        commands::blueprint::list_unplaced_items,
+        commands::lists::list_entries,
+        commands::lists::add_list_entry,
+        commands::lists::remove_list_entry,
         commands::canvas::list_canvases,
         commands::canvas::create_canvas,
         commands::canvas::rename_canvas,

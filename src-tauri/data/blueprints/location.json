@@ -1,0 +1,37 @@
+{
+  "id": "location",
+  "label": "Location",
+  "glyph": "map-pin",
+  "sheet": false,
+  "default_size": { "width": 220, "height": 190 },
+  "fields": [
+    {
+      "key": "name",
+      "label": "Name",
+      "kind": "short-text",
+      "meaning": "What the place is called.",
+      "show_on_face": true
+    },
+    {
+      "key": "picture",
+      "label": "Picture",
+      "kind": "image",
+      "meaning": "Copied into assets/ under its content hash. Never a path.",
+      "show_on_face": true
+    },
+    {
+      "key": "summary",
+      "label": "Summary",
+      "kind": "short-text",
+      "meaning": "The place in a line. This is what the card face shows.",
+      "show_on_face": true
+    },
+    {
+      "key": "notes",
+      "label": "Notes",
+      "kind": "long-text",
+      "meaning": "Never shown on the card face.",
+      "show_on_face": false
+    }
+  ]
+}

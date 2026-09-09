@@ -1,0 +1,23 @@
+{
+  "id": "beat",
+  "label": "Beat",
+  "glyph": "dot-outline",
+  "sheet": false,
+  "default_size": { "width": 200, "height": 104 },
+  "fields": [
+    {
+      "key": "name",
+      "label": "Name",
+      "kind": "short-text",
+      "meaning": "What the beat is called.",
+      "show_on_face": true
+    },
+    {
+      "key": "text",
+      "label": "Text",
+      "kind": "short-text",
+      "meaning": "The beat itself, in a line.",
+      "show_on_face": true
+    }
+  ]
+}

@@ -69,6 +69,8 @@
   import { decidePaste, type UrlClassification } from './lib/paste';
   import { registerShortcuts } from './lib/shortcuts';
   import { getSettings, loadSettings } from './lib/settings.svelte';
+  import { loadBlueprints } from './lib/blueprints.svelte';
+  import { clearListCache } from './lib/lists';
   import { applyFont, applyTheme } from './lib/theme';
   import {
     debounce,
@@ -194,6 +196,7 @@
       const loaded = await loadSettings();
       applyTheme(loaded.theme);
       applyFont(loaded.font);
+      await loadBlueprints();
       await projectsState.loadRecents();
       await maybeRunPerfGate();
     });
@@ -247,6 +250,8 @@
       canvasStore.closeProject();
       undoStack.clear();
       setAssetsFolder(null);
+      // The project's own vocabulary goes with the project, not with the application.
+      clearListCache();
       clipboard = [];
       folderPath = null;
       openMenu = null;
