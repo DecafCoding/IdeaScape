@@ -75,7 +75,10 @@ const BLUEPRINT_JSON: [(&str, &str); 6] = [
         "chapter.json",
         include_str!("../../data/blueprints/chapter.json"),
     ),
-    ("scene.json", include_str!("../../data/blueprints/scene.json")),
+    (
+        "scene.json",
+        include_str!("../../data/blueprints/scene.json"),
+    ),
     ("beat.json", include_str!("../../data/blueprints/beat.json")),
     (
         "character.json",
@@ -168,7 +171,11 @@ mod tests {
             vec!["book", "chapter", "scene", "beat", "character", "location"]
         );
         for blueprint in list {
-            assert!(!blueprint.fields.is_empty(), "{} has no field", blueprint.id);
+            assert!(
+                !blueprint.fields.is_empty(),
+                "{} has no field",
+                blueprint.id
+            );
             assert!(blueprint.default_size.width > 0.0);
             assert!(blueprint.default_size.height > 0.0);
             for field in &blueprint.fields {

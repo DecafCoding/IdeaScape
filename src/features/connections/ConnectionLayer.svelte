@@ -269,6 +269,7 @@
     from_anchor: 'auto',
     to_anchor: 'auto',
     bend: '',
+    role: null,
   };
 
   /** The untrimmed path — what the hit target and the pending line are drawn from. */

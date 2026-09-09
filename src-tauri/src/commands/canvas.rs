@@ -371,6 +371,7 @@ mod tests {
             image.placement.id,
             Some("joins".into()),
             1,
+            None,
         )
         .unwrap();
 

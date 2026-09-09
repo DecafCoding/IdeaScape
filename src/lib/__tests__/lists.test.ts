@@ -14,7 +14,12 @@ const ENTRIES: ListEntry[] = [
 describe('sortForFilter', () => {
   it('sortForFilter_aTaggedParent_putsMatchingEntriesFirstAndKeepsEveryOther', () => {
     const sorted = sortForFilter(ENTRIES, 'genre.rigor');
-    expect(sorted.map((e) => e.text)).toEqual(['Ark ship', 'Cold sleep', 'Becalmed', 'Dyson swarm']);
+    expect(sorted.map((e) => e.text)).toEqual([
+      'Ark ship',
+      'Cold sleep',
+      'Becalmed',
+      'Dyson swarm',
+    ]);
   });
 
   it('sortForFilter_returnsTheSameNumberOfEntriesItWasGiven', () => {

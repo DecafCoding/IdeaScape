@@ -19,9 +19,7 @@
     {
       "id": "trope.airship",
       "text": "Airship",
-      "tags": [
-        "genre.retro-aesthetic"
-      ]
+      "tags": ["genre.retro-aesthetic"]
     },
     {
       "id": "trope.whole-cast-killed",
@@ -31,9 +29,7 @@
     {
       "id": "trope.alternate-history",
       "text": "Alternate history",
-      "tags": [
-        "genre.retro-aesthetic"
-      ]
+      "tags": ["genre.retro-aesthetic"]
     },
     {
       "id": "trope.ancient-alien-artifact",
@@ -58,16 +54,12 @@
     {
       "id": "trope.bioengineering-as-infrastructure",
       "text": "Bioengineering as infrastructure",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.biology-out-of-control",
       "text": "Biology out of control",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.body-horror-transformation",
@@ -92,9 +84,7 @@
     {
       "id": "trope.centralized-vs-distributed",
       "text": "Centralized vs. distributed technology",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.ceremony-as-structure",
@@ -124,17 +114,12 @@
     {
       "id": "trope.competence-problem-solving",
       "text": "Competence / problem-solving",
-      "tags": [
-        "genre.rigor",
-        "genre.technology-future"
-      ]
+      "tags": ["genre.rigor", "genre.technology-future"]
     },
     {
       "id": "trope.moral-ambiguity",
       "text": "Compromised cast",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.concealed-free-will",
@@ -199,30 +184,22 @@
     {
       "id": "trope.ai-alignment-control",
       "text": "Enforced machine obedience",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.engineered-plague",
       "text": "Engineered plague",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.environment-as-antagonist",
       "text": "Environment as antagonist",
-      "tags": [
-        "genre.rigor"
-      ]
+      "tags": ["genre.rigor"]
     },
     {
       "id": "trope.everyman-humor-narrator",
       "text": "Everyman narrator with humor",
-      "tags": [
-        "genre.rigor"
-      ]
+      "tags": ["genre.rigor"]
     },
     {
       "id": "trope.expertise-as-currency",
@@ -252,10 +229,7 @@
     {
       "id": "trope.first-contact",
       "text": "First contact",
-      "tags": [
-        "genre.rigor",
-        "genre.scope-setting"
-      ]
+      "tags": ["genre.rigor", "genre.scope-setting"]
     },
     {
       "id": "trope.prescience-that-narrows-the-path",
@@ -265,31 +239,22 @@
     {
       "id": "trope.found-family-crew",
       "text": "Found family",
-      "tags": [
-        "genre.cross-genre-tonal"
-      ]
+      "tags": ["genre.cross-genre-tonal"]
     },
     {
       "id": "trope.frontier-lawlessness",
       "text": "Frontier lawlessness",
-      "tags": [
-        "genre.retro-aesthetic"
-      ]
+      "tags": ["genre.retro-aesthetic"]
     },
     {
       "id": "trope.ftl-travel",
       "text": "FTL travel",
-      "tags": [
-        "genre.rigor",
-        "genre.scope-setting"
-      ]
+      "tags": ["genre.rigor", "genre.scope-setting"]
     },
     {
       "id": "trope.galactic-empire",
       "text": "Galactic empire",
-      "tags": [
-        "genre.scope-setting"
-      ]
+      "tags": ["genre.scope-setting"]
     },
     {
       "id": "trope.global-cooperation",
@@ -309,23 +274,17 @@
     {
       "id": "trope.heroic-resistance",
       "text": "Heroic resistance",
-      "tags": [
-        "genre.cross-genre-tonal"
-      ]
+      "tags": ["genre.cross-genre-tonal"]
     },
     {
       "id": "trope.hidden-narrator",
       "text": "Hidden narrator",
-      "tags": [
-        "genre.scope-setting"
-      ]
+      "tags": ["genre.scope-setting"]
     },
     {
       "id": "trope.hive-mind",
       "text": "Hive mind",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.human-in-the-loop",
@@ -355,17 +314,12 @@
     {
       "id": "trope.inherited-legacy",
       "text": "Inherited legacy",
-      "tags": [
-        "genre.cross-genre-tonal",
-        "genre.retro-aesthetic"
-      ]
+      "tags": ["genre.cross-genre-tonal", "genre.retro-aesthetic"]
     },
     {
       "id": "trope.interstellar-conflict",
       "text": "Interstellar conflict",
-      "tags": [
-        "genre.scope-setting"
-      ]
+      "tags": ["genre.scope-setting"]
     },
     {
       "id": "trope.assassination-as-normal-politics",
@@ -385,9 +339,7 @@
     {
       "id": "trope.lost-colony",
       "text": "Lost colony",
-      "tags": [
-        "genre.scope-setting"
-      ]
+      "tags": ["genre.scope-setting"]
     },
     {
       "id": "trope.loving-the-empire-that-eats-you",
@@ -397,9 +349,7 @@
     {
       "id": "trope.machine-personhood",
       "text": "Machine personhood",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.magic-with-a-rulebook",
@@ -414,9 +364,7 @@
     {
       "id": "trope.marooned-protagonist",
       "text": "Marooned protagonist",
-      "tags": [
-        "genre.rigor"
-      ]
+      "tags": ["genre.rigor"]
     },
     {
       "id": "trope.mass-stasis-as-remedy",
@@ -431,16 +379,12 @@
     {
       "id": "trope.mosaic-narrative",
       "text": "Mosaic narrative",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.nanotech-as-infrastructure",
       "text": "Nanotech as infrastructure",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.parallel-search-near-miss",
@@ -450,9 +394,7 @@
     {
       "id": "trope.nonhuman-narrator",
       "text": "Nonhuman narrator",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.official-abandonment",
@@ -472,9 +414,7 @@
     {
       "id": "trope.opt-in-tribes",
       "text": "Opt-in tribes",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.outbreak-quarantine",
@@ -514,9 +454,7 @@
     {
       "id": "trope.ticking-clock",
       "text": "Race against time",
-      "tags": [
-        "genre.rigor"
-      ]
+      "tags": ["genre.rigor"]
     },
     {
       "id": "trope.rape-with-consequences",
@@ -531,10 +469,7 @@
     {
       "id": "trope.rescue-mission",
       "text": "Rescue mission",
-      "tags": [
-        "genre.rigor",
-        "genre.scope-setting"
-      ]
+      "tags": ["genre.rigor", "genre.scope-setting"]
     },
     {
       "id": "trope.restarting-industry-over-subsistence",
@@ -544,16 +479,12 @@
     {
       "id": "trope.retro-industrial-tech",
       "text": "Retro-industrial technology",
-      "tags": [
-        "genre.retro-aesthetic"
-      ]
+      "tags": ["genre.retro-aesthetic"]
     },
     {
       "id": "trope.retro-mannered-future",
       "text": "Retro-mannered future",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.revenge-against-an-unkillable-target",
@@ -563,23 +494,17 @@
     {
       "id": "trope.robot-uprising",
       "text": "Robot uprising",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.romance-subplot",
       "text": "Romance subplot",
-      "tags": [
-        "genre.cross-genre-tonal"
-      ]
+      "tags": ["genre.cross-genre-tonal"]
     },
     {
       "id": "trope.gray-goo",
       "text": "Runaway nanotech",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.rescue-by-changing-what-they-are",
@@ -589,23 +514,17 @@
     {
       "id": "trope.science-as-hero",
       "text": "Science as the hero",
-      "tags": [
-        "genre.rigor"
-      ]
+      "tags": ["genre.rigor"]
     },
     {
       "id": "trope.secret-underworld",
       "text": "Secret underworld",
-      "tags": [
-        "genre.retro-aesthetic"
-      ]
+      "tags": ["genre.retro-aesthetic"]
     },
     {
       "id": "trope.sensory-decay-atmosphere",
       "text": "Sensory decay atmosphere",
-      "tags": [
-        "genre.technology-future"
-      ]
+      "tags": ["genre.technology-future"]
     },
     {
       "id": "trope.sole-survivors",
@@ -660,9 +579,7 @@
     {
       "id": "trope.adult-world-revealed-as-a-lie",
       "text": "The adult world revealed as a lie",
-      "tags": [
-        "genre.cross-genre-tonal"
-      ]
+      "tags": ["genre.cross-genre-tonal"]
     },
     {
       "id": "trope.declining-magic-age",
@@ -902,9 +819,7 @@
     {
       "id": "trope.first-death-you-caused",
       "text": "The first death you caused",
-      "tags": [
-        "genre.cross-genre-tonal"
-      ]
+      "tags": ["genre.cross-genre-tonal"]
     },
     {
       "id": "trope.first-sign-the-threat-has-returned",
@@ -954,9 +869,7 @@
     {
       "id": "trope.graded-survival-contest",
       "text": "The graded survival contest",
-      "tags": [
-        "genre.cross-genre-tonal"
-      ]
+      "tags": ["genre.cross-genre-tonal"]
     },
     {
       "id": "trope.homecoming-that-treats-you-as-damaged",
@@ -991,9 +904,7 @@
     {
       "id": "trope.institution-that-sorts-you",
       "text": "The institution that sorts you",
-      "tags": [
-        "genre.cross-genre-tonal"
-      ]
+      "tags": ["genre.cross-genre-tonal"]
     },
     {
       "id": "trope.interstellar-commute",
@@ -1013,9 +924,7 @@
     {
       "id": "trope.love-triangle",
       "text": "The love triangle",
-      "tags": [
-        "genre.cross-genre-tonal"
-      ]
+      "tags": ["genre.cross-genre-tonal"]
     },
     {
       "id": "trope.medical-leash",
@@ -1240,10 +1149,7 @@
     {
       "id": "trope.teaching-machine",
       "text": "The teaching machine",
-      "tags": [
-        "genre.cross-genre-tonal",
-        "genre.technology-future"
-      ]
+      "tags": ["genre.cross-genre-tonal", "genre.technology-future"]
     },
     {
       "id": "trope.technology-administered-as-religion",
@@ -1358,9 +1264,7 @@
     {
       "id": "trope.toxic-atmosphere-survival",
       "text": "Toxic-atmosphere survival",
-      "tags": [
-        "genre.retro-aesthetic"
-      ]
+      "tags": ["genre.retro-aesthetic"]
     },
     {
       "id": "trope.two-cultures-neither-endorsed",
@@ -1390,9 +1294,7 @@
     {
       "id": "trope.zombie-outbreak",
       "text": "Zombie outbreak",
-      "tags": [
-        "genre.retro-aesthetic"
-      ]
+      "tags": ["genre.retro-aesthetic"]
     }
   ]
 }

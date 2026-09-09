@@ -50,6 +50,7 @@ function connection(overrides: Partial<Connection> = {}): Connection {
     from_anchor: 'auto',
     to_anchor: 'auto',
     bend: '',
+    role: null,
     ...overrides,
   };
 }
@@ -108,6 +109,9 @@ describe('the pending link', () => {
       toPlacementId: 2,
       label: null,
       directed: 1,
+      // Two note cards: no pair suggestion, so the line reads as Relates To and looks
+      // exactly as it did before Phase 6.
+      role: null,
     });
     expect(created?.id).toBe(7);
     expect(canvasStore.connections.get(7)).toBeDefined();
@@ -153,6 +157,9 @@ describe('the pending link', () => {
       toPlacementId: 2,
       label: null,
       directed: 1,
+      // Two note cards: no pair suggestion, so the line reads as Relates To and looks
+      // exactly as it did before Phase 6.
+      role: null,
     });
   });
 

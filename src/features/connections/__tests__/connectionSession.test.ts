@@ -91,6 +91,7 @@ class FakeProject {
         from_anchor: 'auto',
         to_anchor: 'auto',
         bend: '',
+        role: null,
       };
       this.rows.set(row.id, row);
       return row;

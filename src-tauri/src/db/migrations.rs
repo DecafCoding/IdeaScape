@@ -87,7 +87,10 @@ mod tests {
             ("note", r#"{"title":"T","text":"body"}"#),
             ("image", r#"{"asset":"h.png","alt":""}"#),
             ("link", r#"{"url":"https://example.com"}"#),
-            ("video", r#"{"url":"https://youtu.be/x","provider":"youtube"}"#),
+            (
+                "video",
+                r#"{"url":"https://youtu.be/x","provider":"youtube"}"#,
+            ),
         ]
         .iter()
         .enumerate()
@@ -196,13 +199,8 @@ mod tests {
         {
             // Build a pre-0007 project in a real file, then reopen it through the shipped path.
             let mut conn = Connection::open(dir.path().join("ideascape.db")).unwrap();
-            let subset = Migrations::new(
-                MIGRATION_SQL
-                    .iter()
-                    .take(6)
-                    .map(|sql| M::up(sql))
-                    .collect(),
-            );
+            let subset =
+                Migrations::new(MIGRATION_SQL.iter().take(6).map(|sql| M::up(sql)).collect());
             subset.to_latest(&mut conn).unwrap();
             seed_phase_five(&conn);
         }
@@ -289,7 +287,8 @@ mod tests {
             [],
         )
         .unwrap();
-        conn.execute("DELETE FROM project WHERE id = 1", []).unwrap();
+        conn.execute("DELETE FROM project WHERE id = 1", [])
+            .unwrap();
         let n: i64 = conn
             .query_row("SELECT count(*) FROM list_entry", [], |r| r.get(0))
             .unwrap();

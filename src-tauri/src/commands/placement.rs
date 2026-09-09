@@ -832,8 +832,10 @@ mod tests {
                 .id,
             );
         }
-        create_connection_for(&state, canvas_id, ids[0], ids[1], Some("a".into()), 1).unwrap();
-        create_connection_for(&state, canvas_id, ids[1], ids[2], Some("b".into()), 2).unwrap();
+        create_connection_for(&state, canvas_id, ids[0], ids[1], Some("a".into()), 1, None)
+            .unwrap();
+        create_connection_for(&state, canvas_id, ids[1], ids[2], Some("b".into()), 2, None)
+            .unwrap();
 
         // Deleting the middle card takes both lines with it, and each is reported once.
         let effect = delete_placements_for(&state, vec![ids[1]]).unwrap();
@@ -877,7 +879,7 @@ mod tests {
         .unwrap()
         .placement
         .id;
-        create_connection_for(&state, canvas_id, a, b, None, 1).unwrap();
+        create_connection_for(&state, canvas_id, a, b, None, 1, None).unwrap();
 
         let effect = delete_placements_for(&state, vec![a, b]).unwrap();
         assert_eq!(effect.connections.len(), 1);

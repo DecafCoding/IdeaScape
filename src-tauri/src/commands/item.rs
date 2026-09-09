@@ -52,9 +52,14 @@ pub fn validate_payload(kind: &str, payload: &str) -> AppResult<()> {
             return Err(AppError::Invalid(format!("card type {id}")));
         }
         if !value.get("name").is_some_and(|n| n.is_string()) {
-            return Err(AppError::Invalid(String::from("a card payload needs a name")));
+            return Err(AppError::Invalid(String::from(
+                "a card payload needs a name",
+            )));
         }
-        if value.get("fields").is_some_and(|f| !f.is_object() && !f.is_null()) {
+        if value
+            .get("fields")
+            .is_some_and(|f| !f.is_object() && !f.is_null())
+        {
             return Err(AppError::Invalid(String::from(
                 "a card payload's fields must be an object",
             )));

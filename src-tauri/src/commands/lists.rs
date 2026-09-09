@@ -17,9 +17,11 @@ use crate::error::{AppError, AppResult};
 /// The one project row every read and write is scoped by. There is exactly one project row
 /// per folder, so this is a lookup rather than an argument the front end has to carry.
 fn project_id(conn: &rusqlite::Connection) -> AppResult<i64> {
-    Ok(conn.query_row("SELECT id FROM project ORDER BY id LIMIT 1", [], |r| {
-        r.get(0)
-    })?)
+    Ok(
+        conn.query_row("SELECT id FROM project ORDER BY id LIMIT 1", [], |r| {
+            r.get(0)
+        })?,
+    )
 }
 
 /// The shipped entries for `list`, then this project's own rows that are not already present
@@ -69,7 +71,10 @@ pub fn add_list_entry_for(state: &AppState, list: String, text: String) -> AppRe
         // Deduplicate against the shipped entries in Rust: SQLite compares TEXT
         // case-sensitively, so the unique index alone would let two casings through.
         let lower = text.to_lowercase();
-        if shipped(&list).iter().any(|e| e.text.to_lowercase() == lower) {
+        if shipped(&list)
+            .iter()
+            .any(|e| e.text.to_lowercase() == lower)
+        {
             return Ok(false);
         }
         let existing: i64 = conn.query_row(
@@ -176,10 +181,18 @@ mod tests {
     #[test]
     fn add_list_entry_the_same_value_twice_writes_one_row() {
         let (_dir, state) = open();
-        assert!(add_list_entry_for(&state, String::from("themes"), String::from("Chosen One")).unwrap());
-        assert!(!add_list_entry_for(&state, String::from("themes"), String::from("Chosen One")).unwrap());
+        assert!(
+            add_list_entry_for(&state, String::from("themes"), String::from("Chosen One")).unwrap()
+        );
+        assert!(
+            !add_list_entry_for(&state, String::from("themes"), String::from("Chosen One"))
+                .unwrap()
+        );
         // And in another casing — one row, not two.
-        assert!(!add_list_entry_for(&state, String::from("themes"), String::from("chosen one")).unwrap());
+        assert!(
+            !add_list_entry_for(&state, String::from("themes"), String::from("chosen one"))
+                .unwrap()
+        );
         let entries = list_entries_for(&state, String::from("themes")).unwrap();
         let mine: Vec<_> = entries
             .iter()

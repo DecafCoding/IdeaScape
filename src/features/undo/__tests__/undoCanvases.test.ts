@@ -58,6 +58,7 @@ function effectFor(id: number): CanvasDeleteEffect {
         from_anchor: 'auto',
         to_anchor: 'auto',
         bend: '',
+        role: null,
       },
     ],
     assets: ['pic.png'],

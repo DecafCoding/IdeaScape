@@ -54,6 +54,7 @@
     createCanvasCommand,
     createCardCommand,
     deleteUnplacedCommand,
+    setFieldCommand,
     createConnectionCommand,
     deleteCanvasCommand,
     deleteCardsCommand,
@@ -81,6 +82,15 @@
     unplacedItems,
   } from './features/canvases/unplaced.svelte';
   import { defaultSizeForItem } from './lib/cardKinds';
+  import {
+    blueprintForPayload,
+    parseBlueprintPayload,
+    type BlueprintField,
+    type FieldValue,
+  } from './lib/blueprints.svelte';
+  import { logWarn } from './lib/logger';
+  import { listEntryCommand } from './features/undo/commands';
+  import type { ItemContext } from './lib/types';
   import { applyFont, applyTheme } from './lib/theme';
   import {
     debounce,
@@ -559,6 +569,32 @@
       width: placement.width,
       height: placement.height,
     });
+  }
+
+  /**
+   * Go to one placement of a card and select it. Both §9.28 groups navigate this way, which
+   * is the same route the search results already take.
+   */
+  async function openPlacement(canvasId: number, placementId: number) {
+    if (canvasId !== canvasStore.activeCanvasId) await switchCanvas(canvasId);
+    const placement = canvasStore.placements.get(placementId);
+    if (!placement) return;
+    canvasStore.setSelection([placementId]);
+    canvas?.centreOn({
+      x: placement.x,
+      y: placement.y,
+      width: placement.width,
+      height: placement.height,
+    });
+  }
+
+  /** Go to the far card of a connection. It is named by its item, so its placement on that
+   *  canvas is looked up after the switch. */
+  async function openItemOnCanvas(canvasId: number, itemId: number) {
+    if (canvasId !== canvasStore.activeCanvasId) await switchCanvas(canvasId);
+    const placement = [...canvasStore.placements.values()].find((p) => p.item_id === itemId);
+    if (!placement) return;
+    await openPlacement(canvasId, placement.id);
   }
 
   // --- card actions -----------------------------------------------------
@@ -1090,6 +1126,112 @@
     });
   }
 
+  // --- writing cards: the generated panel and the sheets ------------------
+
+  /**
+   * Where the selected writing card is, and what it is wired to (§9.28).
+   *
+   * Re-read whenever the selection or the card itself changes: a new line, a new placement
+   * or a renamed far card all show here.
+   */
+  let itemContext = $state<ItemContext | null>(null);
+
+  $effect(() => {
+    const item = selectedItem();
+    // Read the payload so an edit to the card re-runs this and the groups stay current.
+    void item?.payload;
+    if (!item || item.kind !== 'blueprint') {
+      itemContext = null;
+      return;
+    }
+    void (async () => {
+      try {
+        itemContext = await invokeSafe<ItemContext>('item_context', { itemId: item.id });
+      } catch (error) {
+        logWarn('the card context could not be read', error);
+        itemContext = null;
+      }
+    })();
+  });
+
+  /**
+   * The one write path for every field of a writing card.
+   *
+   * The panel's controls and all three sheets commit through this, which is what makes
+   * editing a card on its sheet and editing it in the panel produce the same payload and the
+   * same single undo entry.
+   */
+  async function changeField(itemId: number, key: string, value: FieldValue, listAdded = false) {
+    const item = findItemById(itemId);
+    if (!item) return;
+    const before = parseBlueprintPayload(item.payload).fields[key] ?? null;
+    const topLevel = key === 'name' || key === 'detail_canvas_id';
+    const beforeValue = topLevel
+      ? ((parseBlueprintPayload(item.payload) as unknown as Record<string, FieldValue>)[key] ??
+        null)
+      : before;
+    await guard(async () => {
+      const updated = await writeNow(
+        () => invokeSafe<Item>('set_item_field', { itemId, key, value }),
+        saveHooks,
+      );
+      canvasStore.upsertItem(updated);
+      undoStack.push(setFieldCommand(itemId, key, beforeValue, value));
+      // A value the user typed was written to the project's own vocabulary, and that is a
+      // second reversible thing — pushed only when a row was actually written.
+      if (listAdded) {
+        const list = listForField(item, key);
+        if (list) undoStack.push(listEntryCommand(list, textOf(value), true));
+      }
+    });
+  }
+
+  /** The shipped list a Pick or Pick Many field draws from, for the undo entry above. */
+  function listForField(item: Item, key: string): string | null {
+    const blueprint = blueprintForPayload(item.payload);
+    return blueprint?.fields.find((field: BlueprintField) => field.key === key)?.list ?? null;
+  }
+
+  /** The text of the entry just committed — the last member of a Pick Many, or the Pick. */
+  function textOf(value: FieldValue): string {
+    if (Array.isArray(value)) return value.at(-1)?.text ?? '';
+    if (value && typeof value === 'object') return value.text;
+    return typeof value === 'string' ? value : '';
+  }
+
+  /** A card on the open canvas, or a record sitting in the Unplaced list. */
+  function findItemById(itemId: number): Item | null {
+    return canvasStore.items.get(itemId) ?? unplacedItems().find((i) => i.id === itemId) ?? null;
+  }
+
+  /** A Scale drag is one undo entry: the value at pointer-down comes back with the change. */
+  async function changeScale(itemId: number, key: string, next: number, before: number) {
+    await guard(async () => {
+      const updated = await writeNow(
+        () => invokeSafe<Item>('set_item_field', { itemId, key, value: next }),
+        saveHooks,
+      );
+      canvasStore.upsertItem(updated);
+      undoStack.push(setFieldCommand(itemId, key, before, next));
+    });
+  }
+
+  /** Replace the picture in one Image FIELD of a writing card. */
+  async function replaceFieldImage(itemId: number, key: string) {
+    await guard(async () => {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const chosen = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: 'Pictures', extensions: [...IMAGE_EXTENSIONS] }],
+      });
+      if (chosen === null || Array.isArray(chosen)) return;
+      const asset = await invokeSafe<AssetRef>('add_image_from_path', { path: chosen });
+      noteAssetPresent(asset.name, asset.byte_size);
+      await changeField(itemId, key, asset.name);
+    });
+  }
+
   /** Show in folder: a WebView cannot reveal a path, so the opener plugin does it. */
   async function showAssetsFolder() {
     try {
@@ -1262,14 +1404,16 @@
     'zoom-to-fit': () => canvas?.zoomToFit(),
     'bring-forward': () => void reorder('front'),
     'send-back': () => void reorder('back'),
-    undo: () => void guard(async () => {
-      await undoStack.undo();
-      await refreshUnplaced();
-    }),
-    redo: () => void guard(async () => {
-      await undoStack.redo();
-      await refreshUnplaced();
-    }),
+    undo: () =>
+      void guard(async () => {
+        await undoStack.undo();
+        await refreshUnplaced();
+      }),
+    redo: () =>
+      void guard(async () => {
+        await undoStack.redo();
+        await refreshUnplaced();
+      }),
   } satisfies Parameters<typeof registerShortcuts>[0]);
 
   // --- context menus ----------------------------------------------------
@@ -1666,6 +1810,21 @@
           onImageTitleVisibleChange={(visible) => void commitImageTitleVisible(visible)}
           onNoteTitleChange={(title) => void commitNoteTitle(title)}
           onReplaceImage={() => void replaceImage()}
+          {itemContext}
+          onFieldChange={(key, value, added) => {
+            const item = selectedItem();
+            if (item) void changeField(item.id, key, value, added);
+          }}
+          onScaleChange={(key, next, before) => {
+            const item = selectedItem();
+            if (item) void changeScale(item.id, key, next, before);
+          }}
+          onReplaceFieldImage={(key) => {
+            const item = selectedItem();
+            if (item) void replaceFieldImage(item.id, key);
+          }}
+          onOpenPlacement={(canvasId, placementId) => void openPlacement(canvasId, placementId)}
+          onOpenItem={(canvasId, itemId) => void openItemOnCanvas(canvasId, itemId)}
           onShowInFolder={() => void showAssetsFolder()}
           onRefetch={() => {
             const item = selectedItem();

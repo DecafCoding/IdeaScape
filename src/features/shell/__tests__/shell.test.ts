@@ -311,6 +311,7 @@ describe('the properties panel Connection state', () => {
       from_anchor: 'auto',
       to_anchor: 'auto',
       bend: '',
+      role: null,
     });
     canvasStore.selectConnection(7);
   });
@@ -351,6 +352,7 @@ describe('the properties panel Connection state', () => {
       fromAnchor: 'auto',
       toAnchor: 'auto',
       bend: '',
+      role: null,
     });
   });
 
@@ -370,6 +372,7 @@ describe('the properties panel Connection state', () => {
       fromAnchor: 'auto',
       toAnchor: 'auto',
       bend: '',
+      role: null,
     });
   });
 
@@ -401,6 +404,7 @@ describe('the properties panel Connection state', () => {
       fromAnchor: 'auto',
       toAnchor: 'auto',
       bend: '',
+      role: null,
     });
   });
 
@@ -443,6 +447,7 @@ describe('the properties panel Connection state', () => {
       fromAnchor: 'auto',
       toAnchor: 'auto',
       bend: '',
+      role: null,
     });
   });
 
@@ -463,6 +468,7 @@ describe('the properties panel Connection state', () => {
       fromAnchor: 'auto',
       toAnchor: 'auto',
       bend: '',
+      role: null,
     });
   });
 
@@ -482,6 +488,7 @@ describe('the properties panel Connection state', () => {
       fromAnchor: 'auto',
       toAnchor: 'auto',
       bend: '',
+      role: null,
     });
   });
 
@@ -513,6 +520,7 @@ describe('the properties panel Connection state', () => {
       fromAnchor: 'auto',
       toAnchor: 'auto',
       bend: '',
+      role: null,
     });
   });
 

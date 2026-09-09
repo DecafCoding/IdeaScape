@@ -168,6 +168,12 @@ export interface Connection {
    * see `parseBend` in `lib/connectionGeometry.ts`.
    */
   bend: string;
+  /**
+   * What the line means: a key from `lib/roles.ts`, any text the user typed, or null. NULL
+   * reads as *Relates To* and draws no glyph — which is how every line made before Phase 6
+   * already looks, and why no back-fill was needed. It is never normalised on write.
+   */
+  role: string | null;
 }
 
 /**
@@ -184,6 +190,7 @@ export interface ConnectionEdit {
   fromAnchor: string;
   toAnchor: string;
   bend: string;
+  role: string | null;
 }
 
 /**
@@ -201,6 +208,7 @@ export function connectionEdit(connection: Connection): ConnectionEdit {
     fromAnchor: connection.from_anchor,
     toAnchor: connection.to_anchor,
     bend: connection.bend,
+    role: connection.role,
   };
 }
 
@@ -430,4 +438,35 @@ export interface VideoPreviewResult {
   title: string;
   author_name: string;
   thumbnail_asset: string | null;
+}
+
+/** One placement of a writing card, for the panel's *Placed on* group (§9.28). */
+export interface ItemPlacement {
+  placement_id: number;
+  canvas_id: number;
+  canvas_name: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * One line touching a writing card, for the panel's *Joined to* group.
+ *
+ * `reversed` says which end this card is, which is what lets *Part Of* read *Contains* from
+ * the other end — a display decision, never a stored value and never an eighth role.
+ */
+export interface ItemJoin {
+  connection_id: number;
+  canvas_id: number;
+  other_item_id: number;
+  other_name: string;
+  other_blueprint: string | null;
+  role: string | null;
+  reversed: boolean;
+}
+
+/** Where else a writing card is, and what it is wired to. Mirrors the Rust struct. */
+export interface ItemContext {
+  placements: ItemPlacement[];
+  joined: ItemJoin[];
 }

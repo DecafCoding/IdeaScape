@@ -14,6 +14,7 @@ use crate::commands::project::AppState;
 use crate::db::connection::now_iso8601;
 use crate::db::models::{row_to_item, Item, PlacementWithItem};
 use crate::error::{AppError, AppResult};
+use serde::{Deserialize, Serialize};
 
 /// Every shipped card type, in menu order. It takes no state: the blueprints are the same in
 /// every project, so this is answered before a project is open.
@@ -98,9 +99,11 @@ pub fn set_item_field_for(
 ) -> AppResult<Item> {
     state.with_db(|conn| {
         let (kind, payload): (String, String) = conn
-            .query_row("SELECT kind, payload FROM item WHERE id = ?1", [item_id], |r| {
-                Ok((r.get(0)?, r.get(1)?))
-            })
+            .query_row(
+                "SELECT kind, payload FROM item WHERE id = ?1",
+                [item_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .map_err(|_| AppError::NotFound(format!("item {item_id}")))?;
         if kind != "blueprint" {
             return Err(AppError::Invalid(format!(
@@ -186,6 +189,136 @@ pub fn list_unplaced_items(state: tauri::State<'_, AppState>) -> AppResult<Vec<I
     list_unplaced_items_for(&state)
 }
 
+/// Where else this record is, and what it is wired to — the two §9.28 panel groups.
+///
+/// Both are the visible proof that one item can have many placements: *Placed on* names
+/// every canvas it sits on, *Joined to* every line touching any of those placements.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ItemPlacement {
+    pub placement_id: i64,
+    pub canvas_id: i64,
+    pub canvas_name: String,
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ItemJoin {
+    pub connection_id: i64,
+    pub canvas_id: i64,
+    pub other_item_id: i64,
+    pub other_name: String,
+    /// The far card's blueprint id, or null when it is a note, image, link or video.
+    pub other_blueprint: Option<String>,
+    pub role: Option<String>,
+    /// True when THIS card is the `to` end. It is what lets *Part Of* read *Contains* from
+    /// the other end — a display decision, never a stored value and never an eighth role.
+    pub reversed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ItemContext {
+    pub placements: Vec<ItemPlacement>,
+    pub joined: Vec<ItemJoin>,
+}
+
+/// The display name of any item, mirroring `cardTitle` in `src/lib/types.ts` closely enough
+/// for a panel row. A blueprint card is named by its payload `name`.
+fn item_display_name(kind: &str, payload: &str, id: i64) -> String {
+    let fallback = format!("{kind}-{id:03}");
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return fallback;
+    };
+    let field = match kind {
+        "blueprint" | "note" => "title",
+        _ => "title",
+    };
+    let name = match kind {
+        "blueprint" => value.get("name").and_then(|v| v.as_str()),
+        "image" => value
+            .get("source_name")
+            .and_then(|v| v.as_str())
+            .or_else(|| value.get("alt").and_then(|v| v.as_str())),
+        _ => value.get(field).and_then(|v| v.as_str()),
+    };
+    match name {
+        Some(text) if !text.is_empty() => text.to_string(),
+        _ => fallback,
+    }
+}
+
+pub fn item_context_for(state: &AppState, item_id: i64) -> AppResult<ItemContext> {
+    state.with_db(|conn| {
+        let mut stmt = conn.prepare(
+            "SELECT p.id, p.canvas_id, c.name AS canvas_name, p.x, p.y
+             FROM placement p JOIN canvas c ON c.id = p.canvas_id
+             WHERE p.item_id = ?1
+             ORDER BY c.sort_order, c.id, p.id",
+        )?;
+        let placements = stmt
+            .query_map([item_id], |r| {
+                Ok(ItemPlacement {
+                    placement_id: r.get(0)?,
+                    canvas_id: r.get(1)?,
+                    canvas_name: r.get(2)?,
+                    x: r.get(3)?,
+                    y: r.get(4)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        // Every line touching any placement of this item, from either end. `reversed` says
+        // which end this card is on.
+        let mut stmt = conn.prepare(
+            "SELECT conn.id, conn.canvas_id, far_i.id, far_i.kind, far_i.payload,
+                    conn.role, (mine.id = conn.to_placement_id) AS reversed
+             FROM connection conn
+             JOIN placement mine
+               ON mine.id IN (conn.from_placement_id, conn.to_placement_id)
+             JOIN placement far
+               ON far.id = CASE WHEN mine.id = conn.from_placement_id
+                                THEN conn.to_placement_id ELSE conn.from_placement_id END
+             JOIN item far_i ON far_i.id = far.item_id
+             WHERE mine.item_id = ?1
+             ORDER BY conn.id",
+        )?;
+        let joined = stmt
+            .query_map([item_id], |r| {
+                let kind: String = r.get(3)?;
+                let payload: String = r.get(4)?;
+                let other_item_id: i64 = r.get(2)?;
+                let other_blueprint = if kind == "blueprint" {
+                    serde_json::from_str::<serde_json::Value>(&payload)
+                        .ok()
+                        .and_then(|v| {
+                            v.get("blueprint")
+                                .and_then(|b| b.as_str())
+                                .map(String::from)
+                        })
+                } else {
+                    None
+                };
+                Ok(ItemJoin {
+                    connection_id: r.get(0)?,
+                    canvas_id: r.get(1)?,
+                    other_item_id,
+                    other_name: item_display_name(&kind, &payload, other_item_id),
+                    other_blueprint,
+                    role: r.get(5)?,
+                    reversed: r.get::<_, i64>(6)? != 0,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        Ok(ItemContext { placements, joined })
+    })
+}
+
+#[tauri::command]
+pub fn item_context(state: tauri::State<'_, AppState>, item_id: i64) -> AppResult<ItemContext> {
+    item_context_for(&state, item_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,13 +345,27 @@ mod tests {
 
     fn first_canvas(state: &AppState) -> i64 {
         state
-            .with_db(|conn| Ok(conn.query_row("SELECT id FROM canvas ORDER BY id LIMIT 1", [], |r| r.get(0))?))
+            .with_db(|conn| {
+                Ok(
+                    conn.query_row("SELECT id FROM canvas ORDER BY id LIMIT 1", [], |r| {
+                        r.get(0)
+                    })?,
+                )
+            })
             .expect("a canvas")
     }
 
     fn make(state: &AppState, canvas: i64, blueprint: &str) -> PlacementWithItem {
-        create_blueprint_card_for(state, canvas, 0.0, 0.0, 220.0, 210.0, String::from(blueprint))
-            .expect("create")
+        create_blueprint_card_for(
+            state,
+            canvas,
+            0.0,
+            0.0,
+            220.0,
+            210.0,
+            String::from(blueprint),
+        )
+        .expect("create")
     }
 
     #[test]
@@ -234,9 +381,11 @@ mod tests {
         open_project_at(&state2, dir.path()).expect("reopen");
         let payload: String = state2
             .with_db(|conn| {
-                Ok(conn.query_row("SELECT payload FROM item WHERE id = ?1", [card.item.id], |r| {
-                    r.get(0)
-                })?)
+                Ok(conn.query_row(
+                    "SELECT payload FROM item WHERE id = ?1",
+                    [card.item.id],
+                    |r| r.get(0),
+                )?)
             })
             .unwrap();
         assert_eq!(payload, card.item.payload);
@@ -335,7 +484,11 @@ mod tests {
             r#"{"blueprint":"character","name":"C","fields":{"picture":"h.png","role":"Rival"}}"#;
         assert_eq!(asset_names("blueprint", payload), vec!["h.png".to_string()]);
         // A card type with no image field contributes nothing.
-        assert!(asset_names("blueprint", r#"{"blueprint":"beat","name":"B","fields":{}}"#).is_empty());
+        assert!(asset_names(
+            "blueprint",
+            r#"{"blueprint":"beat","name":"B","fields":{}}"#
+        )
+        .is_empty());
     }
 
     #[test]
@@ -344,16 +497,24 @@ mod tests {
         let canvas = first_canvas(&state);
         let card = make(&state, canvas, "chapter");
 
-        let item =
-            set_item_field_for(&state, card.item.id, String::from("name"), "Chapter One".into())
-                .unwrap();
+        let item = set_item_field_for(
+            &state,
+            card.item.id,
+            String::from("name"),
+            "Chapter One".into(),
+        )
+        .unwrap();
         let value: serde_json::Value = serde_json::from_str(&item.payload).unwrap();
         assert_eq!(value["name"], "Chapter One");
         assert!(value["fields"].get("name").is_none());
 
-        let item =
-            set_item_field_for(&state, card.item.id, String::from("detail_canvas_id"), 7.into())
-                .unwrap();
+        let item = set_item_field_for(
+            &state,
+            card.item.id,
+            String::from("detail_canvas_id"),
+            7.into(),
+        )
+        .unwrap();
         let value: serde_json::Value = serde_json::from_str(&item.payload).unwrap();
         assert_eq!(value["detail_canvas_id"], 7);
         assert!(value["fields"].get("detail_canvas_id").is_none());
@@ -388,12 +549,17 @@ mod tests {
 
         let survives: i64 = state
             .with_db(|conn| {
-                Ok(conn.query_row("SELECT count(*) FROM item WHERE id = ?1", [card.item.id], |r| {
-                    r.get(0)
-                })?)
+                Ok(conn.query_row(
+                    "SELECT count(*) FROM item WHERE id = ?1",
+                    [card.item.id],
+                    |r| r.get(0),
+                )?)
             })
             .unwrap();
-        assert_eq!(survives, 1, "the Character survives losing its last placement");
+        assert_eq!(
+            survives, 1,
+            "the Character survives losing its last placement"
+        );
 
         let unplaced = list_unplaced_items_for(&state).unwrap();
         assert_eq!(unplaced.len(), 1);
@@ -406,10 +572,19 @@ mod tests {
         let canvas = first_canvas(&state);
         let card = make(&state, canvas, "character");
         std::fs::write(dir.path().join("assets").join("h.png"), b"bytes").unwrap();
-        set_item_field_for(&state, card.item.id, String::from("picture"), "h.png".into()).unwrap();
+        set_item_field_for(
+            &state,
+            card.item.id,
+            String::from("picture"),
+            "h.png".into(),
+        )
+        .unwrap();
 
         let effect = delete_placements_for(&state, vec![card.placement.id]).unwrap();
-        assert!(effect.assets.is_empty(), "the item is still there, so is its file");
+        assert!(
+            effect.assets.is_empty(),
+            "the item is still there, so is its file"
+        );
         assert!(dir.path().join("assets").join("h.png").is_file());
     }
 
@@ -438,7 +613,8 @@ mod tests {
             .unwrap();
 
         let effect =
-            delete_placements_for(&state, vec![character.placement.id, image.placement.id]).unwrap();
+            delete_placements_for(&state, vec![character.placement.id, image.placement.id])
+                .unwrap();
         assert_eq!(effect.items.len(), 1, "only the image item is removed");
         assert_eq!(effect.items[0].kind, "image");
         assert_eq!(effect.assets, vec!["p.png".to_string()]);
@@ -493,7 +669,13 @@ mod tests {
         let canvas = first_canvas(&state);
         let card = make(&state, canvas, "character");
         std::fs::write(dir.path().join("assets").join("h.png"), b"bytes").unwrap();
-        set_item_field_for(&state, card.item.id, String::from("picture"), "h.png".into()).unwrap();
+        set_item_field_for(
+            &state,
+            card.item.id,
+            String::from("picture"),
+            "h.png".into(),
+        )
+        .unwrap();
         delete_placements_for(&state, vec![card.placement.id]).unwrap();
 
         let effect = delete_item_for(&state, card.item.id).unwrap();
@@ -511,7 +693,9 @@ mod tests {
     fn the_corrected_lifecycle_keeps_a_reused_character_and_still_trashes_a_picture() {
         let (dir, state, project) = open();
         let one = first_canvas(&state);
-        let two = create_canvas_for(&state, project.id, String::from("Two")).unwrap().id;
+        let two = create_canvas_for(&state, project.id, String::from("Two"))
+            .unwrap()
+            .id;
 
         // A Character on two canvases — one item, two placements.
         let character = make(&state, one, "character");
@@ -592,5 +776,109 @@ mod tests {
         assert_eq!(effect.assets, vec!["face.png".to_string()]);
         assert!(!dir.path().join("assets").join("face.png").is_file());
         assert!(list_unplaced_items_for(&state).unwrap().is_empty());
+    }
+
+    // ---- Task 15: item_context ----
+
+    #[test]
+    fn item_context_returns_every_placement_with_its_canvas_name() {
+        let (_dir, state, project) = open();
+        let one = first_canvas(&state);
+        let two = create_canvas_for(&state, project.id, String::from("Chapter Two"))
+            .unwrap()
+            .id;
+        let card = make(&state, one, "character");
+        state
+            .with_db(|conn| {
+                crate::commands::placement::insert_placement(
+                    conn,
+                    two,
+                    card.item.id,
+                    40.0,
+                    50.0,
+                    220.0,
+                    210.0,
+                )
+            })
+            .unwrap();
+
+        let context = item_context_for(&state, card.item.id).unwrap();
+        assert_eq!(context.placements.len(), 2);
+        let names: Vec<&str> = context
+            .placements
+            .iter()
+            .map(|p| p.canvas_name.as_str())
+            .collect();
+        assert!(names.contains(&"Chapter Two"));
+        let second = context
+            .placements
+            .iter()
+            .find(|p| p.canvas_name == "Chapter Two")
+            .unwrap();
+        assert_eq!((second.x, second.y), (40.0, 50.0));
+    }
+
+    #[test]
+    fn item_context_marks_the_far_end_of_each_connection() {
+        let (_dir, state, _project) = open();
+        let canvas = first_canvas(&state);
+        let chapter = make(&state, canvas, "chapter");
+        let book = make(&state, canvas, "book");
+        set_item_field_for(
+            &state,
+            book.item.id,
+            String::from("name"),
+            "The Long Dark".into(),
+        )
+        .unwrap();
+
+        crate::commands::connection::create_connection_for(
+            &state,
+            canvas,
+            chapter.placement.id,
+            book.placement.id,
+            None,
+            1,
+            Some(String::from("part-of")),
+        )
+        .unwrap();
+
+        // From the chapter's end: it is the `from` card, so not reversed — Part Of.
+        let from_chapter = item_context_for(&state, chapter.item.id).unwrap();
+        assert_eq!(from_chapter.joined.len(), 1);
+        assert!(!from_chapter.joined[0].reversed);
+        assert_eq!(from_chapter.joined[0].other_name, "The Long Dark");
+        assert_eq!(
+            from_chapter.joined[0].other_blueprint.as_deref(),
+            Some("book")
+        );
+        assert_eq!(from_chapter.joined[0].role.as_deref(), Some("part-of"));
+
+        // From the book's end: it is the `to` card, so reversed — which is what the front
+        // end reads as Contains.
+        let from_book = item_context_for(&state, book.item.id).unwrap();
+        assert_eq!(from_book.joined.len(), 1);
+        assert!(from_book.joined[0].reversed);
+        assert_eq!(from_book.joined[0].other_item_id, chapter.item.id);
+    }
+
+    #[test]
+    fn item_context_a_card_with_nothing_attached_is_empty_both_ways() {
+        let (_dir, state, _project) = open();
+        let canvas = first_canvas(&state);
+        let card = make(&state, canvas, "beat");
+        let context = item_context_for(&state, card.item.id).unwrap();
+        assert_eq!(context.placements.len(), 1);
+        assert!(context.joined.is_empty());
+    }
+
+    #[test]
+    fn item_context_an_unplaced_record_reports_no_placement() {
+        let (_dir, state, _project) = open();
+        let canvas = first_canvas(&state);
+        let card = make(&state, canvas, "character");
+        delete_placements_for(&state, vec![card.placement.id]).unwrap();
+        let context = item_context_for(&state, card.item.id).unwrap();
+        assert!(context.placements.is_empty());
     }
 }

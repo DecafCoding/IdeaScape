@@ -7,7 +7,12 @@
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
-  import { blueprintForPayload } from '../../lib/blueprints.svelte';
+  import { blueprintForPayload, parseBlueprintPayload } from '../../lib/blueprints.svelte';
+  import FieldControl from '../../lib/fields/FieldControl.svelte';
+  import { roleGlyph, roleLabel } from '../../lib/roles';
+  import { countInWords } from '../../lib/countInWords';
+  import type { FieldValue, PickEntry } from '../../lib/blueprints.svelte';
+  import type { ItemContext, ItemJoin } from '../../lib/types';
   import { canvasStore } from '../../stores/canvasStore.svelte';
   import { assetStatus } from '../../lib/assets.svelte';
   import {
@@ -59,6 +64,17 @@
     onNoteTitleChange?: (title: string) => void;
     /** Replace the selected image card's picture, keeping its alt text. */
     onReplaceImage?: () => void;
+    /** Where else the selected writing card is, and what it is wired to (§9.28). */
+    itemContext?: ItemContext | null;
+    /** Write one field of the selected writing card. The root pushes the undo command. */
+    onFieldChange?: (key: string, value: FieldValue, listAdded?: boolean) => void;
+    /** A Scale reports where the change started, so a whole drag is one undo entry. */
+    onScaleChange?: (key: string, next: number, before: number) => void;
+    /** Replace the picture in one Image FIELD of a writing card. */
+    onReplaceFieldImage?: (key: string) => void;
+    onExpandIntoCanvas?: () => void;
+    onOpenPlacement?: (canvasId: number, placementId: number) => void;
+    onOpenItem?: (canvasId: number, itemId: number) => void;
     /** Reveal the project's `assets/` folder in the system shell. */
     onShowInFolder?: () => void;
     /** Read the selected link or video card's address again. */
@@ -81,6 +97,13 @@
     onImageTitleChange,
     onImageTitleVisibleChange,
     onReplaceImage,
+    itemContext = null,
+    onFieldChange,
+    onScaleChange,
+    onReplaceFieldImage,
+    onExpandIntoCanvas,
+    onOpenPlacement,
+    onOpenItem,
     onShowInFolder,
     onRefetch,
   }: Props = $props();
@@ -239,6 +262,71 @@
       return { url: payload.url, fetchedAt: payload.fetched_at };
     }
     return null;
+  });
+
+  // --- the generated writing-card panel (§9.25, §9.28) --------------------
+
+  /** The one selected writing card's payload, or null for every other kind. */
+  const blueprintPayload = $derived(
+    soleItem?.kind === 'blueprint' ? parseBlueprintPayload(soleItem.payload) : null,
+  );
+
+  /**
+   * The fields this panel draws.
+   *
+   * For a type WITH a sheet (Book, Chapter, Character) the panel still draws — §9.30 keeps
+   * the 177px panel beside the sheet — but only the identity fields, because the rest of the
+   * card has a whole screen of its own. That is driven by the blueprint's `sheet` flag; NO
+   * CARD TYPE IS EVER NAMED IN THIS COMPONENT.
+   */
+  const panelFields = $derived.by(() => {
+    if (!soleBlueprint) return [];
+    if (!soleBlueprint.sheet) return soleBlueprint.fields;
+    // The identity fields: everything up to and including the first long-form field, which
+    // is where a sheet's own layout takes over.
+    const firstLong = soleBlueprint.fields.findIndex(
+      (field) => field.kind === 'long-text' || field.kind === 'scale',
+    );
+    return firstLong === -1 ? soleBlueprint.fields : soleBlueprint.fields.slice(0, firstLong);
+  });
+
+  /** The value of a field named by another field's `filter_by`. One hop, never a chain. */
+  function parentFor(key: string | undefined): PickEntry | null {
+    if (!key || !blueprintPayload) return null;
+    const raw = blueprintPayload.fields[key];
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as PickEntry) : null;
+  }
+
+  function parentLabelFor(key: string | undefined): string {
+    const value = parentFor(key);
+    return value?.text ?? '';
+  }
+
+  /**
+   * *Joined to* rows, with several connections of one role collapsed to a count —
+   * "2 beats" over "Feed". `reversed` is what lets Part Of read Contains from the far end.
+   */
+  const joinedRows = $derived.by(() => {
+    const context = itemContext;
+    if (!context) return [];
+    const byLabel = new Map<
+      string,
+      { label: string; role: string | null; names: string[]; first: ItemJoin }
+    >();
+    for (const join of context.joined) {
+      const label = roleLabel(join.role, join.reversed);
+      const group = byLabel.get(label) ?? { label, role: join.role, names: [], first: join };
+      group.names.push(join.other_name);
+      byLabel.set(label, group);
+    }
+    return [...byLabel.values()].map((group) => ({
+      label: group.label,
+      role: group.role,
+      name: group.names.length === 1 ? group.names[0] : `${group.names.length} cards`,
+      count: group.names.length,
+      canvasId: group.first.canvas_id,
+      itemId: group.first.other_item_id,
+    }));
   });
 
   const fetching = $derived(
@@ -460,6 +548,26 @@
         </section>
       {/if}
 
+      {#if soleBlueprint && blueprintPayload}
+        <!-- ONE CONTROL PER FIELD, IN BLUEPRINT ORDER. There is no per-card-type branch
+             here and there must never be one: if `if (blueprint.id === 'character')` is
+             ever needed, the blueprint format is missing a member and the fix belongs in
+             the data file, not in this component. -->
+        <section class="group" data-testid="panel-blueprint-fields">
+          {#each panelFields as field (field.key)}
+            <FieldControl
+              {field}
+              value={blueprintPayload.fields[field.key]}
+              parent={parentFor(field.filter_by)}
+              parentLabel={parentLabelFor(field.filter_by)}
+              onCommit={(value, added) => onFieldChange?.(field.key, value, added)}
+              onCommitScale={(next, before) => onScaleChange?.(field.key, next, before)}
+              onReplaceImage={() => onReplaceFieldImage?.(field.key)}
+            />
+          {/each}
+        </section>
+      {/if}
+
       {#each ['position', 'size'] as const as group}
         <section class="group">
           <p class="group-label">{group === 'position' ? 'Position' : 'Size'}</p>
@@ -575,15 +683,76 @@
         </section>
       {/if}
 
+      <!-- §9.28. Both groups are drawn for writing cards ONLY: the four original kinds'
+           panel states are untouched, which is a regression line in PRD §11. -->
+      {#if soleBlueprint && itemContext && itemContext.placements.length > 0}
+        <section class="group" data-testid="panel-placed-on">
+          <p class="group-label">Placed On</p>
+          {#each itemContext.placements as placement (placement.placement_id)}
+            <button
+              type="button"
+              class="context-row"
+              onclick={() => onOpenPlacement?.(placement.canvas_id, placement.placement_id)}
+            >
+              <Icon glyph="square-half" size={13} />
+              <span class="context-name">{placement.canvas_name}</span>
+              <span class="coords">{Math.round(placement.x)}, {Math.round(placement.y)}</span>
+            </button>
+          {/each}
+          {#if itemContext.placements.length > 1}
+            <!-- The count is stated IN WORDS: this is helper text, and it stays sentence
+                 case. Beyond ten it falls back to digits. -->
+            <p class="footer-note">
+              One record, {countInWords(itemContext.placements.length)} places. Editing here changes all
+              {countInWords(itemContext.placements.length)}.
+            </p>
+          {/if}
+        </section>
+      {/if}
+
+      {#if soleBlueprint && joinedRows.length > 0}
+        <section class="group" data-testid="panel-joined-to">
+          <p class="group-label">Joined To</p>
+          {#each joinedRows as row (row.label)}
+            <button
+              type="button"
+              class="context-row joined"
+              onclick={() => onOpenItem?.(row.canvasId, row.itemId)}
+              disabled={row.count > 1}
+            >
+              <span class="role-disc"><Icon glyph={roleGlyph(row.role)} size={9} /></span>
+              <span class="context-name">{row.name}</span>
+            </button>
+            <!-- The role sits on its own line beneath the far card's name (§9.28). -->
+            <p class="role-line">{row.label}</p>
+          {/each}
+        </section>
+      {/if}
+
       <footer class="footer">
-        <div class="footer-row">
-          <button type="button" class="icon-button duplicate" onclick={onDuplicate}>
-            <Icon glyph="copy" size={13} label="Duplicate" />
-          </button>
-          <button type="button" class="icon-button delete" onclick={onDelete}>
-            <Icon glyph="trash" size={13} label="Delete" />
-          </button>
-        </div>
+        {#if soleBlueprint}
+          <!-- §9.28: for a writing type the Card group REPLACES the Duplicate/Delete pair
+               rather than being drawn beside it, and the delete is named for the type. -->
+          <div class="card-actions">
+            <button type="button" class="card-action" onclick={onExpandIntoCanvas}>
+              <Icon glyph="square-half" size={13} />
+              Expand Into A Canvas
+            </button>
+            <button type="button" class="card-action destructive" onclick={onDelete}>
+              <Icon glyph="trash" size={13} />
+              Delete {soleBlueprint.label}
+            </button>
+          </div>
+        {:else}
+          <div class="footer-row">
+            <button type="button" class="icon-button duplicate" onclick={onDuplicate}>
+              <Icon glyph="copy" size={13} label="Duplicate" />
+            </button>
+            <button type="button" class="icon-button delete" onclick={onDelete}>
+              <Icon glyph="trash" size={13} label="Delete" />
+            </button>
+          </div>
+        {/if}
         <p class="footer-note">Edits here are undoable · {autoSaveFooterText().split('· ')[1]}</p>
       </footer>
     {:else}
@@ -833,6 +1002,100 @@
     width: 26px;
     border-radius: 2px;
     background: var(--color-text);
+  }
+
+  /* §9.28's two context groups. */
+  .context-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    width: 100%;
+    padding: 3px 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--text-11);
+    text-align: left;
+    cursor: pointer;
+    min-width: 0;
+  }
+
+  .context-row:disabled {
+    cursor: default;
+  }
+
+  .context-row :global(i) {
+    opacity: 0.55;
+    flex: none;
+  }
+
+  .context-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .coords {
+    font-size: var(--text-10);
+    opacity: 0.4;
+    font-variant-numeric: tabular-nums;
+    flex: none;
+  }
+
+  .role-disc {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    flex: none;
+    border: 1px solid var(--color-divider);
+    border-radius: 50%;
+  }
+
+  .role-line {
+    margin: -3px 0 0;
+    padding-left: 22px;
+    font-size: var(--text-10);
+    opacity: 0.45;
+  }
+
+  .card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  .card-action {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    width: 100%;
+    padding: var(--space-5) var(--space-6);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: var(--text-11);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .card-action:hover {
+    background: var(--tint-accent-hover);
+  }
+
+  .card-action.destructive {
+    border-color: var(--color-accent-2);
+    color: var(--color-accent-2-tint-text);
+  }
+
+  .card-action.destructive:hover {
+    background: var(--color-accent-2-tint-fill);
   }
 
   .footer {

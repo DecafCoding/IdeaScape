@@ -125,7 +125,11 @@ mod tests {
         for entry in shipped("subgenres") {
             assert_eq!(entry.tags.len(), 1, "{} has no single class", entry.text);
             for tag in &entry.tags {
-                assert!(genres.contains(tag), "{} names unknown genre {tag}", entry.text);
+                assert!(
+                    genres.contains(tag),
+                    "{} names unknown genre {tag}",
+                    entry.text
+                );
             }
         }
     }
@@ -139,7 +143,11 @@ mod tests {
                 tagged += 1;
             }
             for tag in &entry.tags {
-                assert!(genres.contains(tag), "{} names unknown genre {tag}", entry.text);
+                assert!(
+                    genres.contains(tag),
+                    "{} names unknown genre {tag}",
+                    entry.text
+                );
             }
         }
         assert_eq!(shipped("story-tropes").len(), 259);
@@ -151,7 +159,12 @@ mod tests {
         // The trim is what keeps the embedded size down, so it is asserted against the raw
         // JSON rather than against the parsed struct, which would drop extras silently.
         for (name, json) in LIST_JSON {
-            for banned in ["\"description\"", "\"aliases\"", "\"relationships\"", "\"examples\""] {
+            for banned in [
+                "\"description\"",
+                "\"aliases\"",
+                "\"relationships\"",
+                "\"examples\"",
+            ] {
                 assert!(
                     !json.contains(banned),
                     "{name} carries {banned}; re-run the extraction script with the field trim"

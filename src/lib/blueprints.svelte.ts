@@ -18,13 +18,7 @@ import { logWarn } from './logger';
 /** The seven field kinds a generated surface knows. Nothing else may be added lightly: a
  *  new kind is a new control in every one of those surfaces. */
 export type FieldKind =
-  | 'short-text'
-  | 'long-text'
-  | 'pick'
-  | 'pick-many'
-  | 'image'
-  | 'number'
-  | 'scale';
+  'short-text' | 'long-text' | 'pick' | 'pick-many' | 'image' | 'number' | 'scale';
 
 /**
  * One value chosen for a Pick or Pick Many field.
