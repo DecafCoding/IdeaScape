@@ -193,8 +193,11 @@ const registry = $state<{ list: Blueprint[] }>({ list: [] });
 let byId = new Map<string, Blueprint>();
 
 export function setBlueprints(list: Blueprint[]): void {
-  registry.list = list;
-  byId = new Map(list.map((blueprint) => [blueprint.id, blueprint]));
+  // Tolerant on the way in, exactly as the payload readers are: a surface that generates
+  // itself from this must draw nothing rather than throw into a render.
+  const safe = Array.isArray(list) ? list : [];
+  registry.list = safe;
+  byId = new Map(safe.map((blueprint) => [blueprint.id, blueprint]));
 }
 
 export function getBlueprint(id: string): Blueprint | null {

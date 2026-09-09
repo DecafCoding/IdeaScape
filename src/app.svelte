@@ -9,6 +9,7 @@
   import LeftColumn from './features/shell/LeftColumn.svelte';
   import PropertiesPanel from './features/shell/PropertiesPanel.svelte';
   import ContextMenu from './features/shell/ContextMenu.svelte';
+  import UnplacedList from './features/canvases/UnplacedList.svelte';
   import CanvasSurface from './features/canvas/CanvasSurface.svelte';
   import EmptyCanvas from './features/canvas/EmptyCanvas.svelte';
   import CardLayer from './features/cards/CardLayer.svelte';
@@ -52,6 +53,7 @@
   import {
     createCanvasCommand,
     createCardCommand,
+    deleteUnplacedCommand,
     createConnectionCommand,
     deleteCanvasCommand,
     deleteCardsCommand,
@@ -71,6 +73,14 @@
   import { getSettings, loadSettings } from './lib/settings.svelte';
   import { loadBlueprints } from './lib/blueprints.svelte';
   import { clearListCache } from './lib/lists';
+  import {
+    clearUnplaced,
+    deleteUnplaced,
+    placeUnplaced,
+    refreshUnplaced,
+    unplacedItems,
+  } from './features/canvases/unplaced.svelte';
+  import { defaultSizeForItem } from './lib/cardKinds';
   import { applyFont, applyTheme } from './lib/theme';
   import {
     debounce,
@@ -84,6 +94,7 @@
   import {
     BACKGROUND_MENU_WIDTH,
     CANVAS_MENU_WIDTH,
+    UNPLACED_MENU_WIDTH,
     ELEMENT_MENU_WIDTH,
     type MenuEntry,
     type OpenMenu,
@@ -136,6 +147,8 @@
    * read `openMenu.canvasId` would always find it null.
    */
   let menuCanvasId = $state<number | null>(null);
+  /** Which Unplaced row the menu is about, held apart from `openMenu` for the same reason. */
+  let menuUnplacedId = $state<number | null>(null);
 
   /** True while the Settings page has replaced the canvas (§9.11, frame 16a). */
   let settingsOpen = $state(false);
@@ -252,6 +265,7 @@
       setAssetsFolder(null);
       // The project's own vocabulary goes with the project, not with the application.
       clearListCache();
+      clearUnplaced();
       clipboard = [];
       folderPath = null;
       openMenu = null;
@@ -467,6 +481,8 @@
     persistView.flush();
     undoStack.clear();
     await guard(() => canvasStore.loadCanvas(canvasId));
+    // A placement anywhere in the project can move a record on or off the Unplaced list.
+    await refreshUnplaced();
   }
 
   /** The hooks the canvas undo commands need, so `features/undo/` imports no feature. */
@@ -584,6 +600,8 @@
       for (const c of effect.connections) canvasStore.removeConnection(c.id);
       canvasStore.clearSelection();
       undoStack.push(deleteCardsCommand(effect));
+      // A writing card that lost its last placement is now unplaced, not gone.
+      await refreshUnplaced();
     });
   }
 
@@ -1244,8 +1262,14 @@
     'zoom-to-fit': () => canvas?.zoomToFit(),
     'bring-forward': () => void reorder('front'),
     'send-back': () => void reorder('back'),
-    undo: () => void guard(() => undoStack.undo()),
-    redo: () => void guard(() => undoStack.redo()),
+    undo: () => void guard(async () => {
+      await undoStack.undo();
+      await refreshUnplaced();
+    }),
+    redo: () => void guard(async () => {
+      await undoStack.redo();
+      await refreshUnplaced();
+    }),
   } satisfies Parameters<typeof registerShortcuts>[0]);
 
   // --- context menus ----------------------------------------------------
@@ -1383,6 +1407,82 @@
     },
   ]);
 
+  const unplacedMenu = $derived<MenuEntry[]>([
+    {
+      kind: 'item',
+      label: 'Place On This Canvas',
+      glyph: 'square-half',
+      action: 'new-note',
+      // There is no key for it — the user acted on a rail row, so no key is printed.
+      shortcutLabel: '',
+      available: canvasStore.activeCanvasId !== null,
+      run: () => {
+        if (menuUnplacedId !== null) void placeUnplacedItem(menuUnplacedId);
+      },
+    },
+    {
+      kind: 'item',
+      label: 'Delete For Good',
+      glyph: 'trash',
+      action: 'delete',
+      destructive: true,
+      run: () => {
+        if (menuUnplacedId !== null) void deleteUnplacedItem(menuUnplacedId);
+      },
+    },
+  ]);
+
+  /**
+   * Put an unplaced record back at the CENTRE OF THE CURRENT VIEW.
+   *
+   * §10 contract 1 says the application never chooses a position for a card, and it does not
+   * here either — but a rail row carries no pointer position, so there is nothing else to
+   * use. The view centre is the smallest defensible answer and the user drags it immediately,
+   * exactly as they do with a pasted card.
+   *
+   * This is a `create_placement`: the same item, so editing it on the new canvas edits every
+   * other placement of it.
+   */
+  async function placeUnplacedItem(itemId: number) {
+    const canvasId = canvasStore.activeCanvasId;
+    const item = unplacedItems().find((i) => i.id === itemId);
+    if (canvasId === null || !item) return;
+    await guard(async () => {
+      const size = defaultSizeForItem(item);
+      // `pointerWorld()` is the viewport centre in world units — the surface already
+      // exports it for zoom-about, and it is exactly the position wanted here.
+      const centre = canvas?.pointerWorld() ?? { x: 0, y: 0 };
+      const card = await placeUnplaced(
+        item,
+        canvasId,
+        centre.x - size.width / 2,
+        centre.y - size.height / 2,
+        size.width,
+        size.height,
+      );
+      if (!card) return;
+      canvasStore.setSelection([card.placement.id]);
+      undoStack.push(createCardCommand(card));
+    });
+  }
+
+  /** Delete an unplaced record for good. One undo step brings the row and its files back. */
+  async function deleteUnplacedItem(itemId: number) {
+    const item = unplacedItems().find((i) => i.id === itemId);
+    if (!item) return;
+    await guard(async () => {
+      const effect = await deleteUnplaced(item);
+      if (effect) undoStack.push(deleteUnplacedCommand(effect));
+    });
+  }
+
+  function openUnplacedMenu(event: MouseEvent, item: Item) {
+    event.preventDefault();
+    event.stopPropagation();
+    menuUnplacedId = item.id;
+    openMenu = { kind: 'unplaced', x: event.clientX, y: event.clientY, itemId: item.id };
+  }
+
   function openCanvasMenu(event: MouseEvent, canvasId: number) {
     event.preventDefault();
     event.stopPropagation();
@@ -1453,8 +1553,16 @@
         redoDepth={undoStack.redoDepth}
         onNewNote={() => void createNote(pointerWorld)}
         onNewImage={() => void addFromPicker()}
-        onUndo={() => void guard(() => undoStack.undo())}
-        onRedo={() => void guard(() => undoStack.redo())}
+        onUndo={() =>
+          void guard(async () => {
+            await undoStack.undo();
+            await refreshUnplaced();
+          })}
+        onRedo={() =>
+          void guard(async () => {
+            await undoStack.redo();
+            await refreshUnplaced();
+          })}
         onCloseProject={() => void closeProject()}
         onSettings={() => (settingsOpen = true)}
         settingsActive={settingsOpen}
@@ -1481,6 +1589,13 @@
             onCommitRename={(id, name) => void commitCanvasRename(id, name)}
             onCancelRename={() => (renamingCanvasId = null)}
             onOpenMenu={openCanvasMenu}
+          />
+        {/snippet}
+        {#snippet unplaced()}
+          <UnplacedList
+            onPlace={(item) => void placeUnplacedItem(item.id)}
+            onDeleteForGood={(item) => void deleteUnplacedItem(item.id)}
+            onOpenMenu={openUnplacedMenu}
           />
         {/snippet}
       </LeftColumn>
@@ -1607,12 +1722,16 @@
         ? ELEMENT_MENU_WIDTH
         : openMenu.kind === 'canvas'
           ? CANVAS_MENU_WIDTH
-          : BACKGROUND_MENU_WIDTH}
+          : openMenu.kind === 'unplaced'
+            ? UNPLACED_MENU_WIDTH
+            : BACKGROUND_MENU_WIDTH}
       entries={openMenu.kind === 'element'
         ? elementMenu
         : openMenu.kind === 'canvas'
           ? canvasMenu
-          : backgroundMenu}
+          : openMenu.kind === 'unplaced'
+            ? unplacedMenu
+            : backgroundMenu}
       onClose={() => (openMenu = null)}
     />
   {/if}

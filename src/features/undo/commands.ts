@@ -412,3 +412,77 @@ export function listEntryCommand(list: string, text: string, added: boolean): Un
     redo: added ? add : remove,
   };
 }
+
+/**
+ * Writing one field of one writing card. The panel's controls and the sheets all commit
+ * through this, so editing a card on its sheet and editing it in the panel produce the same
+ * payload and the same single undo entry.
+ */
+export function setFieldCommand(
+  itemId: number,
+  key: string,
+  before: unknown,
+  after: unknown,
+): UndoableCommand {
+  async function write(value: unknown) {
+    const item = await invokeSafe<Item>('set_item_field', { itemId, key, value });
+    canvasStore.upsertItem(item);
+  }
+  return {
+    label: 'Edit Card',
+    undo: () => write(before),
+    redo: () => write(after),
+  };
+}
+
+/**
+ * Rerolling the five personality sliders. ONE command carrying five effects, which the undo
+ * model already supports: undo restores all five previous values in one step and touches no
+ * other field. Five separate `setFieldCommand`s would need five Ctrl+Z presses.
+ */
+export function randomizeCommand(
+  itemId: number,
+  keys: string[],
+  before: number[],
+  after: number[],
+): UndoableCommand {
+  async function write(values: number[]) {
+    let item: Item | null = null;
+    for (let i = 0; i < keys.length; i += 1) {
+      item = await invokeSafe<Item>('set_item_field', { itemId, key: keys[i], value: values[i] });
+    }
+    if (item) canvasStore.upsertItem(item);
+  }
+  return {
+    label: 'Randomize',
+    undo: () => write(before),
+    redo: () => write(after),
+  };
+}
+
+/**
+ * Deleting an unplaced writing card for good. It has no placement, so the restore goes
+ * through `restore_card`'s asset-untrash path with none — the item row and its files come
+ * back together as one step.
+ */
+export function deleteUnplacedCommand(effect: DeleteEffect): UndoableCommand {
+  const item = effect.items[0];
+  return {
+    label: 'Delete Card',
+    async undo() {
+      if (!item) return;
+      await invokeSafe<Item>('restore_item', {
+        itemId: item.id,
+        projectId: item.project_id,
+        kind: item.kind,
+        payload: item.payload,
+      });
+      await refreshAssetStatuses(payloadAssetNames(item.kind, item.payload));
+    },
+    async redo() {
+      if (!item) return;
+      await invokeSafe<DeleteEffect>('delete_item', { itemId: item.id });
+      await refreshAssetStatuses(payloadAssetNames(item.kind, item.payload));
+    },
+  };
+}

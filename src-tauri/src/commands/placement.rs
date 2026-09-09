@@ -341,6 +341,22 @@ pub(crate) fn delete_placements_tx(
                     [placement.item_id],
                     row_to_item,
                 )?;
+                // THE CORRECTED LAST-PLACEMENT RULE. Reading the item BEFORE deciding is the
+                // point of this block: a `blueprint` item is left in place, is not reported
+                // as removed and contributes no asset to `orphaned`.
+                //
+                // This reads as a bug without the reason. The old rule — an item dies with
+                // its last placement — is right for a picture used once and catastrophic for
+                // a Character: taking them off one chapter's canvas would destroy the
+                // character, their sliders, their tropes and their notes. A reused record
+                // outlives every canvas it appears on, and the left column's *Unplaced*
+                // section is what keeps the old rule's promise that nothing it leaves behind
+                // becomes invisible junk. The four original kinds keep the shipped behaviour
+                // EXACTLY.
+                if item.kind == "blueprint" {
+                    effect.placements.push(placement);
+                    continue;
+                }
                 // Collect the asset names, and whether anything else still holds them,
                 // inside the transaction: after the item row goes the payload is unreadable
                 // and the reference count would come out one short.

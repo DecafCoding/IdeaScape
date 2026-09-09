@@ -31,8 +31,10 @@ describe('vendored assets', () => {
     ]);
   });
 
-  it('assets_glyphSet_holdsExactlyTheThirtyThreeClosedNames', () => {
-    expect(GLYPHS).toHaveLength(33);
-    expect(new Set(GLYPHS).size).toBe(33);
+  // The set stays closed at what the code actually draws. Phase 6's writing pack added
+  // sixteen: six card-type kickers, three carets, three role glyphs and the dice.
+  it('assets_glyphSet_holdsExactlyTheFortyNineClosedNames', () => {
+    expect(GLYPHS).toHaveLength(49);
+    expect(new Set(GLYPHS).size).toBe(49);
   });
 });

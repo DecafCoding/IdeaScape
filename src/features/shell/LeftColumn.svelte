@@ -19,6 +19,8 @@
     search?: Snippet;
     /** The canvas list, filled the same way. */
     canvases?: Snippet;
+    /** The Unplaced list, filled the same way. It draws nothing when there is nothing in it. */
+    unplaced?: Snippet;
     undoDepth?: number;
     redoDepth?: number;
     onNewNote?: () => void;
@@ -34,6 +36,7 @@
   const {
     search,
     canvases,
+    unplaced,
     undoDepth = 0,
     redoDepth = 0,
     onNewNote,
@@ -62,6 +65,8 @@
   {@render search?.()}
 
   {@render canvases?.()}
+
+  {@render unplaced?.()}
 
   <p class="section-label">Tools</p>
   <ul class="rows">
