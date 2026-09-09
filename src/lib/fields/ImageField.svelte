@@ -9,6 +9,10 @@
   which is what keeps the no-separator rule applying here for free.
 
   A file that is not in `assets/` draws §9.22's marker; the item is never deleted for it.
+
+  `full` is the summary form used by the properties panel of a type that has its own sheet:
+  the picture fills the panel's width at its own shape, and the file name and the
+  *Replace* / *Remove* pair are dropped. The sheet owns editing the picture.
 -->
 <script lang="ts">
   import Icon from '../Icon.svelte';
@@ -20,12 +24,14 @@
     value: FieldValue | undefined;
     /** The picture box's drawn size. 52px in the panel; a sheet passes its own. */
     size?: number;
+    /** Full width, read only: no file name and no Replace / Remove. */
+    full?: boolean;
     /** Opens the picker and copies the chosen file in. The root owns the assets module call. */
     onReplace?: () => void;
     onCommit?: (value: FieldValue) => void;
   }
 
-  const { field, value, size = 52, onReplace, onCommit }: Props = $props();
+  const { field, value, size = 52, full = false, onReplace, onCommit }: Props = $props();
 
   const name = $derived(typeof value === 'string' && value.length > 0 ? value : null);
   const missing = $derived(name !== null && !assetStatus(name).exists);
@@ -36,7 +42,8 @@
     <span
       class="box"
       class:missing
-      style="width: {size}px; height: {size}px"
+      class:full
+      style={full ? '' : `width: ${size}px; height: ${size}px`}
       data-testid="image-field-box"
     >
       {#if name && !missing}
@@ -47,12 +54,17 @@
         <Icon glyph="image" size={Math.round(size / 2.4)} />
       {/if}
     </span>
-    <span class="file">{name ?? 'No picture'}</span>
+    {#if !full}
+      <span class="file">{name ?? 'No picture'}</span>
+    {/if}
   </div>
-  <div class="buttons">
-    <button type="button" onclick={() => onReplace?.()}>Replace</button>
-    <button type="button" disabled={name === null} onclick={() => onCommit?.(null)}>Remove</button>
-  </div>
+  {#if !full}
+    <div class="buttons">
+      <button type="button" onclick={() => onReplace?.()}>Replace</button>
+      <button type="button" disabled={name === null} onclick={() => onCommit?.(null)}>Remove</button
+      >
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -90,6 +102,19 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  /* The picture keeps its own shape; only the width is fixed. An empty or missing one
+     still needs a body, so it gets a floor. */
+  .box.full {
+    display: flex;
+    width: 100%;
+    min-height: 64px;
+  }
+
+  .box.full img {
+    height: auto;
+    object-fit: contain;
   }
 
   .file {

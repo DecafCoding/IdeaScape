@@ -42,7 +42,7 @@ describe('the rail Cards group', () => {
     expect(queryByText('Book')).toBeNull();
   });
 
-  it('leftColumn_openingAParent_drawsA206pxFlyoutAtLeft100Percent', async () => {
+  it('leftColumn_openingAParent_drawsA206pxFlyoutPinnedToTheViewport', async () => {
     const { getByTestId, queryByTestId } = render(LeftColumn, { props: {} });
     expect(queryByTestId('cards-flyout')).toBeNull();
 
@@ -53,8 +53,8 @@ describe('the rail Cards group', () => {
     // are asserted against the source — the same way the shell's own sizes are.
     const source = readFileSync(resolve('src/features/shell/LeftColumn.svelte'), 'utf8');
     const flyoutRule = source.slice(source.indexOf('.flyout {'), source.indexOf('.flyout-row'));
-    expect(flyoutRule).toContain('position: absolute');
-    expect(flyoutRule).toContain('left: 100%');
+    // Fixed, not absolute: the rail scrolls, so an absolutely placed flyout is clipped by it.
+    expect(flyoutRule).toContain('position: fixed');
     expect(flyoutRule).toContain('width: 206px');
     expect(flyoutRule).toContain('var(--z-context-menu)');
     expect(flyoutRule).toContain('var(--shadow-context-menu)');

@@ -3,6 +3,8 @@
  * Typed as a union so `Icon.svelte` cannot be handed a glyph outside the set, which is what
  * keeps the set closed in practice and not only on paper.
  *
+ * `notebook` is the panel's Open-The-Sheet mark (§9.30) and is drawn, so it is in.
+
  * §7.1 lists 61 names. The set stays closed at what the code actually draws, because that
  * is the property that makes it enforceable: the twelve not here — the six align icons,
  * `arrows-horizontal`, `crosshair`, `gauge`, `download-simple`, `warning` and
@@ -60,6 +62,7 @@ export const GLYPHS = [
   'user',
   'map-pin',
   'squares-four',
+  'notebook',
   // … the rail's submenu carets and the panel's stepper …
   'caret-right',
   'caret-down',

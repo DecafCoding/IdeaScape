@@ -7,7 +7,11 @@
 -->
 <script lang="ts">
   import Icon from '../../lib/Icon.svelte';
-  import { blueprintForPayload, parseBlueprintPayload } from '../../lib/blueprints.svelte';
+  import {
+    blueprintForPayload,
+    fieldValueText,
+    parseBlueprintPayload,
+  } from '../../lib/blueprints.svelte';
   import FieldControl from '../../lib/fields/FieldControl.svelte';
   import { ROLES, roleLabel } from '../../lib/roles';
   import CardContext from '../../lib/fields/CardContext.svelte';
@@ -79,6 +83,8 @@
     /** Replace the picture in one Image FIELD of a writing card. */
     onReplaceFieldImage?: (key: string) => void;
     onExpandIntoCanvas?: () => void;
+    /** Open the selected writing card's own screen. Only the sheet types offer it. */
+    onOpenSheet?: (placementId: number) => void;
     onOpenPlacement?: (canvasId: number, placementId: number) => void;
     onOpenItem?: (canvasId: number, itemId: number) => void;
     /** Reveal the project's `assets/` folder in the system shell. */
@@ -109,6 +115,7 @@
     onScaleChange,
     onReplaceFieldImage,
     onExpandIntoCanvas,
+    onOpenSheet,
     onOpenPlacement,
     onOpenItem,
     onShowInFolder,
@@ -237,6 +244,15 @@
     soleItem?.kind === 'blueprint' ? blueprintForPayload(soleItem.payload) : null,
   );
 
+  /**
+   * The sheet types head their panel with a notebook button. The panel is a SUMMARY; the
+   * whole card lives on its own screen and this is the way in. Driven by the blueprint's
+   * `sheet` flag — no card type is named here.
+   */
+  const sheetPlacementId = $derived(
+    soleBlueprint?.sheet === true && selected.length === 1 ? selected[0].id : null,
+  );
+
   const headerKind = $derived.by(() => {
     if (selected.length === 0) return '';
     if (selected.length > 1) return `${selected.length} Cards`;
@@ -318,7 +334,15 @@
     const firstLong = soleBlueprint.fields.findIndex(
       (field) => field.kind === 'long-text' || field.kind === 'scale',
     );
-    return firstLong === -1 ? soleBlueprint.fields : soleBlueprint.fields.slice(0, firstLong);
+    const identity =
+      firstLong === -1 ? soleBlueprint.fields : soleBlueprint.fields.slice(0, firstLong);
+    // `name` is the card's own name and the header already prints it, so the panel does not
+    // print it twice. `panel: 'hidden'` drops the rest the summary does not want. The
+    // picture then leads, directly under that name. All read off the field's own members —
+    // no card type is named here.
+    const rest = identity.filter((field) => field.key !== 'name' && field.panel !== 'hidden');
+    const picture = rest.filter((field) => field.kind === 'image');
+    return [...picture, ...rest.filter((field) => field.kind !== 'image')];
   });
 
   /** The value of a field named by another field's `filter_by`. One hop, never a chain. */
@@ -348,6 +372,7 @@
 {#if expanded}
   <aside class="panel scroll-thin" data-testid="properties-panel" aria-label="Properties">
     {#if reserved}
+      <!-- The sheet is already open, so no notebook button here: it would go nowhere. -->
       <header class="header">
         <span class="kind">{headerKind}</span>
         <span class="item-id">{headerId}</span>
@@ -525,8 +550,21 @@
         <p class="footer-note">Edits here are undoable · {autoSaveFooterText().split('· ')[1]}</p>
       </footer>
     {:else if hasSelection}
-      <header class="header">
-        <span class="kind">{headerKind}</span>
+      <header class="header" class:has-open-sheet={sheetPlacementId !== null}>
+        <div class="header-line">
+          <span class="kind">{headerKind}</span>
+          {#if sheetPlacementId !== null}
+            <button
+              type="button"
+              class="open-sheet"
+              title="Open {headerKind}"
+              onclick={() => onOpenSheet?.(sheetPlacementId)}
+              data-testid="panel-open-sheet"
+            >
+              <Icon glyph="notebook" size={26} label="Open {headerKind}" />
+            </button>
+          {/if}
+        </div>
         <span class="item-id">{headerId}</span>
       </header>
 
@@ -579,22 +617,35 @@
              data file, not in this component. -->
         <section class="group" data-testid="panel-blueprint-fields">
           {#each panelFields as field (field.key)}
-            <FieldControl
-              {field}
-              value={blueprintPayload.fields[field.key]}
-              parent={parentFor(field.filter_by)}
-              parentLabel={parentLabelFor(field.filter_by)}
-              onCommit={(value, added) => onFieldChange?.(field.key, value, added)}
-              onCommitScale={(next, before) => onScaleChange?.(field.key, next, before)}
-              onReplaceImage={() => onReplaceFieldImage?.(field.key)}
-            />
+            {#if field.panel === 'text'}
+              <!-- Printed, not edited: the screen that owns this type owns the editing. -->
+              <p class="panel-text" data-testid="panel-text-{field.key}">
+                {fieldValueText(field, blueprintPayload.fields[field.key])}
+              </p>
+            {:else}
+              <FieldControl
+                {field}
+                value={blueprintPayload.fields[field.key]}
+                parent={parentFor(field.filter_by)}
+                parentLabel={parentLabelFor(field.filter_by)}
+                showMeaning={soleBlueprint.sheet !== true}
+                imageFull={soleBlueprint.sheet === true}
+                onCommit={(value, added) => onFieldChange?.(field.key, value, added)}
+                onCommitScale={(next, before) => onScaleChange?.(field.key, next, before)}
+                onReplaceImage={() => onReplaceFieldImage?.(field.key)}
+              />
+            {/if}
           {/each}
         </section>
       {/if}
 
+      <!-- One heading over both rows: Size sits directly under Position and needs no
+           second label to say what it is. -->
       {#each ['position', 'size'] as const as group}
-        <section class="group">
-          <p class="group-label">{group === 'position' ? 'Position' : 'Size'}</p>
+        <section class="group" class:size-row={group === 'size'}>
+          {#if group === 'position'}
+            <p class="group-label">Position / Size</p>
+          {/if}
           <div class="pairs">
             {#each FIELDS.filter((f) => f.group === group) as field (field.key)}
               {@const value = shared(field.key)}
@@ -780,6 +831,52 @@
     flex-direction: column;
   }
 
+  .header-line {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-8);
+  }
+
+  /* The 26px mark is taller than the type name, so the row aligns on TOPS, not centres,
+     and the whole header rises by the same 3px. The type name and the card name keep
+     their own spacing and move together. */
+  .header.has-open-sheet {
+    position: relative;
+    /* A 2px breath between the type name and the card name. */
+    row-gap: 2px;
+    margin-top: -3px;
+  }
+
+  .header-line {
+    align-items: flex-start;
+  }
+
+  /* No box: the mark alone is the button, at twice the panel's icon size. */
+  .open-sheet {
+    /* Taken OUT of the flow: at 26px it would otherwise set the row's height and push
+       the card name down away from the type name. */
+    position: absolute;
+    top: 0;
+    right: -3px;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-accent);
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.85;
+    transition: opacity var(--duration-90) var(--ease);
+  }
+
+  .open-sheet:hover {
+    opacity: 1;
+  }
+
   .kind {
     font-size: var(--text-13);
     font-weight: 600;
@@ -790,9 +887,24 @@
     opacity: 0.45;
   }
 
+  /* A printed field: no label, no box, and it wraps. The 2px lifts it off the picture
+     directly above it. */
+  .panel-text {
+    margin: 2px 0 0;
+    font-size: var(--text-11);
+    line-height: 1.45;
+    opacity: 0.75;
+    overflow-wrap: anywhere;
+  }
+
   .group {
     display: flex;
     flex-direction: column;
+  }
+
+  /* W and H sit under X and Y as one block, not as a second group. */
+  .group.size-row {
+    margin-top: -3px;
   }
 
   .group-label {

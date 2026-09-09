@@ -32,9 +32,10 @@ describe('vendored assets', () => {
   });
 
   // The set stays closed at what the code actually draws. Phase 6's writing pack added
-  // sixteen: six card-type kickers, three carets, three role glyphs and the dice.
-  it('assets_glyphSet_holdsExactlyTheFortyNineClosedNames', () => {
-    expect(GLYPHS).toHaveLength(49);
-    expect(new Set(GLYPHS).size).toBe(49);
+  // sixteen: six card-type kickers, three carets, three role glyphs and the dice. The
+  // panel's Open-The-Sheet notebook made fifty.
+  it('assets_glyphSet_holdsExactlyTheFiftyClosedNames', () => {
+    expect(GLYPHS).toHaveLength(50);
+    expect(new Set(GLYPHS).size).toBe(50);
   });
 });

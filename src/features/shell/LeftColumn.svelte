@@ -82,6 +82,10 @@
   /** Which submenu is open, or null. Only one at a time. */
   let openSubmenu = $state<'general' | 'writing' | null>(null);
 
+  // The rail scrolls, so it clips anything drawn outside its box. The flyout is therefore
+  // positioned against the viewport and placed from the parent row's own rectangle.
+  let flyoutPos = $state({ left: 0, top: 0 });
+
   interface CardRow {
     label: string;
     glyph: Glyph;
@@ -121,8 +125,14 @@
     }),
   );
 
-  function toggleSubmenu(which: 'general' | 'writing') {
-    openSubmenu = openSubmenu === which ? null : which;
+  function toggleSubmenu(which: 'general' | 'writing', event: MouseEvent) {
+    if (openSubmenu === which) {
+      openSubmenu = null;
+      return;
+    }
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    flyoutPos = { left: rect.right, top: rect.top };
+    openSubmenu = which;
   }
 
   function choose(row: CardRow) {
@@ -133,7 +143,13 @@
 
 <!-- §9.9's menu grammar, at §8.3's 206px. One snippet, both parents. -->
 {#snippet flyout(rows: CardRow[], label: string)}
-  <div class="flyout" role="menu" aria-label={label} data-testid="cards-flyout">
+  <div
+    class="flyout"
+    role="menu"
+    aria-label={label}
+    data-testid="cards-flyout"
+    style="left: {flyoutPos.left}px; top: {flyoutPos.top}px;"
+  >
     {#each rows as row (row.label)}
       <button type="button" class="flyout-row" role="menuitem" onclick={() => choose(row)}>
         <Icon glyph={row.glyph} size={14} />
@@ -200,7 +216,7 @@
         class:active={openSubmenu === 'general'}
         aria-expanded={openSubmenu === 'general'}
         data-testid="cards-parent-general"
-        onclick={() => toggleSubmenu('general')}
+        onclick={(event) => toggleSubmenu('general', event)}
       >
         <Icon glyph="squares-four" size={13} />
         General
@@ -218,7 +234,7 @@
           class:active={openSubmenu === 'writing'}
           aria-expanded={openSubmenu === 'writing'}
           data-testid="cards-parent-writing"
-          onclick={() => toggleSubmenu('writing')}
+          onclick={(event) => toggleSubmenu('writing', event)}
         >
           <Icon glyph="book-open" size={13} />
           Writing Pack
@@ -365,9 +381,7 @@
   }
 
   .flyout {
-    position: absolute;
-    left: 100%;
-    top: 0;
+    position: fixed;
     z-index: var(--z-context-menu);
     width: 206px;
     padding: var(--space-5) 0;
