@@ -137,6 +137,7 @@ mod tests {
             zoom_with: "ctrl-scroll".into(),
             theme: "dark".into(),
             font: "marker".into(),
+            show_writing_cards: false,
         }
     }
 
@@ -216,15 +217,16 @@ mod tests {
         assert_eq!(read_settings_at(dir.path()), non_default());
 
         let text = std::fs::read_to_string(dir.path().join("settings.json")).unwrap();
-        // Pretty-printed camelCase, exactly five keys.
+        // Pretty-printed camelCase, exactly six keys.
         assert!(text.contains("\n"));
         assert!(text.contains("\"autoSaveMs\""));
         assert!(text.contains("\"snapToGrid\""));
         assert!(text.contains("\"zoomWith\""));
         assert!(text.contains("\"theme\""));
         assert!(text.contains("\"font\""));
+        assert!(text.contains("\"showWritingCards\""));
         let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(parsed.as_object().unwrap().len(), 5);
+        assert_eq!(parsed.as_object().unwrap().len(), 6);
     }
 
     #[test]
@@ -288,5 +290,57 @@ mod tests {
         assert_eq!(read.auto_save_ms, 10000);
         assert!(read.snap_to_grid);
         assert_eq!(read.theme, "dark");
+    }
+
+    #[test]
+    fn read_settings_at_a_phase_five_file_with_no_show_writing_cards_key_reads_as_on() {
+        // A settings.json written before Phase 6 has five keys and no sixth. Reading the
+        // missing key as `false` would silently empty the Cards menu in every existing
+        // project, so `#[serde(default)]` on the container must fall back to Default's `true`.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"autoSaveMs":10000,"snapToGrid":true,"zoomWith":"ctrl-scroll",
+                "theme":"dark","font":"marker"}"#,
+        )
+        .unwrap();
+
+        let read = read_settings_at(dir.path());
+        assert!(read.show_writing_cards, "a missing key reads as on");
+        // And the five it does carry are untouched.
+        assert_eq!(read.auto_save_ms, 10000);
+        assert_eq!(read.theme, "dark");
+        assert_eq!(read.font, "marker");
+    }
+
+    #[test]
+    fn read_settings_at_show_writing_cards_false_reads_as_off() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"showWritingCards":false}"#,
+        )
+        .unwrap();
+        assert!(!read_settings_at(dir.path()).show_writing_cards);
+    }
+
+    #[test]
+    fn write_settings_writes_six_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        write_settings_at(dir.path(), &non_default()).unwrap();
+        let text = std::fs::read_to_string(dir.path().join("settings.json")).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let object = value.as_object().expect("an object");
+        assert_eq!(object.len(), 6);
+        for key in [
+            "autoSaveMs",
+            "snapToGrid",
+            "zoomWith",
+            "theme",
+            "font",
+            "showWritingCards",
+        ] {
+            assert!(object.contains_key(key), "missing {key}");
+        }
     }
 }

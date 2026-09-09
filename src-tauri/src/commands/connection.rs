@@ -588,4 +588,126 @@ mod tests {
         assert_eq!(rows[0].from_placement_id, from_id);
         assert_eq!(rows[0].to_placement_id, to_id);
     }
+
+    // ---- Task 18: connection.role ----
+
+    /// A project holding two note cards on its first canvas.
+    fn two_cards() -> (tempfile::TempDir, AppState, i64, i64, i64) {
+        let (dir, state, canvas) = open();
+        let first = card(&state, canvas, 0.0);
+        let second = card(&state, canvas, 400.0);
+        (dir, state, canvas, first, second)
+    }
+
+    #[test]
+    fn create_connection_stores_the_suggested_role() {
+        let (_dir, state, canvas, first, second) = two_cards();
+        let made = create_connection_for(
+            &state,
+            canvas,
+            first,
+            second,
+            None,
+            1,
+            Some(String::from("feeds")),
+        )
+        .unwrap();
+        assert_eq!(made.role.as_deref(), Some("feeds"));
+    }
+
+    #[test]
+    fn create_connection_with_no_suggestion_stores_null() {
+        let (_dir, state, canvas, first, second) = two_cards();
+        let made = create_connection_for(&state, canvas, first, second, None, 1, None).unwrap();
+        assert_eq!(made.role, None, "NULL reads as Relates To");
+    }
+
+    #[test]
+    fn update_connection_can_change_any_role_to_any_other() {
+        let (_dir, state, canvas, first, second) = two_cards();
+        let made = create_connection_for(
+            &state,
+            canvas,
+            first,
+            second,
+            None,
+            1,
+            Some(String::from("feeds")),
+        )
+        .unwrap();
+
+        // Every role, including one the user typed, and back to nothing. No pair is refused
+        // and no validation error exists.
+        for role in [
+            Some("follows"),
+            Some("part-of"),
+            Some("appears-in"),
+            Some("told-by"),
+            Some("set-in"),
+            Some("relates-to"),
+            Some("haunts"),
+            None,
+        ] {
+            let updated = update_connection_for(
+                &state,
+                made.id,
+                None,
+                1,
+                "default".into(),
+                1,
+                true,
+                "straight".into(),
+                "auto".into(),
+                "auto".into(),
+                String::new(),
+                role.map(String::from),
+            )
+            .unwrap();
+            assert_eq!(updated.role.as_deref(), role);
+        }
+    }
+
+    #[test]
+    fn restore_connection_puts_the_role_back() {
+        let (_dir, state, canvas, first, second) = two_cards();
+        let made = create_connection_for(
+            &state,
+            canvas,
+            first,
+            second,
+            Some(String::from("L")),
+            1,
+            Some(String::from("appears-in")),
+        )
+        .unwrap();
+
+        let removed = delete_connections_for(&state, vec![made.id]).unwrap();
+        assert_eq!(removed[0].role.as_deref(), Some("appears-in"));
+
+        let back = restore_connection_for(&state, removed[0].clone()).unwrap();
+        assert_eq!(back.role.as_deref(), Some("appears-in"));
+        assert_eq!(back.id, made.id);
+    }
+
+    #[test]
+    fn an_existing_connection_still_reads_role_null() {
+        // A row written straight into the table with no role — a Phase 5 line — must read as
+        // NULL and must never be normalised into 'relates-to' by anything that touches it.
+        let (_dir, state, canvas, first, second) = two_cards();
+        state
+            .with_db(|conn| {
+                conn.execute(
+                    "INSERT INTO connection (id, canvas_id, from_placement_id, to_placement_id,
+                                             label, directed)
+                     VALUES (900, ?1, ?2, ?3, 'old', 1)",
+                    rusqlite::params![canvas, first, second],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let rows = list_connections_for(&state, canvas).unwrap();
+        let old = rows.iter().find(|c| c.id == 900).expect("the old line");
+        assert_eq!(old.role, None);
+    }
 }

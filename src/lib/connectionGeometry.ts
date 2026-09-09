@@ -613,6 +613,39 @@ export function trimRoute(points: Point[], startInset: number, endInset: number)
  * The longest segment of a route — the only one with room for a label chip, and the one
  * rule 4's 50px threshold is measured on. Null for a route with no segment at all.
  */
+/** The whole route's length, following every segment. */
+export function routeLength(points: Point[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) total += segmentLength(points[i - 1], points[i]);
+  return total;
+}
+
+/**
+ * The point `fraction` of the way along a route, measured by LENGTH rather than by segment
+ * count — so on an elbow the midpoint really is the middle of the drawn line rather than the
+ * bend. `fraction` is clamped to 0..1.
+ *
+ * The role mark owns fraction 0.5, and a label displaced by one takes 0.25 or 0.75 (§9.13).
+ */
+export function pointAtFraction(points: Point[], fraction: number): Point | null {
+  if (points.length < 2) return null;
+  const total = routeLength(points);
+  if (total === 0) return { ...points[0] };
+  let remaining = Math.max(0, Math.min(1, fraction)) * total;
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    const length = segmentLength(a, b);
+    if (length === 0) continue;
+    if (remaining <= length) {
+      const t = remaining / length;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+    remaining -= length;
+  }
+  return { ...points[points.length - 1] };
+}
+
 export function longestSegment(points: Point[]): { a: Point; b: Point } | null {
   if (points.length < 2) return null;
   let best = { a: points[0], b: points[1] };

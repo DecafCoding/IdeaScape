@@ -28,6 +28,12 @@
   interface Props {
     /** Which shipped list to offer. */
     list: string;
+    /**
+     * A fixed vocabulary to offer INSTEAD of reading `list` through the seam. The connection
+     * Role group uses it: the seven roles are a front-end table, not a project list, so
+     * there is nothing to load and nothing to save a typed value into.
+     */
+    entries?: ListEntry[] | null;
     value: PickEntry | null;
     /** The parent field's current value, for the one-hop filter. Null sorts nothing. */
     parent?: PickEntry | null;
@@ -42,6 +48,7 @@
 
   const {
     list,
+    entries: fixedEntries = null,
     value,
     parent = null,
     parentLabel = '',
@@ -52,7 +59,8 @@
 
   let open = $state(false);
   let typed = $state('');
-  let entries = $state<ListEntry[]>([]);
+  let loaded = $state<ListEntry[]>([]);
+  const entries = $derived(fixedEntries ?? loaded);
   let highlighted = $state(-1);
   let input = $state<HTMLInputElement | null>(null);
   /** Guards the blur commit, so Enter and blur do not each write once. */
@@ -75,7 +83,7 @@
     if (open) return;
     typed = value?.text ?? '';
     settled = false;
-    entries = await loadListEntries(list);
+    if (!fixedEntries) loaded = await loadListEntries(list);
     open = true;
     highlighted = -1;
   }
@@ -114,7 +122,9 @@
       );
       return;
     }
-    const added = await addListEntry(list, text);
+    // A fixed vocabulary has no project list behind it, so a typed value is accepted and
+    // stored on the row itself with nothing written anywhere else.
+    const added = fixedEntries ? false : await addListEntry(list, text);
     onCommit?.({ id: null, text, sources: [] }, added);
   }
 

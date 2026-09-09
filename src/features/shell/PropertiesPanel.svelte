@@ -9,7 +9,8 @@
   import Icon from '../../lib/Icon.svelte';
   import { blueprintForPayload, parseBlueprintPayload } from '../../lib/blueprints.svelte';
   import FieldControl from '../../lib/fields/FieldControl.svelte';
-  import { roleGlyph, roleLabel } from '../../lib/roles';
+  import { ROLES, roleGlyph, roleLabel } from '../../lib/roles';
+  import Combo from '../../lib/fields/Combo.svelte';
   import { countInWords } from '../../lib/countInWords';
   import type { FieldValue, PickEntry } from '../../lib/blueprints.svelte';
   import type { ItemContext, ItemJoin } from '../../lib/types';
@@ -129,6 +130,30 @@
     if (next === connection.label) return;
     commitConnection({ label: next });
   }
+
+  /**
+   * The Role group. It commits through the same `commitConnection` path every other
+   * connection field uses, so setting a role is ONE `editConnectionCommand` and no new
+   * command class is needed.
+   *
+   * A typed role is accepted like any other combo value. NULL is never written back as
+   * 'relates-to': the two are indistinguishable on screen, and normalising one into the
+   * other would rewrite every old row for no visible gain.
+   */
+  function commitRole(role: string | null) {
+    if (!connection || connection.role === role) return;
+    commitConnection({ role });
+  }
+
+  /** The seven roles as combo entries. A role the user typed is not in this list, and is
+   *  accepted anyway — that is the point of the control. */
+  const roleEntries = $derived(ROLES.map((role) => ({ id: role.key, text: role.label, tags: [] })));
+
+  /** The current role as a pick entry, so the combo shows its name rather than its key. */
+  const roleValue = $derived.by(() => {
+    if (!connection?.role) return null;
+    return { id: connection.role, text: roleLabel(connection.role), sources: ['roles'] };
+  });
 
   function commitDirection(directed: number) {
     if (!connection || connection.directed === directed) return;
@@ -347,6 +372,20 @@
       <header class="header">
         <span class="kind">Connection</span>
       </header>
+
+      <!-- §9.13 places Role ABOVE Label. -->
+      <section class="group" data-testid="panel-role-group">
+        <p class="group-label">Role</p>
+        <Combo
+          list="roles"
+          entries={roleEntries}
+          value={roleValue}
+          placeholder="Relates To"
+          onCommit={(entry) =>
+            commitRole(entry.text === 'Relates To' ? null : (entry.id ?? entry.text))}
+          onClear={() => commitRole(null)}
+        />
+      </section>
 
       <section class="group">
         <p class="group-label">Label</p>

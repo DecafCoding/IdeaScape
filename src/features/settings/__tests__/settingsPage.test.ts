@@ -68,10 +68,11 @@ describe('the Settings page', () => {
   it('settingsPage_hasASeventhRowInAFullWidthPacksGroup', () => {
     const { getByTestId } = show();
     const packs = getByTestId('settings-packs');
+    const text = (packs.textContent ?? '').replace(/\s+/g, ' ');
     expect(packs.className).toContain('full-width');
-    expect(packs.textContent).toContain('Packs');
-    expect(packs.textContent).toContain('Show Writing Cards');
-    expect(packs.textContent).toContain('Cards already on a canvas stay.');
+    expect(text).toContain('Packs');
+    expect(text).toContain('Show Writing Cards');
+    expect(text).toContain('Cards already on a canvas stay.');
   });
 
   it('settingsPage_noProjectOpen_saysSoInThePathRow', () => {
